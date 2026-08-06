@@ -10,6 +10,10 @@ import type {
   Page,
   Preset,
   PresetKind,
+  ResolveChannelResult,
+  SourceChannel,
+  SourceChannelCreate,
+  SourceChannelUpdate,
   Subtitle,
   Video,
 } from "./types";
@@ -100,6 +104,30 @@ export const api = {
 
   listPresets: (kind?: PresetKind) =>
     request<Preset[]>(`/presets${kind ? `?kind=${kind}` : ""}`),
+
+  listSourceChannels: () => request<SourceChannel[]>("/source-channels"),
+
+  /** Chỉ phân tích chuỗi URL, KHÔNG gọi mạng — xem docstring `ResolveChannelResult`. */
+  resolveSourceChannel: (url: string) =>
+    request<ResolveChannelResult>("/source-channels/resolve", {
+      method: "POST",
+      body: JSON.stringify({ url }),
+    }),
+
+  createSourceChannel: (body: SourceChannelCreate) =>
+    request<SourceChannel>("/source-channels", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateSourceChannel: (id: string, body: SourceChannelUpdate) =>
+    request<SourceChannel>(`/source-channels/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  deleteSourceChannel: (id: string) =>
+    request<void>(`/source-channels/${id}`, { method: "DELETE" }),
 };
 
 export const WS_URL = `${BASE.replace(/^http/, "ws")}/ws`;

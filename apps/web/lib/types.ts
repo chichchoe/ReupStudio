@@ -137,6 +137,86 @@ export interface BulkResult {
   skipped: BulkSkip[];
 }
 
+/** Khớp `LicenseStatus` (StrEnum) ở `reup_core/enums.py`. */
+export type LicenseStatus = "unknown" | "permitted" | "licensed" | "open" | "own";
+
+/**
+ * Nhãn tiếng Việt cho tình trạng bản quyền. `unknown` là chốt an toàn pháp lý —
+ * backend chặn xử lý tự động cho kênh này, giao diện phải hiển thị rõ, không
+ * làm mờ nhạt đi (xem `LicenseStatusBadge`).
+ */
+export const LICENSE_STATUS_LABEL: Record<LicenseStatus, string> = {
+  unknown: "Chưa rõ",
+  permitted: "Đã xin phép",
+  licensed: "Có hợp đồng",
+  open: "Nguồn mở",
+  own: "Của mình",
+};
+
+/** Khớp `SourceChannelOut` ở `schemas/source_channel.py`. */
+export interface SourceChannel {
+  id: string;
+  platform: string;
+  external_id: string;
+  handle: string | null;
+  display_name: string | null;
+  url: string;
+  scan_interval_min: number;
+  last_scanned_at: string | null;
+  last_seen_video_id: string | null;
+  filter_preset_id: string | null;
+  process_preset_id: string | null;
+  license_status: LicenseStatus;
+  license_note: string | null;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Khớp `SourceChannelCreate` ở `schemas/source_channel.py`. */
+export interface SourceChannelCreate {
+  platform: string;
+  external_id: string;
+  url: string;
+  handle?: string | null;
+  display_name?: string | null;
+  scan_interval_min?: number;
+  filter_preset_id?: string | null;
+  process_preset_id?: string | null;
+  license_status?: LicenseStatus;
+  license_note?: string | null;
+  enabled?: boolean;
+}
+
+/** Khớp `SourceChannelUpdate` ở `schemas/source_channel.py` — mọi trường tuỳ chọn. */
+export interface SourceChannelUpdate {
+  handle?: string | null;
+  display_name?: string | null;
+  scan_interval_min?: number;
+  last_seen_video_id?: string | null;
+  filter_preset_id?: string | null;
+  process_preset_id?: string | null;
+  license_status?: LicenseStatus;
+  license_note?: string | null;
+  enabled?: boolean;
+}
+
+/**
+ * Khớp `ResolveChannelResult` ở `schemas/source_channel.py`. `display_name`,
+ * `follower_count`, `sample_videos` LUÔN null/rỗng ở M2 — endpoint chỉ phân
+ * tích chuỗi URL, không gọi mạng. Đừng thiết kế UI dựa trên các trường này.
+ */
+export interface ResolveChannelResult {
+  platform: string;
+  external_id: string;
+  handle: string | null;
+  url: string;
+  display_name: string | null;
+  follower_count: number | null;
+  sample_videos: string[];
+  needs_scan: boolean;
+}
+
 /** Sự kiện đẩy xuống qua WebSocket. */
 export type WsEvent =
   | { type: "hello"; clients: number }
