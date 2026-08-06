@@ -98,3 +98,12 @@ AUTO_ALLOWED_LICENSES = frozenset(
         LicenseStatus.OWN,
     }
 )
+
+
+class PresetKind(StrEnum):
+    """Loại preset cấu hình chỉnh được từ giao diện — đổi preset không cần sửa code."""
+
+    FILTER = "filter"  # điều kiện lọc video nguồn
+    PROCESS = "process"  # cấu hình xử lý (tone, phụ đề burn-in, ...)
+    ANTIDUP = "antidup"  # cấu hình chống trùng
+    SUBTITLE = "subtitle"  # cấu hình hiển thị phụ đề (font, cỡ chữ, ...)

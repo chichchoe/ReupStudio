@@ -13,7 +13,7 @@ from reup_core.logging import get_logger, setup_logging
 
 from .config import get_settings
 from .errors import ApiError, api_error_handler
-from .routers import health, videos, ws
+from .routers import health, presets, videos, ws
 from .ws.manager import WsManager
 
 log = get_logger(__name__)
@@ -50,6 +50,7 @@ app.add_exception_handler(ApiError, api_error_handler)
 API_PREFIX = "/api/v1"
 app.include_router(health.router, prefix=API_PREFIX)
 app.include_router(videos.router, prefix=API_PREFIX)
+app.include_router(presets.router, prefix=API_PREFIX)
 app.include_router(ws.router)
 
 
