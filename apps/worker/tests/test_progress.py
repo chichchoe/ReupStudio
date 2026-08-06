@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.ffmpeg.runner import parse_progress_line
+from src.ffmpeg.runner import out_time_to_percent, parse_progress_line
 from src.milestones import MIN_MILESTONES, milestones, percent_of
 from src.pipeline.cues import Cue
 from src.pipeline.subtitle_format import format_cues
@@ -104,6 +104,48 @@ def test_tra_none_cho_dong_khong_phai_out_time_ms(line: str) -> None:
 
 def test_out_time_ms_khong_parse_duoc_thi_tra_none() -> None:
     assert parse_progress_line("out_time_ms=N/A") is None
+
+
+# --------------------------------------------------------------------------- #
+# out_time_to_percent()
+# --------------------------------------------------------------------------- #
+
+
+def test_out_time_to_percent_dung_so_do_that_tu_ffmpeg() -> None:
+    """Số đo thật lấy từ ffmpeg: video 15s, dòng -progress cuối cho
+    out_time_ms=14_933_333 — hiểu đúng là micro giây (14.93s / 15s ≈ 99%)."""
+    assert out_time_to_percent(14_933_333, 15.0) == 99
+
+
+def test_out_time_to_percent_neu_hieu_nham_mili_giay_thi_vo_ly() -> None:
+    """Nếu hiểu out_time_ms là mili giây thật (chia 1000) thay vì micro giây
+    (chia 1_000_000) như brief gốc viết verbatim, % vọt qua 100 ngay dòng
+    progress ĐẦU TIÊN và kẹp cứng — vô hiệu hoá hoàn toàn việc bắn tiến trình
+    mượt. Đây chính là bug đã tìm ra khi kiểm bằng ffmpeg thật."""
+    out_time_us = 14_933_333
+    duration_sec = 15.0
+    hieu_nham_la_ms = max(0, min(100, int(out_time_us / 1000 / duration_sec * 100)))
+    assert hieu_nham_la_ms == 100  # vô lý — mới 14.9/15s mà đã báo xong
+
+    dung = out_time_to_percent(out_time_us, duration_sec)
+    assert dung == 99  # hiểu đúng micro giây thì gần xong nhưng chưa 100
+
+
+def test_out_time_to_percent_ket_thuc_dung_100() -> None:
+    assert out_time_to_percent(15_000_000, 15.0) == 100
+
+
+def test_out_time_to_percent_khong_vuot_qua_100_khi_vuot_duration() -> None:
+    assert out_time_to_percent(20_000_000, 15.0) == 100
+
+
+def test_out_time_to_percent_khong_am_khi_out_time_am() -> None:
+    assert out_time_to_percent(-5000, 15.0) == 0
+
+
+def test_out_time_to_percent_duration_khong_duong_tra_ve_0() -> None:
+    assert out_time_to_percent(1000, 0) == 0
+    assert out_time_to_percent(1000, -5) == 0
 
 
 # --------------------------------------------------------------------------- #

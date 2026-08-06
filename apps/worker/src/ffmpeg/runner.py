@@ -69,7 +69,10 @@ def parse_progress_line(line: str) -> int | None:
     """Đọc ``out_time_ms=<số>`` từ một dòng ``-progress``, ``None`` nếu không phải.
 
     Hàm thuần — test được mà không cần ffmpeg. Các dòng khác (``frame=12``,
-    ``progress=continue``, dòng rỗng, dòng rác) đều trả ``None``.
+    ``progress=continue``, dòng rỗng, dòng rác) đều trả ``None``. Tên trường
+    giữ nguyên ``out_time_ms`` vì đó là tên ffmpeg in ra — xem
+    :func:`out_time_to_percent` để biết vì sao giá trị của nó thực ra là micro
+    giây chứ không phải mili giây.
     """
     line = line.strip()
     if not line or "=" not in line:
@@ -83,6 +86,26 @@ def parse_progress_line(line: str) -> int | None:
         return None
 
 
+def out_time_to_percent(out_time_us: int, duration_sec: float) -> int:
+    """Quy đổi mốc thời gian ``-progress`` của ffmpeg sang % kẹp trong [0, 100].
+
+    Tham số đặt tên ``out_time_us`` (KHÔNG phải ``out_time_ms``) có chủ đích:
+    trường ``out_time_ms`` mà ffmpeg in ra thực chất tính bằng MICRO giây, tên
+    gọi đánh lừa (quirk lâu năm của ffmpeg, không phải lỗi gõ nhầm ở đây).
+    Kiểm bằng ffmpeg thật: video dài 15s cho dòng ``out_time_ms`` cuối cùng
+    ``~14_933_333`` — chỉ hợp lý nếu hiểu là micro giây (``14.93s``); hiểu
+    nhầm là mili giây sẽ ra ``~14933s`` (~4 tiếng, vô lý) và % sẽ vọt qua 100
+    ngay dòng progress đầu tiên, kẹp cứng ở 100 — xem
+    ``test_out_time_to_percent_neu_hieu_nham_mili_giay_thi_vo_ly`` trong
+    ``tests/test_progress.py``.
+
+    ``duration_sec <= 0`` trả ``0`` thay vì chia cho 0.
+    """
+    if duration_sec <= 0:
+        return 0
+    return max(0, min(100, int(out_time_us / 1_000_000 / duration_sec * 100)))
+
+
 def run_ffmpeg_progress(
     args: list[str],
     *,
@@ -94,8 +117,11 @@ def run_ffmpeg_progress(
 
     Đọc từng dòng stdout qua ``subprocess.Popen`` (không ``shell=True``). stderr
     được đọc song song ở luồng riêng để không bị đầy pipe làm treo tiến trình.
-    Có timeout qua ``threading.Timer`` kill tiến trình khi quá hạn. Mã trả về
-    khác 0 thì ``raise FFmpegError`` kèm 2000 ký tự cuối stderr.
+    Có timeout qua ``threading.Timer`` kill tiến trình khi quá hạn. ``-stats_period
+    0.1`` để ffmpeg báo tiến trình dày hơn mặc định (~0.5s) — video ngắn vẫn ra
+    đủ mốc. Nếu ``on_percent`` ném lỗi (vd mất Redis giữa chừng) thì kill tiến
+    trình con trước khi raise lại — không để lại tiến trình ffmpeg mồ côi.
+    Mã trả về khác 0 thì ``raise FFmpegError`` kèm 2000 ký tự cuối stderr.
     """
     cmd = [
         ffmpeg_bin(),
@@ -104,53 +130,52 @@ def run_ffmpeg_progress(
         "-y",
         "-progress", "pipe:1",
         "-nostats",
+        "-stats_period", "0.1",
         *args,
     ]
     limit = timeout or get_settings().ffmpeg_timeout_sec
     log.debug("ffmpeg.run_progress", cmd=" ".join(cmd), timeout=limit)
 
-    proc = subprocess.Popen(
+    with subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
-    stderr_lines: list[str] = []
+    ) as proc:
+        stderr_lines: list[str] = []
 
-    def _drain_stderr() -> None:
-        if proc.stderr is None:
-            return
-        for line in proc.stderr:
-            stderr_lines.append(line)
+        def _drain_stderr() -> None:
+            if proc.stderr is None:
+                return
+            for line in proc.stderr:
+                stderr_lines.append(line)
 
-    stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
-    stderr_thread.start()
+        stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+        stderr_thread.start()
 
-    timed_out = threading.Event()
-    timer = threading.Timer(limit, lambda: (timed_out.set(), proc.kill()))
-    timer.start()
+        timed_out = threading.Event()
+        timer = threading.Timer(limit, lambda: (timed_out.set(), proc.kill()))
+        timer.start()
 
-    last_percent: int | None = None
-    try:
-        if proc.stdout is not None:
-            for line in proc.stdout:
-                out_time_ms = parse_progress_line(line)
-                if out_time_ms is None:
-                    continue
-                percent = 0
-                if duration_sec > 0:
-                    # LƯU Ý: trường "out_time_ms" của ffmpeg thực ra tính bằng
-                    # MICRO giây, không phải mili giây như tên gọi (quirk lâu năm
-                    # của ffmpeg, kiểm bằng tay: video 15s cho out_time_ms cuối
-                    # ~14_933_333, chỉ khớp nếu hiểu là micro giây). Chia 1_000_000
-                    # để ra giây, không phải chia 1000.
-                    percent = max(
-                        0, min(100, int(out_time_ms / 1_000_000 / duration_sec * 100))
-                    )
-                if percent != last_percent:
-                    on_percent(percent)
-                    last_percent = percent
-        proc.wait()
-    finally:
-        timer.cancel()
-        stderr_thread.join(timeout=5)
+        last_percent: int | None = None
+        try:
+            if proc.stdout is not None:
+                for line in proc.stdout:
+                    out_time_us = parse_progress_line(line)
+                    if out_time_us is None:
+                        continue
+                    percent = out_time_to_percent(out_time_us, duration_sec)
+                    if percent != last_percent:
+                        on_percent(percent)
+                        last_percent = percent
+            proc.wait()
+        except BaseException:
+            # on_percent ném lỗi (vd mất Redis) hoặc bất kỳ lỗi nào khác giữa
+            # chừng: giết tiến trình ffmpeg con trước khi raise tiếp, không để
+            # nó chạy mồ côi.
+            proc.kill()
+            proc.wait()
+            raise
+        finally:
+            timer.cancel()
+            stderr_thread.join(timeout=5)
 
     if timed_out.is_set():
         raise FFmpegError(f"FFmpeg quá thời gian cho phép: {limit}s")
