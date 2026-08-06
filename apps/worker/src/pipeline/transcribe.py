@@ -11,6 +11,7 @@ from reup_core.logging import get_logger
 
 from ..config import get_settings
 from ..errors import TranscribeError
+from ..milestones import milestones
 from .cues import Cue
 
 log = get_logger(__name__)
@@ -74,6 +75,12 @@ def transcribe(audio_path: Path, *, language: str = "zh", progress_cb=None) -> l
     )
 
     total = float(getattr(info, "duration", 0.0)) or 1.0
+    #: Số segment không biết trước (generator whisper) nên không dùng
+    #: milestones(số_segment) như format_cues — thay vào đó dàn mốc theo %
+    #: thời lượng (milestones(100)) rồi bắn dần khi vượt ngưỡng. Đảm bảo đủ
+    #: ít nhất MIN_MILESTONES mốc kể cả khi audio chỉ có 1-2 segment.
+    marks = sorted(milestones(100)) if progress_cb else []
+    next_mark = 0
     cues: list[Cue] = []
     for index, seg in enumerate(segments):
         text = (seg.text or "").strip()
@@ -81,7 +88,15 @@ def transcribe(audio_path: Path, *, language: str = "zh", progress_cb=None) -> l
             continue
         cues.append(Cue(index, float(seg.start), float(seg.end), text))
         if progress_cb:
-            progress_cb(min(99, int(seg.end / total * 100)))
+            percent = min(99, int(seg.end / total * 100))
+            while next_mark < len(marks) and marks[next_mark] <= percent:
+                progress_cb(marks[next_mark])
+                next_mark += 1
+
+    if progress_cb:
+        while next_mark < len(marks):
+            progress_cb(marks[next_mark])
+            next_mark += 1
 
     log.info("whisper.done", cues=len(cues), duration=total)
     return cues

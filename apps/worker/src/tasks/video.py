@@ -22,6 +22,7 @@ from ..config import get_settings
 from ..errors import VideoTooLongError
 from ..ffmpeg.burn import extract_audio
 from ..ffmpeg.probe import probe
+from ..milestones import percent_of
 from ..pipeline.cues import Cue, cues_from_dicts, cues_to_dicts
 from ..pipeline.dedup import fingerprint, is_similar_phash
 from ..pipeline.download import download_video
@@ -162,6 +163,7 @@ def download_video_task(session, video) -> dict:
 @app.task(name="reup.probe_video")
 @pipeline_step(PipelineStep.PROBE)
 def probe_video_task(session, video) -> dict:
+    vid = str(video.id)
     source = Path(video.raw_path) if video.raw_path else raw_video(
         video.source_platform, video.source_video_id
     )
@@ -181,7 +183,11 @@ def probe_video_task(session, video) -> dict:
     video.has_audio = info.has_audio
     video.flags = {**video.flags, "is_vertical": info.is_vertical}
 
-    build_proxy(str(video.id), source)
+    def on_proxy_progress(percent: int) -> None:
+        # build_proxy là phần chạy lâu của bước probe -> ánh xạ vào 10-95%.
+        prog.progress(vid, PipelineStep.PROBE.value, percent_of(percent, 100, lo=10, hi=95))
+
+    build_proxy(vid, source, progress_cb=on_proxy_progress, duration_sec=info.duration_sec)
     return {
         "duration": info.duration_sec,
         "resolution": f"{info.width}x{info.height}",
@@ -239,6 +245,7 @@ def translate_video_task(session, video) -> dict:
 @app.task(name="reup.format_subtitles")
 @pipeline_step(PipelineStep.FORMAT_SUB)
 def format_subtitles_task(session, video) -> dict:
+    vid = str(video.id)
     settings = get_settings()
     vi_cues = _load_subtitle(session, video, "vi")
     if not vi_cues:
@@ -251,6 +258,7 @@ def format_subtitles_task(session, video) -> dict:
             max_lines=settings.sub_max_lines,
             min_duration=settings.sub_min_duration,
         ),
+        progress_cb=lambda p: prog.progress(vid, PipelineStep.FORMAT_SUB.value, p),
     )
     _save_subtitle(session, video, "vi", "llm", formatted)
     return {"cues_before": len(vi_cues), "cues_after": len(formatted)}
@@ -277,7 +285,13 @@ def render_video_task(session, video) -> dict:
         prog.status_changed(vid, VideoStatus.READY.value, None)
         return {"subtitles": 0, "note": "không có lời thoại, giữ nguyên video"}
 
-    out = render_with_subtitles(vid, source, vi_cues)
+    out = render_with_subtitles(
+        vid,
+        source,
+        vi_cues,
+        progress_cb=lambda p: prog.progress(vid, PipelineStep.RENDER.value, p),
+        duration_sec=video.duration_sec,
+    )
     video.out_path = str(out)
     video.status = VideoStatus.READY
     video.current_step = None

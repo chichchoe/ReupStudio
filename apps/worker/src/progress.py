@@ -12,6 +12,16 @@ import redis
 from reup_core.logging import get_logger
 
 from .config import get_settings
+from .milestones import MIN_MILESTONES, milestones, percent_of
+
+__all__ = [
+    "MIN_MILESTONES",
+    "alert",
+    "milestones",
+    "percent_of",
+    "progress",
+    "status_changed",
+]
 
 log = get_logger(__name__)
 _client: redis.Redis | None = None
@@ -44,7 +54,9 @@ def progress(video_id: str, step: str, percent: int, note: str | None = None) ->
     )
 
 
-def status_changed(video_id: str, status: str, step: str | None = None, error: str | None = None) -> None:
+def status_changed(
+    video_id: str, status: str, step: str | None = None, error: str | None = None
+) -> None:
     _publish(
         f"reup:status:{video_id}",
         {

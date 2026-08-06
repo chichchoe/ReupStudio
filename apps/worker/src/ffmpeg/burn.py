@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from reup_core.paths import tmp_sibling
 
 from ..config import get_settings
-from .runner import run_ffmpeg
+from .runner import run_ffmpeg, run_ffmpeg_progress
 
 
 def _escape_for_filter(path: Path) -> str:
@@ -40,30 +41,43 @@ def build_force_style() -> str:
     return ",".join(parts)
 
 
-def burn_subtitles(src: Path, srt: Path, dst: Path, *, timeout: int | None = None) -> Path:
+def burn_subtitles(
+    src: Path,
+    srt: Path,
+    dst: Path,
+    *,
+    timeout: int | None = None,
+    progress_cb: Callable[[int], None] | None = None,
+    duration_sec: float | None = None,
+) -> Path:
     """Ghi phụ đề vào khung hình.
 
     Ghi ra file tạm rồi rename để không bao giờ có file dở dang ở đường dẫn đích.
+    Truyền cả ``progress_cb`` lẫn ``duration_sec`` thì bắn tiến trình qua
+    ``run_ffmpeg_progress``; thiếu một trong hai thì giữ nguyên hành vi cũ.
     """
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
 
     vf = f"subtitles='{_escape_for_filter(srt)}':force_style='{build_force_style()}'"
-    run_ffmpeg(
-        [
-            "-i", str(src),
-            "-vf", vf,
-            "-c:v", "libx264",
-            "-preset", "medium",
-            "-crf", "21",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-movflags", "+faststart",
-            str(tmp),
-        ],
-        timeout=timeout,
-    )
+    args = [
+        "-i", str(src),
+        "-vf", vf,
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "21",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-movflags", "+faststart",
+        str(tmp),
+    ]
+    if progress_cb is not None and duration_sec is not None:
+        run_ffmpeg_progress(
+            args, duration_sec=duration_sec, on_percent=progress_cb, timeout=timeout
+        )
+    else:
+        run_ffmpeg(args, timeout=timeout)
     tmp.replace(dst)
     return dst
 
@@ -79,19 +93,27 @@ def extract_audio(src: Path, dst: Path) -> Path:
     return dst
 
 
-def make_proxy(src: Path, dst: Path) -> Path:
+def make_proxy(
+    src: Path,
+    dst: Path,
+    *,
+    progress_cb: Callable[[int], None] | None = None,
+    duration_sec: float | None = None,
+) -> Path:
     """Bản 540p nhẹ để tua mượt trên web. Render cuối vẫn dùng bản gốc."""
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
-    run_ffmpeg(
-        [
-            "-i", str(src),
-            "-vf", "scale=-2:540",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
-            "-c:a", "aac", "-b:a", "96k",
-            "-movflags", "+faststart",
-            str(tmp),
-        ]
-    )
+    args = [
+        "-i", str(src),
+        "-vf", "scale=-2:540",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
+        "-c:a", "aac", "-b:a", "96k",
+        "-movflags", "+faststart",
+        str(tmp),
+    ]
+    if progress_cb is not None and duration_sec is not None:
+        run_ffmpeg_progress(args, duration_sec=duration_sec, on_percent=progress_cb)
+    else:
+        run_ffmpeg(args)
     tmp.replace(dst)
     return dst

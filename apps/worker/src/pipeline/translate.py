@@ -12,6 +12,7 @@ from reup_core.logging import get_logger
 
 from ..config import get_settings
 from ..errors import TranslateError
+from ..milestones import milestones, percent_of
 from ..translator import get_translator
 from .cues import Cue
 
@@ -49,17 +50,21 @@ def translate_cues(
     merged_glossary = {**DEFAULT_GLOSSARY, **(glossary or {})}
 
     batches = chunk(cues, settings.llm_batch_size)
+    total = len(batches)
+    #: Bắn theo mốc dàn đều thay vì mọi lô — vẫn đủ MIN_MILESTONES kể cả khi
+    #: ít lô (batch nhỏ), theo milestones().
+    marks = milestones(total) if progress_cb else set()
     out: list[Cue] = []
 
-    for index, batch in enumerate(batches):
+    for index, batch in enumerate(batches, start=1):
         texts = [c.text for c in batch]
         translated = _translate_with_guard(translator, texts, tone, merged_glossary)
         out.extend(
             cue.with_text(text.strip() or cue.text)
             for cue, text in zip(batch, translated, strict=True)
         )
-        if progress_cb:
-            progress_cb(int((index + 1) / len(batches) * 100))
+        if progress_cb and index in marks:
+            progress_cb(percent_of(index, total))
 
     if len(out) != len(cues):  # chốt chặn cuối — không bao giờ được xảy ra
         raise TranslateError(f"Số dòng sau dịch ({len(out)}) khác đầu vào ({len(cues)})")

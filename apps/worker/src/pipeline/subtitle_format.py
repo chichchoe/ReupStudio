@@ -11,8 +11,10 @@ Quy tắc (đọc từ cấu hình):
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
+from ..milestones import milestones, percent_of
 from .cues import Cue
 
 
@@ -112,8 +114,18 @@ def enforce_timing(cues: list[Cue], opts: FormatOptions) -> list[Cue]:
     return result
 
 
-def format_cues(cues: list[Cue], opts: FormatOptions | None = None) -> list[Cue]:
-    """Pipeline chuẩn hoá đầy đủ: bỏ rỗng → gộp ngắn → ngắt dòng → chỉnh thời gian."""
+def format_cues(
+    cues: list[Cue],
+    opts: FormatOptions | None = None,
+    *,
+    progress_cb: Callable[[int], None] | None = None,
+) -> list[Cue]:
+    """Pipeline chuẩn hoá đầy đủ: bỏ rỗng → gộp ngắn → ngắt dòng → chỉnh thời gian.
+
+    ``progress_cb`` (nếu có) được gọi khi duyệt qua bước ngắt dòng, theo các
+    mốc từ ``milestones()`` — đảm bảo ít nhất 5 mốc phần trăm khác nhau kể cả
+    khi ít cue.
+    """
     opts = opts or FormatOptions()
 
     cleaned = [
@@ -125,9 +137,14 @@ def format_cues(cues: list[Cue], opts: FormatOptions | None = None) -> list[Cue]
         return []
 
     merged = merge_short_cues(cleaned, opts)
-    wrapped = [
-        c.with_text(wrap_text(c.text, opts.max_chars_per_line, opts.max_lines))
-        for c in merged
-    ]
+    total = len(merged)
+    marks = milestones(total) if progress_cb else set()
+
+    wrapped: list[Cue] = []
+    for done, c in enumerate(merged, start=1):
+        wrapped.append(c.with_text(wrap_text(c.text, opts.max_chars_per_line, opts.max_lines)))
+        if progress_cb and done in marks:
+            progress_cb(percent_of(done, total))
+
     timed = enforce_timing(wrapped, opts)
     return [Cue(index, c.start, c.end, c.text) for index, c in enumerate(timed)]
