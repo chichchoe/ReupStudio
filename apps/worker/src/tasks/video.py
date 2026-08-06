@@ -12,7 +12,7 @@ from pathlib import Path
 from celery import chain
 from reup_core.enums import M1_STEPS, PipelineStep, VideoStatus
 from reup_core.logging import get_logger
-from reup_core.models import Subtitle
+from reup_core.models import Subtitle, Video
 from reup_core.paths import audio_path, raw_video, subtitle_path
 from sqlalchemy import select
 
@@ -23,7 +23,8 @@ from ..errors import VideoTooLongError
 from ..ffmpeg.burn import extract_audio
 from ..ffmpeg.probe import probe
 from ..pipeline.cues import Cue, cues_from_dicts, cues_to_dicts
-from ..pipeline.download import download_video, file_md5
+from ..pipeline.dedup import fingerprint, is_similar_phash
+from ..pipeline.download import download_video
 from ..pipeline.render import build_proxy, render_with_subtitles
 from ..pipeline.subtitle_format import FormatOptions, format_cues
 from ..pipeline.transcribe import transcribe
@@ -50,6 +51,60 @@ def _load_subtitle(session, video, lang: str) -> list[Cue]:
         select(Subtitle).where(Subtitle.video_id == video.id, Subtitle.lang == lang)
     )
     return cues_from_dicts(row.cues) if row else []
+
+
+def _find_duplicate(session, video) -> tuple[Video, str] | None:
+    """Tìm video đã có trùng với ``video``. Trả về ``(video_cũ, lý_do)``.
+
+    Chỉ đối chiếu với video còn sống và chưa bị đánh dấu trùng — nhờ vậy bản
+    trùng luôn trỏ về bản gốc, không tạo chuỗi trùng-của-trùng.
+    """
+    settings = get_settings()
+    alive = (
+        select(Video)
+        .where(
+            Video.id != video.id,
+            Video.deleted_at.is_(None),
+            Video.status != VideoStatus.SKIPPED.value,
+        )
+    )
+
+    if video.md5:
+        # Trùng từng byte: có index trên (md5), lấy bản cũ nhất làm bản gốc.
+        exact = session.scalars(
+            alive.where(Video.md5 == video.md5).order_by(Video.created_at.asc()).limit(1)
+        ).first()
+        if exact is not None:
+            return exact, "md5"
+
+    if video.phash:
+        # pHash phải so trong Python nên chỉ quét cửa sổ video gần đây nhất.
+        candidates = session.scalars(
+            alive.where(Video.phash.is_not(None))
+            .order_by(Video.created_at.desc())
+            .limit(settings.dedup_phash_scan_limit)
+        ).all()
+        for other in candidates:
+            if is_similar_phash(
+                video.phash, other.phash, max_distance=settings.dedup_phash_max_distance
+            ):
+                return other, "phash"
+
+    return None
+
+
+def _mark_duplicate(video, original: Video, reason: str) -> None:
+    """Đánh dấu trùng và dừng pipeline tại đây (các bước sau tự bỏ qua)."""
+    vid = str(video.id)
+    video.status = VideoStatus.SKIPPED
+    video.current_step = None
+    video.flags = {
+        **video.flags,
+        "duplicate_of": str(original.id),
+        "duplicate_reason": reason,
+    }
+    log.info("dedup.duplicate", video_id=vid, original_id=str(original.id), reason=reason)
+    prog.status_changed(vid, VideoStatus.SKIPPED.value, None)
 
 
 # --------------------------------------------------------------------------- #
@@ -82,8 +137,26 @@ def download_video_task(session, video) -> dict:
     if result.view_count:
         video.view_count_source = result.view_count
 
-    video.md5 = file_md5(result.path)
-    return {"size_bytes": result.path.stat().st_size, "md5": video.md5}
+    settings = get_settings()
+    prints = fingerprint(result.path, frames=settings.dedup_phash_frames)
+    video.md5 = prints.md5
+    video.phash = prints.phash
+
+    meta = {
+        "size_bytes": result.path.stat().st_size,
+        "md5": prints.md5,
+        "phash": prints.phash,
+    }
+    if not settings.dedup_enabled:
+        return meta
+
+    found = _find_duplicate(session, video)
+    if found is None:
+        return meta
+
+    original, reason = found
+    _mark_duplicate(video, original, reason)
+    return meta | {"duplicate_of": str(original.id), "duplicate_reason": reason}
 
 
 @app.task(name="reup.probe_video")

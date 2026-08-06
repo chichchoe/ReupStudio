@@ -41,6 +41,12 @@ def pipeline_step(step: PipelineStep) -> Callable:
             started = time.perf_counter()
             with session_scope() as session:
                 video = load_video(session, video_id)
+                #: Video bị loại (trùng, hoặc bộ lọc chặn) thì mọi bước còn lại
+                #: của chain thành no-op — rẻ hơn và sạch hơn là huỷ chain giữa
+                #: chừng bằng cách raise, vì raise sẽ bị ghi thành lỗi thật.
+                if video.status == VideoStatus.SKIPPED:
+                    log.info("step.skipped", step=step.value, video_id=str(video_id))
+                    return str(video_id)
                 run = JobRun(
                     video_id=video.id,
                     step=step.value,

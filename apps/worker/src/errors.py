@@ -37,3 +37,7 @@ class TranslateError(ReupError):
 
 class VideoTooLongError(ReupError):
     pass
+
+
+class DedupError(ReupError):
+    """Không tính hoặc không so sánh được dấu vân tay video."""

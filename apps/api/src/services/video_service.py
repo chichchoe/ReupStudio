@@ -56,10 +56,12 @@ def create_from_links(
 ) -> dict[str, Any]:
     """Tạo bản ghi video từ danh sách link.
 
-    Idempotent: link đã có trong DB thì trả lại bản ghi cũ, không tạo mới.
+    Idempotent: link đã có trong DB thì TRẢ LẠI id của bản ghi cũ trong
+    ``duplicate_ids``, không tạo mới. Đây là lớp chống trùng thứ nhất (theo
+    ``source_video_id``); lớp md5/pHash chạy sau khi tải xong ở worker.
     """
     created: list[Video] = []
-    skipped = 0
+    duplicates: list[Video] = []
     invalid: list[str] = []
 
     for raw_url in urls:
@@ -75,7 +77,7 @@ def create_from_links(
             )
         )
         if existing is not None:
-            skipped += 1
+            duplicates.append(existing)
             continue
 
         video = Video(
@@ -92,9 +94,10 @@ def create_from_links(
     db.flush()
     return {
         "created": len(created),
-        "skipped_duplicate": skipped,
+        "skipped_duplicate": len(duplicates),
         "invalid": invalid,
         "video_ids": [v.id for v in created],
+        "duplicate_ids": [v.id for v in duplicates],
     }
 
 

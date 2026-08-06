@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-from pathlib import Path
-
 from reup_core.enums import SourcePlatform
 from reup_core.logging import get_logger
 from reup_core.paths import raw_dir, raw_meta
@@ -39,12 +36,3 @@ def download_video(
     )
     log.info("download.done", path=str(result.path), size=result.path.stat().st_size)
     return result
-
-
-def file_md5(path: Path, chunk_size: int = 1 << 20) -> str:
-    """MD5 để chống trùng. Đọc theo khối để không nạp cả file vào RAM."""
-    digest = hashlib.md5()
-    with path.open("rb") as fh:
-        while block := fh.read(chunk_size):
-            digest.update(block)
-    return digest.hexdigest()

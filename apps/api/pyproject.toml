@@ -23,6 +23,14 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["src*"]
 
+[tool.pytest.ini_options]
+# api và worker đều có package tên `src`; ép `pythonpath = .` để chạy trong thư
+# mục nào thì lấy `src` của app đó, không phụ thuộc thứ tự sys.path.
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = ["test_*.py"]
+addopts = "-q"
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

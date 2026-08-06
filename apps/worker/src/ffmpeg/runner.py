@@ -28,26 +28,39 @@ def ffprobe_bin() -> str:
     return path
 
 
-def run_ffmpeg(args: list[str], *, timeout: int | None = None) -> str:
-    """Chạy ffmpeg với danh sách tham số (KHÔNG dùng shell=True).
-
-    Khi lỗi giữ 2000 ký tự cuối stderr — FFmpeg báo lỗi ở cuối.
-    """
+def _run(args: list[str], *, timeout: int | None, text: bool):
     cmd = [ffmpeg_bin(), "-hide_banner", "-loglevel", "error", "-y", *args]
     log.debug("ffmpeg.run", cmd=" ".join(cmd))
     try:
         proc = subprocess.run(
             cmd,
             capture_output=True,
-            text=True,
+            text=text,
             timeout=timeout or get_settings().ffmpeg_timeout_sec,
         )
     except subprocess.TimeoutExpired as exc:
         raise FFmpegError(f"FFmpeg quá thời gian cho phép: {exc}") from exc
 
     if proc.returncode != 0:
-        raise FFmpegError(proc.stderr[-2000:] or "ffmpeg thất bại không rõ lý do")
+        stderr = proc.stderr if text else proc.stderr.decode("utf-8", "replace")
+        raise FFmpegError(stderr[-2000:] or "ffmpeg thất bại không rõ lý do")
     return proc.stdout
+
+
+def run_ffmpeg(args: list[str], *, timeout: int | None = None) -> str:
+    """Chạy ffmpeg với danh sách tham số (KHÔNG dùng shell=True).
+
+    Khi lỗi giữ 2000 ký tự cuối stderr — FFmpeg báo lỗi ở cuối.
+    """
+    return _run(args, timeout=timeout, text=True)
+
+
+def run_ffmpeg_binary(args: list[str], *, timeout: int | None = None) -> bytes:
+    """Như ``run_ffmpeg`` nhưng trả stdout dạng nhị phân.
+
+    Dùng khi đẩy dữ liệu thô ra stdout (``-f rawvideo -``) thay vì ghi ra file.
+    """
+    return _run(args, timeout=timeout, text=False)
 
 
 def atomic_output(dst: Path, args_builder) -> Path:

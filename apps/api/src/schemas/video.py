@@ -61,6 +61,8 @@ class CreateFromLinksResult(BaseModel):
     skipped_duplicate: int
     invalid: list[str] = Field(default_factory=list)
     video_ids: list[uuid.UUID] = Field(default_factory=list)
+    #: Link đã có sẵn trong thư viện → id của bản ghi cũ, để FE mở thẳng video đó.
+    duplicate_ids: list[uuid.UUID] = Field(default_factory=list)
 
 
 class VideoUpdate(BaseModel):

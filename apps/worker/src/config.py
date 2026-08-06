@@ -35,6 +35,19 @@ class Settings(BaseSettings):
     sub_max_lines: int = 2
     sub_min_duration: float = 1.2
 
+    # --- chống trùng ---
+    dedup_enabled: bool = True
+    #: Số khung lấy mẫu cho pHash. ĐỔI SỐ NÀY = mọi pHash cũ trong DB hết so
+    #: sánh được (khác độ dài chuỗi) — phải tính lại toàn bộ.
+    dedup_phash_frames: int = 4
+    #: Ngưỡng bit khác nhau tối đa trên TỔNG số bit (4 khung × 64 = 256 bit).
+    #: Càng nhỏ càng chặt. 20 ≈ 5 bit/khung: bắt được bản mã hoá lại, hiếm khi
+    #: nhầm hai video khác nhau.
+    dedup_phash_max_distance: int = 20
+    #: Chỉ quét ngần này video gần nhất khi so pHash — Postgres không so được
+    #: khoảng cách Hamming, phải kéo về Python.
+    dedup_phash_scan_limit: int = 500
+
     # --- giới hạn an toàn ---
     max_video_duration_sec: int = 600
     download_timeout_sec: int = 600

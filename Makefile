@@ -42,7 +42,8 @@ revision:
 	cd apps/api && ../../.venv/bin/alembic revision --autogenerate -m "$(m)"
 
 test:
-	.venv/bin/pytest apps/worker/tests apps/api/tests -q
+	cd apps/worker && ../../.venv/bin/pytest
+	cd apps/api && ../../.venv/bin/pytest
 
 fmt:
 	.venv/bin/ruff format packages apps/api apps/worker
