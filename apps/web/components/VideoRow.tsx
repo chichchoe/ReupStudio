@@ -110,6 +110,12 @@ export function VideoRow({ video, progress, selected, onToggle, onRetry, onDelet
   );
 }
 
+/** Nhãn tiếng Việt cho lý do trùng — khớp `reason` ghi ở `tasks/video.py:_mark_duplicate`. */
+const DUPLICATE_REASON_LABEL: Record<string, string> = {
+  md5: "md5",
+  phash: "pHash",
+};
+
 function buildNote(video: Video, progress?: VideoProgress): string {
   if (video.status === "error") return video.error_message ?? "Lỗi không rõ";
   if (video.status === "running") {
@@ -119,5 +125,17 @@ function buildNote(video: Video, progress?: VideoProgress): string {
     return percent != null ? `${label}… ${percent}%` : `${label}…`;
   }
   if (video.status === "ready") return "Đã render xong — tải về xem thử";
+  if (video.status === "skipped") {
+    const duplicateOf = video.flags?.duplicate_of;
+    if (typeof duplicateOf === "string" && duplicateOf) {
+      const reasonRaw = video.flags?.duplicate_reason;
+      const reason =
+        typeof reasonRaw === "string" ? DUPLICATE_REASON_LABEL[reasonRaw] ?? reasonRaw : null;
+      const ma = duplicateOf.slice(0, 8);
+      return reason
+        ? `Trùng với video đã có (${reason}) — #${ma}`
+        : `Trùng với video đã có — #${ma}`;
+    }
+  }
   return STATUS_LABEL[video.status] ?? video.status;
 }

@@ -23,6 +23,10 @@ log = get_logger(__name__)
 #: Kênh Redis worker dùng để bắn sự kiện.
 CHANNEL_PATTERN = "reup:*"
 
+#: Số topic tối đa một kết nối được subscribe cùng lúc — chặn client bơm một
+#: mảng lớn tuỳ ý làm set tăng trưởng vô hạn trong bộ nhớ server.
+MAX_SUBSCRIPTIONS_PER_CLIENT = 500
+
 #: Tiền tố kênh cần tính lại số liệu hàng chờ khi có sự kiện mới.
 _STATUS_CHANNEL_PREFIX = "reup:status:"
 
@@ -69,7 +73,14 @@ class WsManager:
         self._clients.pop(ws, None)
 
     def subscribe(self, ws: WebSocket, topics: Iterable[str]) -> None:
-        self._clients.setdefault(ws, set()).update(topics)
+        subscriptions = self._clients.setdefault(ws, set())
+        for topic in topics:
+            if len(subscriptions) >= MAX_SUBSCRIPTIONS_PER_CLIENT:
+                log.warning(
+                    "ws.subscription_limit_reached", limit=MAX_SUBSCRIPTIONS_PER_CLIENT
+                )
+                break
+            subscriptions.add(topic)
 
     def unsubscribe(self, ws: WebSocket, topics: Iterable[str]) -> None:
         subscriptions = self._clients.get(ws)

@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from reup_core.models import Preset
 from sqlalchemy.orm import Session
 
-from ..errors import NotFound
+from ..errors import InvalidPresetDefault, NotFound
 
 
 def list_presets(db: Session, *, kind: str | None = None) -> list[Preset]:
@@ -39,6 +39,20 @@ def _clear_other_defaults(db: Session, kind: str, *, keep_id: uuid.UUID) -> None
         .where(Preset.kind == kind, Preset.id != keep_id, Preset.is_default.is_(True))
         .values(is_default=False)
     )
+
+
+def _la_mac_dinh_duy_nhat(db: Session, preset: Preset) -> bool:
+    """True nếu ``preset`` là preset ``is_default=True`` DUY NHẤT của kind nó."""
+    so_mac_dinh_khac = db.scalar(
+        sa.select(sa.func.count())
+        .select_from(Preset)
+        .where(
+            Preset.kind == preset.kind,
+            Preset.id != preset.id,
+            Preset.is_default.is_(True),
+        )
+    )
+    return (so_mac_dinh_khac or 0) == 0
 
 
 def create_preset(
@@ -71,6 +85,13 @@ def update_preset(
     if config is not None:
         preset.config = config
     if is_default is not None:
+        if is_default is False and preset.is_default and _la_mac_dinh_duy_nhat(db, preset):
+            raise InvalidPresetDefault(
+                f"'{preset.name}' đang là preset mặc định DUY NHẤT của kind "
+                f"'{preset.kind}'. Không thể hạ mặc định vì kind sẽ còn 0 preset "
+                "mặc định. Muốn đổi mặc định, hãy đặt một preset KHÁC cùng kind "
+                "làm mặc định — cờ của preset này sẽ tự được gỡ."
+            )
         preset.is_default = is_default
         if is_default:
             db.flush()

@@ -28,6 +28,16 @@ class Conflict(ApiError):
     code = "CONFLICT"
 
 
+class InvalidPresetDefault(Conflict):
+    """Thao tác sẽ khiến một ``kind`` preset còn 0 mặc định.
+
+    Bất biến của M2-BE-04: mỗi kind LUÔN có đúng một preset ``is_default=True``.
+    M3+ đọc preset mặc định để chạy tự động — 0 mặc định là lỗi runtime.
+    """
+
+    code = "INVALID_PRESET_DEFAULT"
+
+
 class UnsupportedSource(ApiError):
     status_code = 422
     code = "UNSUPPORTED_SOURCE"

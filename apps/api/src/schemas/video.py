@@ -72,7 +72,7 @@ class VideoUpdate(BaseModel):
 
 
 class BulkAction(BaseModel):
-    ids: list[uuid.UUID] = Field(min_length=1)
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
     action: Literal["approve", "delete", "retry", "apply_preset", "assign_channels"]
     payload: dict[str, Any] = Field(default_factory=dict)
 

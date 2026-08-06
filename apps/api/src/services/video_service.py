@@ -113,6 +113,46 @@ def approve(db: Session, video_id: uuid.UUID) -> Video:
     return video
 
 
+#: Trạng thái mà "xử lý lại" phải reset trước khi dispatch, nếu không chuỗi
+#: task Celery sẽ tự bỏ qua toàn bộ (xem worker/tasks/base.py — video ở
+#: SKIPPED short-circuit mọi bước; ERROR thì error_message/flags cũ còn sót).
+_TRANG_THAI_CAN_RESET_KHI_RETRY = (VideoStatus.SKIPPED, VideoStatus.ERROR)
+
+
+def _reset_video_de_retry(video: Video) -> None:
+    """Đưa video treo (SKIPPED/ERROR) về QUEUED để "xử lý lại" không còn là
+    no-op im lặng. Gỡ luôn cờ trùng lặp (``duplicate_of``/``duplicate_reason``)
+    vì video sắp được xử lý lại từ đầu, không còn "trùng" theo nghĩa cũ.
+
+    Video ở trạng thái khác (queued/running/review/ready/posted) thì không
+    làm gì — "xử lý lại" một video đang bình thường vẫn dispatch như cũ, chỉ
+    không cần reset.
+
+    KHÔNG gửi task Celery và KHÔNG commit — caller PHẢI commit trước khi gọi
+    ``task_bridge``, nếu không worker chạy gần như ngay lập tức có thể đọc
+    phải trạng thái cũ trong DB.
+    """
+    if video.status not in _TRANG_THAI_CAN_RESET_KHI_RETRY:
+        return
+    video.status = VideoStatus.QUEUED
+    video.error_message = None
+    video.flags = {
+        k: v for k, v in video.flags.items() if k not in ("duplicate_of", "duplicate_reason")
+    }
+
+
+def prepare_retry(db: Session, video_id: uuid.UUID) -> Video:
+    """Chuẩn bị một video để xử lý lại: reset trạng thái nếu đang SKIPPED/ERROR.
+
+    Router phải ``db.commit()`` NGAY SAU khi gọi hàm này, rồi mới gọi
+    ``task_bridge.retry_from`` — bắt chước thứ tự commit-trước-dispatch của
+    ``create_from_links``.
+    """
+    video = get_video(db, video_id)
+    _reset_video_de_retry(video)
+    return video
+
+
 def soft_delete(db: Session, video_id: uuid.UUID) -> None:
     video = get_video(db, video_id)
     video.deleted_at = sa.func.now()
@@ -205,8 +245,21 @@ def bulk_action(
     if action == "assign_channels":
         channel_ids = _channel_ids_tu_payload(payload)
 
+    # Một truy vấn duy nhất thay vì db.get() từng id trong vòng lặp — với
+    # max_length=500 của BulkAction.ids, N round-trip riêng lẻ giữ một
+    # connection của pool (pool_size=5) suốt thời gian xử lý, vi phạm luật
+    # "endpoint không bao giờ chờ việc chạy lâu".
+    tim_thay = db.scalars(sa.select(Video).where(Video.id.in_(ids))).all()
+    theo_id = {v.id: v for v in tim_thay}
+
+    #: id cần dispatch task Celery SAU KHI đã commit — không dispatch ngay
+    #: trong vòng lặp vì trạng thái reset (SKIPPED/ERROR -> QUEUED) chưa chắc
+    #: đã ghi xuống DB, worker chạy gần như ngay lập tức có thể đọc phải
+    #: trạng thái cũ và tự bỏ qua (xem worker/tasks/base.py).
+    can_dispatch: list[uuid.UUID] = []
+
     for video_id in ids:
-        video = db.get(Video, video_id)
+        video = theo_id.get(video_id)
         if video is None:
             skipped.append({"id": str(video_id), "reason": "Không tìm thấy video"})
             continue
@@ -228,7 +281,8 @@ def bulk_action(
         elif action == "delete":
             video.deleted_at = sa.func.now()
         elif action == "retry":
-            task_bridge.retry_from(video_id, None)
+            _reset_video_de_retry(video)
+            can_dispatch.append(video_id)
         elif action == "apply_preset":
             assert preset is not None  # đã được lấy trước vòng lặp
             video.process_config = {**video.process_config, **preset.config}
@@ -238,6 +292,11 @@ def bulk_action(
                 "target_channel_ids": channel_ids,
             }
         affected += 1
+
+    if can_dispatch:
+        db.commit()
+        for video_id in can_dispatch:
+            task_bridge.retry_from(video_id, None)
 
     log.info(
         "video.bulk_action",

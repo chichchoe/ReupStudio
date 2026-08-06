@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+#: Số khung pHash tối đa mà cột ``videos.phash`` (String(64)) còn chứa được.
+#: Mỗi khung sinh ra 16 ký tự hex (64 bit) -> 4 khung x 16 = 64 ký tự, vừa khít.
+MAX_DEDUP_PHASH_FRAMES = 4
 
 
 class Settings(BaseSettings):
@@ -52,6 +57,23 @@ class Settings(BaseSettings):
     max_video_duration_sec: int = 600
     download_timeout_sec: int = 600
     ffmpeg_timeout_sec: int = 1800
+
+    @field_validator("dedup_phash_frames")
+    @classmethod
+    def _kiem_tra_dedup_phash_frames(cls, v: int) -> int:
+        """Chặn giá trị làm chuỗi pHash vượt độ rộng cột ``videos.phash``.
+
+        Mỗi khung sinh 16 ký tự hex; cột là ``String(64)`` nên tối đa 4 khung.
+        Vượt quá sẽ ném ``StringDataRightTruncation`` từ Postgres ngay bước
+        download, cho MỌI video — không nới cột, chặn ở đầu vào.
+        """
+        if not 1 <= v <= MAX_DEDUP_PHASH_FRAMES:
+            raise ValueError(
+                f"dedup_phash_frames={v} không hợp lệ: phải trong khoảng "
+                f"1..{MAX_DEDUP_PHASH_FRAMES} vì cột videos.phash chỉ rộng "
+                f"64 ký tự (mỗi khung chiếm 16 ký tự hex)."
+            )
+        return v
 
 
 @lru_cache

@@ -73,7 +73,11 @@ def delete_video(video_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @router.post("/{video_id}/retry", response_model=TaskAccepted, status_code=202)
 def retry(video_id: uuid.UUID, from_step: str | None = None, db: Session = Depends(get_db)):
-    video_service.get_video(db, video_id)
+    video_service.prepare_retry(db, video_id)
+    # Commit TRƯỚC khi gửi task — nếu không worker chạy gần như ngay lập tức
+    # có thể đọc phải trạng thái cũ (SKIPPED/ERROR) và tự bỏ qua toàn bộ
+    # chuỗi (xem worker/tasks/base.py). Bắt chước create_from_links ở trên.
+    db.commit()
     task_id = task_bridge.retry_from(video_id, from_step)
     return TaskAccepted(task_id=task_id, message="Đã đưa vào hàng đợi xử lý lại")
 

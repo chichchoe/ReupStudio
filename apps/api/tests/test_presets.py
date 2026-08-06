@@ -12,7 +12,7 @@ from reup_core.models.base import Base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from src.errors import NotFound
+from src.errors import InvalidPresetDefault, NotFound
 from src.services import preset_service
 
 
@@ -88,3 +88,33 @@ def test_dat_mac_dinh_kind_khac_khong_anh_huong_kind_nay(db) -> None:
 def test_update_preset_id_khong_ton_tai_thi_nem_notfound(db) -> None:
     with pytest.raises(NotFound):
         preset_service.update_preset(db, uuid.uuid4(), name="tên mới")
+
+
+def test_ha_mac_dinh_duy_nhat_cua_kind_bi_tu_choi(db) -> None:
+    """Finding #7 (review tổng M2) — không được để một kind còn 0 mặc định."""
+    preset = preset_service.create_preset(db, kind="filter", name="A", is_default=True)
+    db.commit()
+
+    with pytest.raises(InvalidPresetDefault):
+        preset_service.update_preset(db, preset.id, is_default=False)
+    db.commit()
+
+    db.refresh(preset)
+    assert preset.is_default is True
+
+
+def test_dat_preset_khac_thanh_mac_dinh_thi_preset_cu_tu_mat_co(db) -> None:
+    """Cách đổi mặc định đúng: đặt preset KHÁC cùng kind làm mặc định."""
+    preset_a = preset_service.create_preset(db, kind="filter", name="A", is_default=True)
+    preset_b = preset_service.create_preset(db, kind="filter", name="B")
+    db.commit()
+
+    preset_service.update_preset(db, preset_b.id, is_default=True)
+    db.commit()
+
+    db.refresh(preset_a)
+    db.refresh(preset_b)
+    assert preset_a.is_default is False
+    assert preset_b.is_default is True
+    defaults = [p for p in preset_service.list_presets(db, kind="filter") if p.is_default]
+    assert len(defaults) == 1
