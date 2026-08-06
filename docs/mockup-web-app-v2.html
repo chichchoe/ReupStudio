@@ -1,0 +1,1524 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReupStudio v2 — Mockup tương tác</title>
+<style>
+:root{
+  --bg:#0F1115; --panel:#171A21; --panel2:#1D212A; --panel3:#232833; --border:#262B36;
+  --text:#E6E9EF; --muted:#8A93A6; --accent:#4F7CFF; --ok:#2FBF71;
+  --warn:#F2B33D; --err:#E5484D; --run:#6E56CF;
+  --tiktok:#25F4EE; --yt:#FF0033; --fb:#0866FF; --ig:#E1306C; --zalo:#0068FF;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#2E3542;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* TOPBAR */
+.topbar{height:52px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:14px;flex-shrink:0;position:relative;z-index:60}
+.logo{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;letter-spacing:-.2px;cursor:pointer}
+.logo-mark{width:24px;height:24px;border-radius:6px;background:linear-gradient(135deg,var(--accent),var(--run));display:flex;align-items:center;justify-content:center;font-size:12px}
+.search{flex:1;max-width:360px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-size:13px;font-family:inherit}
+.search::placeholder{color:#5C6478}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.worker-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);background:var(--bg);padding:5px 10px;border-radius:20px;border:1px solid var(--border)}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,191,113,.5)}70%{box-shadow:0 0 0 6px rgba(47,191,113,0)}100%{box-shadow:0 0 0 0 rgba(47,191,113,0)}}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#F2B33D,#E5484D);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;cursor:pointer}
+.bell{position:relative;color:var(--muted);cursor:pointer;font-size:15px}
+.bell-dot{position:absolute;top:-2px;right:-3px;min-width:14px;height:14px;background:var(--err);border-radius:8px;border:2px solid var(--panel);font-size:9px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600}
+.notif{position:absolute;top:48px;right:14px;width:330px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:8px;box-shadow:0 14px 44px rgba(0,0,0,.55);display:none;z-index:70}
+.notif.show{display:block}
+.nitem{padding:10px;border-radius:9px;font-size:12.5px;display:flex;gap:9px;cursor:pointer}
+.nitem:hover{background:var(--panel3)}
+.nitem .nt{font-size:11px;color:var(--muted);margin-top:3px}
+
+.body{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{width:232px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;padding:10px 0;overflow-y:auto}
+.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding:11px 18px 5px;font-weight:600}
+.nav-item{display:flex;align-items:center;gap:11px;padding:9px 18px;color:var(--muted);cursor:pointer;font-size:13.5px;border-left:2px solid transparent;transition:.12s}
+.nav-item:hover{background:var(--panel2);color:var(--text)}
+.nav-item.active{background:rgba(79,124,255,.12);color:var(--text);border-left-color:var(--accent);font-weight:500}
+.nav-item .ic{width:16px;text-align:center;font-size:14px}
+.nav-badge{margin-left:auto;background:var(--panel2);border-radius:10px;padding:1px 7px;font-size:11px}
+.nav-badge.red{background:rgba(229,72,77,.18);color:var(--err)}
+.nav-badge.blue{background:rgba(79,124,255,.2);color:#A9C0FF}
+.sb-cta{margin:10px 12px;background:linear-gradient(135deg,rgba(79,124,255,.18),rgba(110,86,207,.18));border:1px solid rgba(79,124,255,.35);border-radius:10px;padding:11px;cursor:pointer;transition:.14s}
+.sb-cta:hover{border-color:var(--accent)}
+.sb-cta .t{font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+.sb-cta .d{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4}
+.queue-box{margin:auto 12px 6px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:11px}
+.qt{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;margin-bottom:6px}
+.qbar{height:4px;background:var(--bg);border-radius:3px;overflow:hidden}
+.qbar span{display:block;height:100%;background:linear-gradient(90deg,var(--run),var(--accent))}
+
+/* MAIN */
+.main{flex:1;overflow-y:auto;padding:20px 24px 40px}
+.page{display:none}
+.page.active{display:block;animation:fade .18s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;gap:16px;flex-wrap:wrap}
+h1{font-size:20px;font-weight:600;letter-spacing:-.3px}
+.sub{color:var(--muted);font-size:13px;margin-top:3px}
+
+.btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;transition:.12s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:#272C38;border-color:#39404F}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:500}
+.btn.primary:hover{background:#3E6BEE}
+.btn.sm{padding:4px 10px;font-size:12px}
+.btn.danger{color:var(--err);border-color:rgba(229,72,77,.35)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:11px;margin-bottom:18px}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px;cursor:pointer;transition:.13s}
+.stat:hover{border-color:#39404F;transform:translateY(-1px)}
+.stat .n{font-size:23px;font-weight:600;letter-spacing:-.5px}
+.stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+.stat.err .n{color:var(--err)} .stat.ok .n{color:var(--ok)} .stat.run .n{color:var(--run)} .stat.warn .n{color:var(--warn)}
+
+.grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:14px;margin-bottom:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+.card h3{font-size:13.5px;font-weight:600;margin-bottom:13px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card h3 .more{color:var(--accent);font-size:12px;font-weight:400;cursor:pointer}
+
+.chart{display:flex;align-items:flex-end;gap:8px;height:110px;padding-top:8px}
+.chart .bar{flex:1;background:linear-gradient(180deg,var(--accent),rgba(79,124,255,.25));border-radius:4px 4px 0 0;position:relative;cursor:pointer;transition:.15s}
+.chart .bar:hover{filter:brightness(1.3)}
+.chart .bar i{position:absolute;bottom:-18px;left:0;right:0;text-align:center;font-size:10px;color:var(--muted);font-style:normal}
+.chart-wrap{padding-bottom:20px}
+
+.job{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border)}
+.job:last-child{border:none}
+.job .nm{font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:10.5px;color:var(--muted);background:var(--panel2);padding:2px 7px;border-radius:5px;white-space:nowrap}
+.pbar{width:74px;height:5px;background:var(--bg);border-radius:3px;overflow:hidden;flex-shrink:0}
+.pbar span{display:block;height:100%;background:var(--run);transition:width .5s}
+.pc{font-size:11px;color:var(--muted);width:32px;text-align:right}
+
+.alert{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:9px;margin-bottom:8px;font-size:12.5px;border:1px solid}
+.alert.w{background:rgba(242,179,61,.08);border-color:rgba(242,179,61,.25)}
+.alert.e{background:rgba(229,72,77,.08);border-color:rgba(229,72,77,.25)}
+.alert .ax{margin-left:auto;color:var(--accent);cursor:pointer;font-size:12px;white-space:nowrap}
+
+.chrow{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px}
+.chrow:last-child{border:none}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)} .dot.err{background:var(--err)} .dot.run{background:var(--run)}
+.chrow .q{margin-left:auto;color:var(--muted);font-size:11.5px}
+
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:8px 14px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.12s}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:500}
+.tabpane{display:none} .tabpane.active{display:block}
+
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:13px;align-items:center}
+.chip{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:5px 12px;font-size:12.5px;color:var(--muted);cursor:pointer;transition:.12s}
+.chip.active{background:rgba(79,124,255,.14);border-color:rgba(79,124,255,.4);color:var(--text)}
+.chip:hover{color:var(--text)}
+
+textarea,select,input[type=text],input[type=number],input[type=time]{background:var(--panel);border:1px solid var(--border);color:var(--text);padding:7px 11px;border-radius:8px;font-size:13px;font-family:inherit}
+textarea:focus,select:focus,input:focus{outline:none;border-color:var(--accent)}
+textarea.paste{width:100%;border-radius:10px;padding:13px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;min-height:104px;resize:vertical}
+textarea::placeholder{color:#5C6478}
+.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:11px}
+label.lbl{font-size:12px;color:var(--muted)}
+
+/* VIDEO ROW */
+.vrow{display:flex;gap:12px;background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:11px;margin-bottom:8px;align-items:center;transition:.12s}
+.vrow:hover{border-color:#39404F}
+.vrow.sel{border-color:rgba(79,124,255,.55);background:rgba(79,124,255,.05)}
+.cb{width:16px;height:16px;border:1.5px solid #3C4354;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;cursor:pointer}
+.cb.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.thumb{width:44px;height:60px;border-radius:7px;background:linear-gradient(150deg,#2E3646,#171B24);flex-shrink:0;position:relative;display:flex;align-items:center;justify-content:center;font-size:20px}
+.thumb.wide{width:100px;height:58px}
+.thumb .dur{position:absolute;bottom:3px;right:3px;background:rgba(0,0,0,.78);font-size:9.5px;padding:1px 4px;border-radius:3px}
+.vinfo{flex:1;min-width:0}
+.vtitle{font-size:13.5px;font-weight:500;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vmeta{font-size:11.5px;color:var(--muted);display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.sep{opacity:.4}
+.steps{display:flex;gap:4px;align-items:center;margin-top:6px}
+.steps b{width:7px;height:7px;border-radius:50%;background:#333A48;display:block}
+.steps b.ok{background:var(--ok)} .steps b.run{background:var(--run)} .steps b.err{background:var(--err)} .steps b.wait{background:var(--warn)}
+.steps span{font-size:11px;color:var(--muted);margin-left:5px}
+.vact{display:flex;gap:6px;flex-shrink:0}
+.pf{font-size:10px;padding:2px 7px;border-radius:5px;font-weight:600;letter-spacing:.2px}
+.pf.tiktok{background:rgba(37,244,238,.14);color:#5FF7F2}
+.pf.yt{background:rgba(255,0,51,.15);color:#FF6B85}
+.pf.fb{background:rgba(8,102,255,.16);color:#7FADFF}
+.pf.ig{background:rgba(225,48,108,.15);color:#F27BA4}
+.pf.zalo{background:rgba(0,104,255,.15);color:#6FA8FF}
+
+.bulkbar{position:sticky;bottom:0;background:var(--panel2);border:1px solid rgba(79,124,255,.3);border-radius:11px;padding:11px 15px;display:none;align-items:center;gap:9px;margin-top:12px;box-shadow:0 -6px 26px rgba(0,0,0,.4)}
+.bulkbar.show{display:flex}
+
+/* EDITOR */
+.editor{display:grid;grid-template-columns:172px 1fr 252px;gap:12px;height:calc(100vh - 260px);min-height:460px}
+.epanel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;overflow-y:auto}
+.tool{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;font-size:12.5px;color:var(--muted);cursor:pointer}
+.tool:hover{background:var(--panel2);color:var(--text)}
+.tool.active{background:rgba(79,124,255,.15);color:var(--text)}
+.psec{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:600;margin:13px 0 6px}
+.stage{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:9px}
+.canvas{flex:1;background:#0A0C10;border-radius:9px;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:230px;position:relative}
+.frame{height:100%;aspect-ratio:9/16;background:linear-gradient(160deg,#3A2E4A,#1E2430 55%,#2A3446);position:relative;border-radius:4px}
+.frame .scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:40px;opacity:.35}
+.mask{position:absolute;border:1.5px dashed var(--accent);background:rgba(79,124,255,.16);border-radius:3px;cursor:move}
+.mask .lbl{position:absolute;top:-18px;left:0;background:var(--accent);color:#fff;font-size:9px;padding:1px 5px;border-radius:3px;white-space:nowrap}
+.mask .hd{position:absolute;width:7px;height:7px;background:#fff;border-radius:1px}
+.hd.tl{top:-4px;left:-4px}.hd.tr{top:-4px;right:-4px}.hd.bl{bottom:-4px;left:-4px}.hd.br{bottom:-4px;right:-4px}
+.wm-logo{position:absolute;top:11px;right:10px;font-size:8.5px;color:rgba(255,255,255,.6);background:rgba(0,0,0,.3);padding:2px 5px;border-radius:3px}
+.hardsub{position:absolute;bottom:32px;left:8%;right:8%;text-align:center;font-size:10.5px;color:rgba(255,255,255,.85);text-shadow:0 1px 3px #000}
+.visub{position:absolute;bottom:60px;left:6%;right:6%;text-align:center;font-size:11px;font-weight:600;color:#FFE86B;text-shadow:0 2px 4px #000,0 0 2px #000}
+.safearea{position:absolute;left:4%;right:22%;top:8%;bottom:16%;border:1px dashed rgba(255,255,255,.16);border-radius:3px;pointer-events:none}
+.playbar{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.pbtn{width:28px;height:28px;border-radius:7px;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px}
+.pbtn:hover{background:#272C38}
+.scrub{flex:1;height:5px;background:var(--bg);border-radius:3px;position:relative;cursor:pointer}
+.scrub i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:3px}
+.scrub b{position:absolute;top:-4px;width:12px;height:12px;background:#fff;border-radius:50%;margin-left:-6px}
+.timeline{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 9px}
+.tlrow{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.tlrow:last-child{margin:0}
+.tlname{font-size:10.5px;color:var(--muted);width:78px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tltrack{flex:1;height:12px;background:var(--panel2);border-radius:4px;position:relative}
+.tlseg{position:absolute;top:2px;bottom:2px;background:var(--accent);border-radius:3px;opacity:.85}
+.tlseg.p{background:var(--run)} .tlseg.g{background:var(--ok)}
+.pgroup{border:1px solid var(--border);border-radius:9px;padding:11px;margin-bottom:9px;background:var(--panel2)}
+.pgroup .ph{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;margin-bottom:9px}
+.pgroup .ph .conf{margin-left:auto;font-size:10px;color:var(--ok);background:rgba(47,191,113,.13);padding:1px 6px;border-radius:4px}
+.pfield{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;font-size:11.5px;color:var(--muted);gap:8px}
+.pfield:last-child{margin:0}
+.pfield select,.pfield input{padding:3px 7px;font-size:11.5px;background:var(--bg);max-width:118px}
+.slider{width:96px;height:4px;background:var(--bg);border-radius:2px;position:relative;cursor:pointer}
+.slider i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:2px}
+.slider b{position:absolute;top:-3px;width:10px;height:10px;background:#fff;border-radius:50%;margin-left:-5px}
+.switch{width:32px;height:18px;background:var(--bg);border-radius:10px;position:relative;cursor:pointer;border:1px solid var(--border);flex-shrink:0}
+.switch i{position:absolute;top:2px;left:2px;width:12px;height:12px;background:var(--muted);border-radius:50%;transition:.15s}
+.switch.on{background:rgba(79,124,255,.35);border-color:var(--accent)}
+.switch.on i{left:16px;background:var(--accent)}
+.etabs{display:flex;gap:3px;margin:12px 0 14px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px}
+.etab{flex:1;text-align:center;padding:7px;font-size:12.5px;color:var(--muted);border-radius:7px;cursor:pointer}
+.etab:hover{color:var(--text)}
+.etab.active{background:var(--panel2);color:var(--text);font-weight:500}
+
+/* SUB EDITOR */
+.subtable{width:100%;border-collapse:collapse;font-size:12.5px}
+.subtable td{padding:7px 9px;border-bottom:1px solid var(--border);vertical-align:top}
+.subtable tr:hover{background:var(--panel2)}
+.tcode{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted);white-space:nowrap;width:96px}
+.cn{color:var(--muted);width:38%}
+.vi{color:var(--text)}
+
+/* CHANNELS */
+.chgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:12px}
+.chcard{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:15px;transition:.13s}
+.chcard:hover{border-color:#39404F}
+.chhead{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.chav{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.chline{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);padding:4px 0}
+.chline .v{margin-left:auto;color:var(--text);font-size:11.5px}
+
+/* PIPELINE */
+.pipe{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+.pipehead{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.pipeflow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+.pnode{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px}
+.parrow{color:var(--muted);font-size:13px}
+.pstat{display:flex;gap:16px;margin-top:11px;padding-top:11px;border-top:1px solid var(--border);font-size:11.5px;color:var(--muted)}
+.pstat b{color:var(--text);font-weight:600;display:block;font-size:14px}
+
+/* CALENDAR */
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.calh{font-size:11px;color:var(--muted);text-align:center;padding-bottom:4px;font-weight:600}
+.calday{background:var(--panel);border:1px solid var(--border);border-radius:9px;padding:7px;min-height:132px;transition:.12s}
+.calday.drop{border-color:var(--accent);background:rgba(79,124,255,.07)}
+.calday .dn{font-size:10.5px;color:var(--muted);margin-bottom:5px;display:flex;justify-content:space-between}
+.calday.today{border-color:rgba(79,124,255,.5)}
+.ev{font-size:10px;padding:3px 5px;border-radius:4px;margin-bottom:3px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:2px solid}
+.ev.tiktok{background:rgba(37,244,238,.12);color:#7DF9F5;border-color:var(--tiktok)}
+.ev.yt{background:rgba(255,0,51,.12);color:#FF8298;border-color:var(--yt)}
+.ev.fb{background:rgba(8,102,255,.14);color:#8CB6FF;border-color:var(--fb)}
+.ev.ig{background:rgba(225,48,108,.13);color:#F489AE;border-color:var(--ig)}
+.ev.zalo{background:rgba(0,104,255,.13);color:#7FB2FF;border-color:var(--zalo)}
+.ev.done{opacity:.45}
+
+table.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+table.tbl th{text-align:left;color:var(--muted);font-weight:500;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;padding:8px 10px;border-bottom:1px solid var(--border)}
+table.tbl td{padding:10px;border-bottom:1px solid var(--border)}
+table.tbl tr:last-child td{border:none}
+table.tbl tbody tr:hover{background:var(--panel2)}
+
+.setwrap{display:grid;grid-template-columns:168px 1fr;gap:14px}
+.fieldrow{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border);gap:16px}
+.fieldrow:last-child{border:none}
+.fl{font-size:13px} .fd{font-size:11.5px;color:var(--muted);margin-top:2px;max-width:520px}
+
+.hint{background:rgba(79,124,255,.07);border:1px solid rgba(79,124,255,.22);border-radius:9px;padding:11px 13px;font-size:12.5px;color:#B8C6E8;margin-bottom:14px;display:flex;gap:9px}
+.hint.w{background:rgba(242,179,61,.07);border-color:rgba(242,179,61,.25);color:#E8D4A8}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+.empty{text-align:center;padding:44px 20px;color:var(--muted)}
+
+/* MODAL */
+.backdrop{position:fixed;inset:0;background:rgba(6,8,12,.72);display:none;align-items:center;justify-content:center;z-index:100;padding:24px;backdrop-filter:blur(3px)}
+.backdrop.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:15px;width:100%;max-width:560px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.6);animation:pop .18s ease}
+.modal.wide{max-width:820px}
+@keyframes pop{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:none}}
+.mhead{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mhead h2{font-size:15.5px;font-weight:600}
+.mhead .mx{color:var(--muted);cursor:pointer;font-size:17px;line-height:1}
+.mbody{padding:18px;overflow-y:auto;flex:1}
+.mfoot{padding:14px 18px;border-top:1px solid var(--border);display:flex;gap:9px;justify-content:flex-end;align-items:center}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%}
+
+/* PLATFORM PICKER */
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.pcard{background:var(--panel2);border:1.5px solid var(--border);border-radius:11px;padding:13px 11px;text-align:center;cursor:pointer;transition:.13s}
+.pcard:hover{border-color:#414A5C}
+.pcard.on{border-color:var(--accent);background:rgba(79,124,255,.1)}
+.pcard .pi{font-size:22px;margin-bottom:5px}
+.pcard .pn{font-size:12.5px;font-weight:500}
+.pcard .pd{font-size:10.5px;color:var(--muted);margin-top:2px}
+
+/* WIZARD */
+.steps-bar{display:flex;gap:0;margin-bottom:20px}
+.stp{flex:1;text-align:center;position:relative;font-size:11.5px;color:var(--muted);padding-top:26px}
+.stp::before{content:'';position:absolute;top:0;left:50%;width:20px;height:20px;margin-left:-10px;border-radius:50%;background:var(--panel2);border:1.5px solid var(--border)}
+.stp::after{content:'';position:absolute;top:10px;left:50%;right:-50%;height:1.5px;background:var(--border)}
+.stp:last-child::after{display:none}
+.stp.done::before{background:var(--ok);border-color:var(--ok)}
+.stp.on::before{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px rgba(79,124,255,.18)}
+.stp.on{color:var(--text);font-weight:500}
+.wpane{display:none} .wpane.active{display:block}
+.optrow{display:flex;align-items:center;gap:11px;padding:11px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;background:var(--panel2);transition:.12s}
+.optrow:hover{border-color:#414A5C}
+.optrow.on{border-color:var(--accent);background:rgba(79,124,255,.09)}
+.optrow .oi{font-size:19px}
+.optrow .ot{font-size:13px;font-weight:500}
+.optrow .od{font-size:11.5px;color:var(--muted);margin-top:1px}
+.optrow .ock{margin-left:auto;width:17px;height:17px;border:1.5px solid #3C4354;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.optrow.on .ock{background:var(--accent);border-color:var(--accent);color:#fff}
+.summary{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:13px}
+.sline{display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px;border-bottom:1px solid var(--border);gap:14px}
+.sline:last-child{border:none}
+.sline .sk{color:var(--muted)} .sline .sv{text-align:right}
+
+/* TOAST */
+.toasts{position:fixed;bottom:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--panel2);border:1px solid var(--border);border-left:3px solid var(--ok);border-radius:10px;padding:11px 15px;font-size:12.5px;box-shadow:0 8px 30px rgba(0,0,0,.5);animation:slidein .2s ease;max-width:340px}
+@keyframes slidein{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+.toast.warn{border-left-color:var(--warn)} .toast.err{border-left-color:var(--err)} .toast.info{border-left-color:var(--accent)}
+.toast .tt{font-weight:600;margin-bottom:2px}
+.toast .td{color:var(--muted);font-size:11.5px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="topbar">
+    <div class="logo" onclick="go('dash')"><div class="logo-mark">▶</div> ReupStudio</div>
+    <input class="search" id="globalSearch" placeholder="🔍 Tìm video, kênh, từ khoá…" oninput="onSearch(this.value)">
+    <div class="topbar-right">
+      <button class="btn primary" onclick="openWizard()">⚡ Luồng tự động</button>
+      <div class="worker-status"><span class="pulse"></span> <span id="workerTxt">4 worker · GPU sẵn sàng</span></div>
+      <div class="bell" onclick="toggleNotif(event)">🔔<span class="bell-dot">3</span></div>
+      <div class="avatar">T</div>
+    </div>
+    <div class="notif" id="notifPanel">
+      <div class="nitem"><span>⚠️</span><div>Kênh <b>Phim Hoa Ngữ</b> nhận 1 Content ID claim<div class="nt">12 phút trước</div></div></div>
+      <div class="nitem"><span>✅</span><div>Batch 8 video đã render xong, sẵn sàng xếp lịch<div class="nt">40 phút trước</div></div></div>
+      <div class="nitem"><span>🔑</span><div>Token TikTok <b>Ẩm Thực Hoa</b> hết hạn sau 2 ngày<div class="nt">2 giờ trước</div></div></div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="sidebar">
+      <div class="sb-cta" onclick="openWizard()">
+        <div class="t">⚡ Tạo luồng tự động</div>
+        <div class="d">Kênh Trung Quốc → xử lý → tự đăng lên TikTok, Shorts, Reels</div>
+      </div>
+      <div class="nav-label">Làm việc</div>
+      <div class="nav-item active" data-p="dash"><span class="ic">◲</span> Tổng quan</div>
+      <div class="nav-item" data-p="pipe"><span class="ic">⚡</span> Luồng tự động <span class="nav-badge blue" id="pipeCount">3</span></div>
+      <div class="nav-item" data-p="source"><span class="ic">↓</span> Nguồn Trung Quốc</div>
+      <div class="nav-item" data-p="lib"><span class="ic">▤</span> Thư viện <span class="nav-badge" id="libCount">10</span></div>
+      <div class="nav-item" data-p="editor"><span class="ic">✧</span> Editor</div>
+      <div class="nav-label">Phân phối</div>
+      <div class="nav-item" data-p="chan"><span class="ic">◈</span> Kênh Việt Nam <span class="nav-badge red">1</span></div>
+      <div class="nav-item" data-p="sched"><span class="ic">▦</span> Lịch đăng</div>
+      <div class="nav-item" data-p="stats"><span class="ic">◑</span> Thống kê</div>
+      <div class="nav-label">Hệ thống</div>
+      <div class="nav-item" data-p="settings"><span class="ic">⚙</span> Cài đặt</div>
+      <div class="queue-box">
+        <div class="qt"><span>Hàng đợi xử lý</span><span id="qn">12 job</span></div>
+        <div class="qbar"><span id="qbar" style="width:62%"></span></div>
+        <div class="qt" style="margin:7px 0 0"><span>Ổ đĩa</span><span style="color:var(--warn)">còn 8%</span></div>
+      </div>
+    </div>
+
+    <div class="main" id="main">
+
+      <!-- ================= DASHBOARD ================= -->
+      <div class="page active" id="dash">
+        <div class="page-head">
+          <div><h1>Tổng quan</h1><div class="sub">Thứ Năm, 06/08/2026 · 3 luồng tự động đang chạy · 5 kênh Việt Nam</div></div>
+          <div class="row" style="margin:0"><button class="btn" onclick="toast('info','Đang xuất báo cáo','File Excel sẽ tải xuống sau vài giây')">Xuất báo cáo</button><button class="btn primary" onclick="go('source')">+ Thêm video</button></div>
+        </div>
+
+        <div class="stats">
+          <div class="stat" onclick="go('lib','queue')"><div class="n">12</div><div class="l">Trong hàng đợi</div></div>
+          <div class="stat run" onclick="go('lib','running')"><div class="n">4</div><div class="l">Đang xử lý</div></div>
+          <div class="stat warn" onclick="go('lib','review')"><div class="n">3</div><div class="l">Chờ duyệt</div></div>
+          <div class="stat ok" onclick="go('lib','posted')"><div class="n">156</div><div class="l">Đã đăng</div></div>
+          <div class="stat err" onclick="go('lib','error')"><div class="n">1</div><div class="l">Lỗi cần xem</div></div>
+        </div>
+
+        <div class="grid2">
+          <div class="card chart-wrap">
+            <h3>Video đăng 7 ngày qua <span class="more" onclick="go('stats')">Xem thống kê →</span></h3>
+            <div class="chart">
+              <div class="bar" style="height:38%" title="T5: 6 video"><i>T5</i></div>
+              <div class="bar" style="height:62%" title="T6: 9 video"><i>T6</i></div>
+              <div class="bar" style="height:48%" title="T7: 7 video"><i>T7</i></div>
+              <div class="bar" style="height:80%" title="CN: 12 video"><i>CN</i></div>
+              <div class="bar" style="height:55%" title="T2: 8 video"><i>T2</i></div>
+              <div class="bar" style="height:92%" title="T3: 14 video"><i>T3</i></div>
+              <div class="bar" style="height:70%" title="T4: 10 video"><i>T4</i></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Đang chạy <span class="more" onclick="go('lib','running')">Tất cả →</span></h3>
+            <div id="jobList"></div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <h3>Cảnh báo</h3>
+            <div class="alert e"><span>⚠</span><div>Kênh <b>Phim Hoa Ngữ</b> nhận 1 Content ID claim. Lịch đăng đã tạm dừng.</div><span class="ax" onclick="go('chan')">Xử lý</span></div>
+            <div class="alert w"><span>◔</span><div>Ổ đĩa còn <b>42GB (8%)</b> · 68 file thô đã đăng >14 ngày.</div><span class="ax" onclick="toast('ok','Đã dọn 68 file','Giải phóng 128GB')">Dọn dẹp</span></div>
+            <div class="alert w"><span>🔑</span><div>Token TikTok <b>Ẩm Thực Hoa</b> hết hạn sau 2 ngày.</div><span class="ax" onclick="go('chan')">Kết nối lại</span></div>
+          </div>
+          <div class="card">
+            <h3>Hạn ngạch đăng hôm nay <span class="more" onclick="go('sched')">Lịch →</span></h3>
+            <div id="quotaList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= PIPELINE ================= -->
+      <div class="page" id="pipe">
+        <div class="page-head">
+          <div><h1>Luồng tự động</h1><div class="sub">Nối kênh nguồn Trung Quốc thẳng tới kênh Việt Nam — không cần thao tác tay</div></div>
+          <button class="btn primary" onclick="openWizard()">+ Tạo luồng mới</button>
+        </div>
+        <div class="hint">💡 Mỗi luồng tự chạy vòng lặp: <b>quét kênh nguồn → tải → xoá logo/sub → dịch → lồng tiếng → chuẩn hoá 9:16 → chống trùng → render → xếp lịch → đăng</b>. Bạn chỉ can thiệp khi có video bị gắn cờ.</div>
+        <div id="pipeList"></div>
+      </div>
+
+      <!-- ================= SOURCE ================= -->
+      <div class="page" id="source">
+        <div class="page-head"><div><h1>Nguồn Trung Quốc</h1><div class="sub">Douyin · Bilibili · Kuaishou · Xiaohongshu · Weibo</div></div>
+          <button class="btn primary" onclick="openModal('mdAddSource')">+ Theo dõi kênh</button></div>
+        <div class="tabs" data-tabs="src">
+          <div class="tab active" data-t="s1">Dán link</div>
+          <div class="tab" data-t="s2">Kênh theo dõi · <span id="srcCount">6</span></div>
+          <div class="tab" data-t="s3">Tìm kiếm &amp; trending</div>
+        </div>
+
+        <div class="tabpane active" id="s1">
+          <textarea class="paste" id="linkBox" placeholder="https://v.douyin.com/iRxxxx/&#10;https://www.bilibili.com/video/BV1xx411c7mD&#10;https://www.kuaishou.com/short-video/3xxxxx&#10;&#10;Mỗi dòng một link — hỗ trợ link rút gọn và link có tham số share"></textarea>
+          <div class="row">
+            <button class="btn" onclick="toast('info','Chọn file','Hỗ trợ .txt và .csv')">📄 Nhập từ file</button>
+            <label class="lbl">Preset lọc</label>
+            <select><option>Mặc định (15–180s · ≥10K view)</option><option>Phim ngắn dọc 9:16</option><option>Không lọc</option></select>
+            <label class="lbl">Preset xử lý</label>
+            <select><option>Douyin sạch — xoá logo + sub + dịch + TTS nữ Nam</option><option>Chỉ phụ đề Việt</option><option>Giữ nguyên tiếng</option></select>
+            <label class="lbl">Đăng lên</label>
+            <select id="linkTarget"><option>Cụm "Drama ngắn" (3 kênh)</option><option>Chỉ TikTok Drama Ngắn TQ</option><option>Chưa gán</option></select>
+            <button class="btn primary" style="margin-left:auto" onclick="addLinks()">Thêm vào hàng đợi</button>
+          </div>
+          <h3 style="font-size:13.5px;margin:22px 0 10px">Đang tải</h3>
+          <div id="dlList"></div>
+        </div>
+
+        <div class="tabpane" id="s2">
+          <div class="card" style="padding:0;overflow:hidden">
+            <table class="tbl">
+              <thead><tr><th>Kênh nguồn</th><th>Nền tảng</th><th>Chu kỳ quét</th><th>Preset xử lý</th><th>Đích</th><th>Đã lấy</th><th>Quét cuối</th><th></th></tr></thead>
+              <tbody id="srcTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="tabpane" id="s3">
+          <div class="row" style="margin:0 0 13px">
+            <input type="text" placeholder="Từ khoá tiếng Việt hoặc tiếng Trung… (VD: phim ngắn tổng tài)" style="flex:1;max-width:380px" id="cnQuery">
+            <select><option>抖音 Douyin</option><option>哔哩哔哩 Bilibili</option><option>快手 Kuaishou</option><option>小红书</option></select>
+            <select><option>Sắp xếp: lượt xem</option><option>Mới nhất</option><option>Tăng trưởng nhanh</option></select>
+            <select><option>7 ngày qua</option><option>30 ngày qua</option></select>
+            <button class="btn primary" onclick="searchCN()">Tìm</button>
+          </div>
+          <div class="chips">
+            <div class="chip active">Tất cả</div><div class="chip">Chỉ video dọc 9:16</div><div class="chip">15–60 giây</div>
+            <div class="chip">≥100K view</div><div class="chip">Không có lời thoại</div>
+          </div>
+          <div id="cnResults"></div>
+        </div>
+      </div>
+
+      <!-- ================= LIBRARY ================= -->
+      <div class="page" id="lib">
+        <div class="page-head"><div><h1>Thư viện</h1><div class="sub" id="libSub">10 video</div></div>
+          <div class="row" style="margin:0"><button class="btn" onclick="toast('info','Chế độ lưới','Đang chuyển sang xem thumbnail lớn')">▦ Lưới</button><button class="btn primary">☰ Danh sách</button></div></div>
+        <div class="chips" id="libChips"></div>
+        <div id="libList"></div>
+        <div class="bulkbar" id="bulkbar">
+          <span style="font-size:13px;font-weight:500" id="bulkCount">Đã chọn 0</span>
+          <button class="btn sm" onclick="openModal('mdPreset')">Áp preset xử lý</button>
+          <button class="btn sm" onclick="openModal('mdAssign')">Gán kênh Việt Nam</button>
+          <button class="btn sm primary" onclick="openModal('mdSchedule')">📅 Xếp lịch đăng</button>
+          <button class="btn sm" onclick="bulkApprove()">✓ Duyệt nhanh</button>
+          <button class="btn sm danger" style="margin-left:auto" onclick="bulkDelete()">Xoá</button>
+        </div>
+      </div>
+
+      <!-- ================= EDITOR ================= -->
+      <div class="page" id="editor">
+        <div class="page-head">
+          <div><h1 id="edTitle">← 恋爱脑女主终于清醒了</h1><div class="sub">抖音 · 0:47 · 1080×1920 · Đích: TikTok Drama Ngắn TQ + YouTube Shorts Phim Hoa Ngữ</div></div>
+          <div class="row" style="margin:0">
+            <button class="btn" onclick="toast('ok','Đã lưu preset','Preset \'Douyin sạch\' được cập nhật')">Lưu preset</button>
+            <button class="btn" onclick="preview5s()">▶ Xem trước 5s</button>
+            <button class="btn primary" onclick="renderVideo()">Render &amp; xếp lịch</button>
+          </div>
+        </div>
+        <div class="etabs" data-tabs="ed">
+          <div class="etab active" data-t="e1">Watermark &amp; Sub</div>
+          <div class="etab" data-t="e2">Phụ đề Việt</div>
+          <div class="etab" data-t="e3">Âm thanh</div>
+          <div class="etab" data-t="e4">Chuẩn hoá video ngắn</div>
+          <div class="etab" data-t="e5">Chống trùng</div>
+          <div class="etab" data-t="e6">Đăng bài</div>
+        </div>
+
+        <!-- E1 -->
+        <div class="tabpane active" id="e1">
+          <div class="hint">💡 Đã dò tự động: <b>1 watermark động (Douyin, nhảy 4 góc)</b> và <b>1 vùng phụ đề cứng</b>. Kiểm tra khung xanh rồi bấm Xem trước 5s.</div>
+          <div class="editor">
+            <div class="epanel">
+              <div class="psec">Công cụ</div>
+              <div class="tool active">▣ Chọn</div><div class="tool">▭ Khung chữ nhật</div><div class="tool">◯ Ellipse</div>
+              <div class="tool">✎ Brush tự do</div><div class="tool">⌖ Keyframe vị trí</div><div class="tool">🔍 Phóng 300%</div>
+              <div class="psec">Dò tự động</div>
+              <div class="tool" onclick="autoDetect('watermark')">✨ Dò watermark</div>
+              <div class="tool" onclick="autoDetect('sub')">✨ Dò phụ đề cứng</div>
+              <div class="psec">Preset theo nguồn</div>
+              <div class="tool active">🔴 Douyin (logo động)</div><div class="tool">🔵 Bilibili</div>
+              <div class="tool">🟠 Kuaishou</div><div class="tool">🔴 Xiaohongshu</div><div class="tool">📝 Sub cứng 20% dưới</div>
+            </div>
+            <div class="stage">
+              <div class="canvas">
+                <div class="frame">
+                  <div class="scene">🎭</div>
+                  <div class="wm-logo">抖音 @小甜剧场 8821</div>
+                  <div class="hardsub">你以为我还会回头吗？</div>
+                  <div class="mask" style="top:6%;right:5%;width:34%;height:5%"><span class="lbl">Logo Douyin · Inpaint AI</span><i class="hd tl"></i><i class="hd tr"></i><i class="hd bl"></i><i class="hd br"></i></div>
+                  <div class="mask" style="bottom:14%;left:6%;right:6%;height:8%"><span class="lbl">Sub cứng · Inpaint nhanh</span><i class="hd tl"></i><i class="hd tr"></i><i class="hd bl"></i><i class="hd br"></i></div>
+                </div>
+              </div>
+              <div class="playbar">
+                <div class="pbtn">◀◀</div><div class="pbtn" onclick="togglePlay(this)">▶</div><div class="pbtn">▶▶</div>
+                <div class="scrub" onclick="seek(event)"><i id="seekFill" style="width:26%"></i><b id="seekDot" style="left:26%"></b></div>
+                <span class="mono" id="tcode">0:12 / 0:47</span>
+              </div>
+              <div class="timeline">
+                <div class="tlrow"><span class="tlname">Logo Douyin</span><div class="tltrack">
+                  <div class="tlseg" style="left:0;width:18%"></div><div class="tlseg" style="left:20%;width:16%"></div>
+                  <div class="tlseg" style="left:38%;width:19%"></div><div class="tlseg" style="left:59%;width:17%"></div>
+                  <div class="tlseg" style="left:78%;width:22%"></div></div></div>
+                <div class="tlrow"><span class="tlname">Sub cứng</span><div class="tltrack">
+                  <div class="tlseg p" style="left:4%;width:12%"></div><div class="tlseg p" style="left:22%;width:18%"></div>
+                  <div class="tlseg p" style="left:46%;width:9%"></div><div class="tlseg p" style="left:62%;width:20%"></div>
+                  <div class="tlseg p" style="left:88%;width:10%"></div></div></div>
+                <div class="tlrow"><span class="tlname">Sub Việt</span><div class="tltrack">
+                  <div class="tlseg g" style="left:4%;width:12%"></div><div class="tlseg g" style="left:22%;width:18%"></div>
+                  <div class="tlseg g" style="left:46%;width:9%"></div><div class="tlseg g" style="left:62%;width:20%"></div>
+                  <div class="tlseg g" style="left:88%;width:10%"></div></div></div>
+              </div>
+            </div>
+            <div class="epanel">
+              <div class="psec">Vùng đã dò (2)</div>
+              <div class="pgroup">
+                <div class="ph">▣ Logo Douyin <span class="conf">94%</span></div>
+                <div class="pfield"><span>Chế độ</span><select><option>Inpaint AI</option><option>Inpaint nhanh</option><option>Làm mờ</option><option>Che khối</option></select></div>
+                <div class="pfield"><span>Mở rộng viền</span><div class="slider" onclick="setSlider(event,this)"><i style="width:30%"></i><b style="left:30%"></b></div></div>
+                <div class="pfield"><span>Bám chuyển động</span><div class="switch on"><i></i></div></div>
+                <div class="pfield"><span>Áp dụng</span><span class="mono">0:00 – 0:47</span></div>
+              </div>
+              <div class="pgroup">
+                <div class="ph">▤ Sub cứng <span class="conf" style="color:var(--warn);background:rgba(242,179,61,.13)">78%</span></div>
+                <div class="pfield"><span>Chế độ</span><select><option>Inpaint nhanh</option><option>Inpaint AI</option><option>Crop + zoom</option></select></div>
+                <div class="pfield"><span>Nguồn vá</span><select><option>Khung lân cận</option><option>Nội suy</option></select></div>
+                <div class="pfield"><span>Chỉ khi có chữ</span><div class="switch on"><i></i></div></div>
+              </div>
+              <div class="psec">Hiển thị</div>
+              <div class="pfield" style="padding:3px 0"><span>Overlay mask</span><div class="switch on"><i></i></div></div>
+              <div class="pfield" style="padding:3px 0"><span>So sánh trước/sau</span><div class="switch"><i></i></div></div>
+              <div class="psec">Sau khi render</div>
+              <div class="pfield" style="padding:3px 0"><span>Tự kiểm sót logo</span><div class="switch on"><i></i></div></div>
+              <button class="btn sm" style="width:100%;margin-top:8px" onclick="toast('info','Chế độ vẽ','Kéo chuột trên preview để tạo vùng mới')">+ Thêm vùng thủ công</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- E2 -->
+        <div class="tabpane" id="e2">
+          <div class="grid2" style="grid-template-columns:1.6fr 1fr">
+            <div class="card" style="padding:0">
+              <div style="padding:13px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+                <b style="font-size:13.5px">Phụ đề · 5 dòng</b>
+                <div class="row" style="margin:0">
+                  <select style="font-size:12px;padding:4px 8px"><option>Văn phong: Đời thường</option><option>Ngôn tình</option><option>Hài hước</option></select>
+                  <button class="btn sm" onclick="toast('ok','Đã dịch lại','5 dòng cập nhật theo văn phong mới')">Dịch lại</button>
+                </div>
+              </div>
+              <table class="subtable">
+                <tr><td class="tcode">00:02.4 → 00:05.1</td><td class="cn">你以为我还会回头吗？</td><td class="vi">Anh nghĩ tôi sẽ quay lại sao?</td></tr>
+                <tr><td class="tcode">00:06.0 → 00:09.8</td><td class="cn">这三年我等的不是你的道歉</td><td class="vi">Ba năm qua, thứ tôi chờ không phải lời xin lỗi</td></tr>
+                <tr><td class="tcode">00:11.2 → 00:14.0</td><td class="cn">而是我自己的清醒</td><td class="vi">Mà là ngày tôi tỉnh ra</td></tr>
+                <tr><td class="tcode">00:18.5 → 00:22.9</td><td class="cn">从今天起，我不再为任何人妥协</td><td class="vi">Từ hôm nay, tôi không nhân nhượng vì ai nữa</td></tr>
+                <tr><td class="tcode">00:41.0 → 00:45.2</td><td class="cn">谢谢你让我学会爱自己</td><td class="vi">Cảm ơn anh đã dạy tôi cách yêu bản thân</td></tr>
+              </table>
+            </div>
+            <div class="card">
+              <h3>Kiểu chữ phụ đề</h3>
+              <div class="pfield"><span>Font</span><select><option>Be Vietnam Pro Bold</option><option>Montserrat</option><option>Roboto Condensed</option></select></div>
+              <div class="pfield"><span>Cỡ chữ</span><div class="slider" onclick="setSlider(event,this)"><i style="width:55%"></i><b style="left:55%"></b></div></div>
+              <div class="pfield"><span>Màu chữ</span><span style="display:flex;gap:5px"><i style="width:15px;height:15px;background:#FFE86B;border-radius:3px;display:block"></i><i style="width:15px;height:15px;background:#fff;border-radius:3px;display:block"></i><i style="width:15px;height:15px;background:#25F4EE;border-radius:3px;display:block"></i></span></div>
+              <div class="pfield"><span>Viền đen</span><div class="switch on"><i></i></div></div>
+              <div class="pfield"><span>Nền mờ sau chữ</span><div class="switch"><i></i></div></div>
+              <div class="pfield"><span>Vị trí</span><select><option>Dưới — trên vùng UI</option><option>Giữa màn hình</option><option>Trên</option></select></div>
+              <div class="hint" style="margin:13px 0 0">⚠ Vị trí phụ đề đang tránh vùng UI của TikTok (nút bên phải + caption dưới). Xem khung nét đứt ở tab preview.</div>
+              <div class="psec">Emoji &amp; nhấn mạnh</div>
+              <div class="pfield"><span>Tự thêm emoji theo cảm xúc</span><div class="switch on"><i></i></div></div>
+              <div class="pfield"><span>Tô màu từ khoá</span><div class="switch on"><i></i></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- E3 -->
+        <div class="tabpane" id="e3">
+          <div class="grid2">
+            <div class="card">
+              <h3>Lồng tiếng AI</h3>
+              <div class="pfield"><span>Chế độ đầu ra</span><select><option>Phụ đề + lồng tiếng</option><option>Chỉ phụ đề</option><option>Chỉ lồng tiếng</option><option>Giữ tiếng gốc</option></select></div>
+              <div class="pfield"><span>Nhà cung cấp</span><select><option>ElevenLabs</option><option>FPT.AI</option><option>Zalo AI</option><option>viXTTS (local)</option></select></div>
+              <div class="pfield"><span>Giọng đọc</span><select><option>Nữ miền Nam — trẻ, tình cảm</option><option>Nữ miền Bắc — trong trẻo</option><option>Nam miền Bắc — trầm</option><option>Nam miền Nam — kể chuyện</option></select></div>
+              <div class="pfield"><span>Tốc độ</span><div class="slider" onclick="setSlider(event,this)"><i style="width:52%"></i><b style="left:52%"></b></div></div>
+              <div class="pfield"><span>Cao độ</span><div class="slider" onclick="setSlider(event,this)"><i style="width:50%"></i><b style="left:50%"></b></div></div>
+              <div class="row"><button class="btn sm" onclick="toast('info','Đang phát thử','Nữ miền Nam · dòng 1')">🔊 Nghe thử</button><button class="btn sm" onclick="toast('ok','Đã tạo giọng','5/5 dòng · 12.4s audio')">Tạo lại toàn bộ</button></div>
+              <div class="hint" style="margin-top:13px">📊 Theo thống kê kênh của bạn, <b>giọng nữ miền Nam</b> cho view trung bình cao gấp 2× so với chỉ phụ đề.</div>
+            </div>
+            <div class="card">
+              <h3>Âm nền &amp; nhạc</h3>
+              <div class="pfield"><span>Tách vocal khỏi nhạc gốc</span><div class="switch on"><i></i></div></div>
+              <div class="pfield"><span>Giữ nhạc nền gốc</span><div class="switch on"><i></i></div></div>
+              <div class="pfield"><span>Mức nhạc nền</span><div class="slider" onclick="setSlider(event,this)"><i style="width:35%"></i><b style="left:35%"></b></div></div>
+              <div class="pfield"><span>Ducking khi có giọng</span><div class="switch on"><i></i></div></div>
+              <div class="pfield"><span>Thay nhạc no-copyright</span><select><option>Không thay</option><option>Nhạc buồn — ngôn tình</option><option>Nhạc kịch tính</option><option>Nhạc trending TikTok VN</option></select></div>
+              <div class="psec">Sóng âm</div>
+              <div style="background:var(--bg);border-radius:8px;padding:11px">
+                <div style="font-size:10.5px;color:var(--muted);margin-bottom:5px">Gốc (tiếng Trung + nhạc)</div>
+                <div style="height:24px;background:linear-gradient(90deg,#2E3646 2%,#4F7CFF 8%,#2E3646 14%,#4F7CFF 22%,#2E3646 30%,#4F7CFF 46%,#2E3646 52%,#4F7CFF 66%,#2E3646 74%,#4F7CFF 90%,#2E3646 96%);border-radius:4px;opacity:.7"></div>
+                <div style="font-size:10.5px;color:var(--muted);margin:9px 0 5px">Lồng tiếng Việt (đã đồng bộ)</div>
+                <div style="height:24px;background:linear-gradient(90deg,#2E3646 3%,#2FBF71 9%,#2E3646 15%,#2FBF71 23%,#2E3646 31%,#2FBF71 45%,#2E3646 53%,#2FBF71 65%,#2E3646 75%,#2FBF71 89%,#2E3646 95%);border-radius:4px;opacity:.75"></div>
+              </div>
+              <div class="hint" style="margin-top:12px">✅ Không có đoạn nào giọng đọc đè lên câu tiếp theo. Độ lệch tối đa 0.18s.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- E4 — chuẩn hoá video ngắn -->
+        <div class="tabpane" id="e4">
+          <div class="hint">📱 Chuẩn hoá cho nền tảng video ngắn Việt Nam. Mỗi kênh đích có giới hạn riêng — hệ thống tự cắt và xuất nhiều phiên bản.</div>
+          <div class="grid2" style="grid-template-columns:1fr 1.1fr">
+            <div class="card">
+              <h3>Khung hình &amp; vùng an toàn</h3>
+              <div class="pfield"><span>Tỷ lệ đầu ra</span><select><option>9:16 (dọc — mặc định)</option><option>1:1 vuông</option><option>Giữ nguyên gốc</option></select></div>
+              <div class="pfield"><span>Video ngang → dọc</span><select><option>Crop chủ thể tự động (AI)</option><option>Nền blur trên dưới</option><option>Chia đôi trên/dưới</option></select></div>
+              <div class="pfield"><span>Độ phân giải</span><select><option>1080×1920</option><option>720×1280</option></select></div>
+              <div class="pfield"><span>Hiện vùng an toàn UI</span><div class="switch on"><i></i></div></div>
+              <div class="pfield"><span>Đẩy nội dung khỏi vùng UI</span><div class="switch on"><i></i></div></div>
+              <div class="psec">Hook 3 giây đầu</div>
+              <div class="pfield"><span>Chèn text hook</span><div class="switch on"><i></i></div></div>
+              <div class="pfield"><span>Nội dung hook</span><input type="text" value="Cô ấy đã tỉnh ra…" style="max-width:150px"></div>
+              <div class="pfield"><span>Cắt bỏ đoạn mở đầu chậm</span><div class="switch on"><i></i></div></div>
+            </div>
+            <div class="card">
+              <h3>Giới hạn theo nền tảng <span class="more" onclick="go('settings')">Chỉnh mặc định →</span></h3>
+              <table class="tbl">
+                <thead><tr><th>Nền tảng</th><th>Thời lượng</th><th>Tiêu đề</th><th>Xuất bản</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="pf tiktok">TikTok</span></td><td><input type="text" value="≤ 10 phút" style="width:82px;padding:3px 7px;font-size:11.5px"></td><td>2200 ký tự</td><td style="color:var(--ok)">✓ vừa</td></tr>
+                  <tr><td><span class="pf yt">Shorts</span></td><td><input type="text" value="≤ 3 phút" style="width:82px;padding:3px 7px;font-size:11.5px"></td><td>100 ký tự</td><td style="color:var(--ok)">✓ vừa</td></tr>
+                  <tr><td><span class="pf fb">FB Reels</span></td><td><input type="text" value="≤ 90 giây" style="width:82px;padding:3px 7px;font-size:11.5px"></td><td>2200 ký tự</td><td style="color:var(--ok)">✓ vừa</td></tr>
+                  <tr><td><span class="pf ig">IG Reels</span></td><td><input type="text" value="≤ 3 phút" style="width:82px;padding:3px 7px;font-size:11.5px"></td><td>2200 ký tự</td><td style="color:var(--ok)">✓ vừa</td></tr>
+                  <tr><td><span class="pf zalo">Zalo Video</span></td><td><input type="text" value="≤ 5 phút" style="width:82px;padding:3px 7px;font-size:11.5px"></td><td>500 ký tự</td><td style="color:var(--ok)">✓ vừa</td></tr>
+                </tbody>
+              </table>
+              <div class="hint w" style="margin-top:12px">⚠ Đây là giá trị mặc định có thể chỉnh — nền tảng thay đổi giới hạn theo thời gian, nên kiểm tra lại định kỳ trong Cài đặt.</div>
+              <div class="psec">Video dài hơn giới hạn</div>
+              <div class="pfield"><span>Xử lý</span><select><option>Tự chia thành nhiều tập</option><option>Cắt bớt phần cuối</option><option>Tăng tốc nhẹ</option><option>Bỏ qua video</option></select></div>
+              <div class="pfield"><span>Đặt tên tập</span><input type="text" value="{tiêu_đề} — Phần {n}" style="max-width:150px"></div>
+              <div class="pfield"><span>Chèn "Xem tiếp phần sau"</span><div class="switch on"><i></i></div></div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:14px">
+            <h3>Phiên bản sẽ xuất ra · 3 file</h3>
+            <div class="chrow"><span class="pf tiktok">TikTok</span> 1080×1920 · 0:47 · sub Việt + lồng tiếng <span class="q">→ Drama Ngắn TQ</span></div>
+            <div class="chrow"><span class="pf yt">Shorts</span> 1080×1920 · 0:47 · sub Việt + lồng tiếng + outro kênh <span class="q">→ Phim Hoa Ngữ</span></div>
+            <div class="chrow"><span class="pf fb">FB Reels</span> 1080×1920 · 0:47 · sub Việt (không lồng tiếng) <span class="q">→ Phim Hoa Ngữ FB</span></div>
+          </div>
+        </div>
+
+        <!-- E5 -->
+        <div class="tabpane" id="e5">
+          <div class="hint">🎲 Bật "Ngẫu nhiên hoá" để mỗi video trong batch nhận tham số khác nhau — tránh việc nhiều video cùng dấu vân số.</div>
+          <div class="grid3" id="antidupGrid"></div>
+          <div class="card">
+            <h3>Ước tính độ khác biệt so với bản gốc</h3>
+            <div style="display:flex;align-items:center;gap:14px">
+              <div style="flex:1;height:9px;background:var(--bg);border-radius:5px;overflow:hidden"><span style="display:block;height:100%;width:34%;background:linear-gradient(90deg,var(--warn),var(--ok))"></span></div>
+              <b style="font-size:17px">34%</b>
+              <button class="btn sm" onclick="toast('info','Đã ngẫu nhiên hoá','Mỗi video trong batch nhận tham số riêng')">🎲 Ngẫu nhiên hoá</button>
+            </div>
+            <div class="hint w" style="margin-top:12px">⚠ Chỉ số này là ước tính kỹ thuật, không phải bảo đảm né được hệ thống nhận diện bản quyền. Cách an toàn duy nhất vẫn là dùng nội dung bạn có quyền.</div>
+          </div>
+        </div>
+
+        <!-- E6 -->
+        <div class="tabpane" id="e6">
+          <div class="grid2" style="grid-template-columns:1.15fr 1fr">
+            <div class="card">
+              <h3>Nội dung đăng <span class="more" onclick="genTitles()">✨ Sinh 5 phương án tiêu đề</span></h3>
+              <div class="field"><label>Tiêu đề</label><input type="text" id="postTitle" value="Cô ấy tỉnh ra sau 3 năm bị coi thường 💔 #phimngan"></div>
+              <div class="field"><label>Mô tả</label><textarea rows="3">Ba năm chờ đợi không phải để nghe lời xin lỗi… mà để học cách yêu bản thân.
+
+Xem tiếp phần sau ở kênh nhé!</textarea></div>
+              <div class="field"><label>Hashtag</label><input type="text" value="#phimngantrungquoc #tongtai #ngontinh #reviewphim #xuhuong"></div>
+              <div class="row" style="margin:0">
+                <button class="btn sm" onclick="toast('info','Gợi ý hashtag','Đã thêm 3 hashtag đang trending tại VN')">🔥 Hashtag trending VN</button>
+                <button class="btn sm" onclick="toast('ok','Đã kiểm tra','Tiêu đề 68/100 ký tự · hợp lệ mọi nền tảng')">Kiểm tra giới hạn</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Kênh đích &amp; thời điểm</h3>
+              <div class="optrow on" onclick="this.classList.toggle('on')"><span class="oi">♪</span><div><div class="ot">Drama Ngắn TQ</div><div class="od">TikTok · 231K follower · hôm nay còn 2 suất</div></div><span class="ock">✓</span></div>
+              <div class="optrow on" onclick="this.classList.toggle('on')"><span class="oi">▶</span><div><div class="ot">Phim Hoa Ngữ</div><div class="od">YouTube Shorts · 42.3K sub · ⚠ đang tạm dừng vì claim</div></div><span class="ock">✓</span></div>
+              <div class="optrow" onclick="this.classList.toggle('on')"><span class="oi">f</span><div><div class="ot">Phim Hoa Ngữ FB</div><div class="od">Facebook Reels · 18.2K follower</div></div><span class="ock"></span></div>
+              <div class="optrow" onclick="this.classList.toggle('on')"><span class="oi">◎</span><div><div class="ot">Drama TQ IG</div><div class="od">Instagram Reels · 9.4K follower</div></div><span class="ock"></span></div>
+              <div class="field" style="margin-top:14px"><label>Thời điểm đăng</label>
+                <select><option>Khung giờ vàng gần nhất — 19:30 hôm nay</option><option>Đăng ngay</option><option>Chọn giờ cụ thể</option><option>Thêm vào hàng chờ rải tự động</option></select></div>
+              <div class="field"><label>Thumbnail</label>
+                <div class="row" style="margin:0">
+                  <div style="width:44px;height:60px;border-radius:6px;background:linear-gradient(150deg,#3A2E4A,#1E2430);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center">🎭</div>
+                  <div style="width:44px;height:60px;border-radius:6px;background:linear-gradient(150deg,#2E3646,#171B24);display:flex;align-items:center;justify-content:center">😢</div>
+                  <div style="width:44px;height:60px;border-radius:6px;background:linear-gradient(150deg,#2E3646,#171B24);display:flex;align-items:center;justify-content:center">💔</div>
+                  <button class="btn sm">Chọn khung khác</button>
+                </div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= CHANNELS ================= -->
+      <div class="page" id="chan">
+        <div class="page-head"><div><h1>Kênh Việt Nam</h1><div class="sub">Nền tảng video ngắn · <span id="chanCount">5</span> kênh đang kết nối</div></div>
+          <div class="row" style="margin:0"><button class="btn" onclick="openModal('mdGroup')">Quản lý cụm kênh</button><button class="btn primary" onclick="openModal('mdAddChannel')">+ Kết nối kênh</button></div></div>
+        <div class="chips">
+          <div class="chip active">Tất cả</div><div class="chip">TikTok · 2</div><div class="chip">YouTube Shorts · 1</div>
+          <div class="chip">Facebook Reels · 1</div><div class="chip">Instagram Reels · 1</div><div class="chip">Zalo Video · 0</div>
+        </div>
+        <div class="chgrid" id="chanGrid"></div>
+      </div>
+
+      <!-- ================= SCHEDULE ================= -->
+      <div class="page" id="sched">
+        <div class="page-head"><div><h1>Lịch đăng</h1><div class="sub" id="schedSub">Tuần 03–09/08/2026</div></div>
+          <div class="row" style="margin:0"><button class="btn">Tuần</button><button class="btn" onclick="toast('info','Chế độ tháng','Đang tải lịch tháng 8')">Tháng</button><button class="btn primary" onclick="openModal('mdAuto')">⚡ Rải tự động</button></div></div>
+        <div class="chips">
+          <div class="chip active">Tất cả kênh</div><div class="chip">TikTok</div><div class="chip">YouTube Shorts</div><div class="chip">Facebook Reels</div><div class="chip">Instagram Reels</div>
+        </div>
+        <div class="cal" id="calGrid"></div>
+        <div class="card" style="margin-top:14px">
+          <h3>Chờ xếp lịch · <span id="pendCount">15</span> video <span class="more">Kéo thả vào ô ngày để xếp giờ →</span></h3>
+          <div class="row" style="margin:0" id="pendChips"></div>
+        </div>
+      </div>
+
+      <!-- ================= STATS ================= -->
+      <div class="page" id="stats">
+        <div class="page-head"><div><h1>Thống kê</h1><div class="sub">30 ngày qua · tất cả kênh video ngắn</div></div>
+          <div class="row" style="margin:0"><select><option>30 ngày qua</option><option>7 ngày</option><option>90 ngày</option></select><button class="btn" onclick="toast('ok','Đã xuất file','bao-cao-thang-8.xlsx')">Xuất Excel</button></div></div>
+        <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+          <div class="stat"><div class="n">2.4M</div><div class="l">Lượt xem</div></div>
+          <div class="stat ok"><div class="n">+8.2K</div><div class="l">Follower tăng thêm</div></div>
+          <div class="stat"><div class="n">41%</div><div class="l">Tỷ lệ xem hết</div></div>
+          <div class="stat"><div class="n">$127</div><div class="l">Chi phí API</div></div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <h3>Hiệu quả theo nền tảng</h3>
+            <table class="tbl">
+              <thead><tr><th>Nền tảng</th><th>Video</th><th>View TB</th><th>Xem hết</th><th>Follower +</th></tr></thead>
+              <tbody>
+                <tr><td><span class="pf tiktok">TikTok</span></td><td>62</td><td style="color:var(--ok)">51.2K</td><td>48%</td><td>+4.1K</td></tr>
+                <tr><td><span class="pf yt">Shorts</span></td><td>44</td><td>28.7K</td><td>39%</td><td>+2.6K</td></tr>
+                <tr><td><span class="pf fb">FB Reels</span></td><td>31</td><td>19.4K</td><td>34%</td><td>+0.9K</td></tr>
+                <tr><td><span class="pf ig">IG Reels</span></td><td>19</td><td>11.2K</td><td>31%</td><td>+0.6K</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card">
+            <h3>Top nguồn Trung Quốc</h3>
+            <table class="tbl">
+              <thead><tr><th>Kênh nguồn</th><th>Video</th><th>View TB</th><th>Xu hướng</th></tr></thead>
+              <tbody>
+                <tr><td>@小甜剧场 (抖音)</td><td>24</td><td>48.2K</td><td style="color:var(--ok)">↑ 18%</td></tr>
+                <tr><td>@都市剧场 (抖音)</td><td>18</td><td>31.7K</td><td style="color:var(--ok)">↑ 6%</td></tr>
+                <tr><td>@美食家老王 (B站)</td><td>12</td><td>22.4K</td><td style="color:var(--err)">↓ 9%</td></tr>
+                <tr><td>@国风频道 (快手)</td><td>9</td><td>15.1K</td><td style="color:var(--ok)">↑ 3%</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card">
+            <h3>So sánh cấu hình xử lý</h3>
+            <table class="tbl">
+              <thead><tr><th>Cấu hình</th><th>Video</th><th>View TB</th></tr></thead>
+              <tbody>
+                <tr><td>Lồng tiếng nữ miền Nam</td><td>31</td><td style="color:var(--ok)">39.4K</td></tr>
+                <tr><td>Lồng tiếng nam miền Bắc</td><td>22</td><td>27.1K</td></tr>
+                <tr><td>Chỉ phụ đề</td><td>45</td><td>19.6K</td></tr>
+                <tr><td>Có hook 3 giây đầu</td><td>58</td><td style="color:var(--ok)">42.8K</td></tr>
+                <tr><td>Không hook</td><td>40</td><td>21.3K</td></tr>
+              </tbody>
+            </table>
+            <div class="hint" style="margin:13px 0 0">💡 Hook 3 giây đầu làm view tăng gấp đôi. Nên bật mặc định cho mọi luồng.</div>
+          </div>
+          <div class="card">
+            <h3>Khung giờ vàng (theo dữ liệu kênh của bạn)</h3>
+            <div class="chart" style="height:96px">
+              <div class="bar" style="height:22%"><i>6h</i></div><div class="bar" style="height:44%"><i>9h</i></div>
+              <div class="bar" style="height:68%"><i>12h</i></div><div class="bar" style="height:38%"><i>15h</i></div>
+              <div class="bar" style="height:56%"><i>18h</i></div><div class="bar" style="height:100%"><i>20h</i></div>
+              <div class="bar" style="height:78%"><i>22h</i></div>
+            </div>
+            <div style="height:22px"></div>
+            <div class="hint">⏰ 20:00–21:30 là khung tốt nhất. Rải tự động đang ưu tiên khung này.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= SETTINGS ================= -->
+      <div class="page" id="settings">
+        <div class="page-head"><div><h1>Cài đặt</h1></div></div>
+        <div class="setwrap">
+          <div class="epanel" style="padding:9px" data-tabs="set">
+            <div class="tool" data-t="g1">Chung</div>
+            <div class="tool active" data-t="g2">Xử lý &amp; GPU</div>
+            <div class="tool" data-t="g3">API Key</div>
+            <div class="tool" data-t="g4">Nền tảng đăng</div>
+            <div class="tool" data-t="g5">Lưu trữ &amp; proxy</div>
+            <div class="tool" data-t="g6">Thông báo</div>
+          </div>
+          <div>
+            <div class="tabpane" id="g1"><div class="card">
+              <div class="fieldrow"><div><div class="fl">Ngôn ngữ giao diện</div></div><select><option>Tiếng Việt</option><option>English</option></select></div>
+              <div class="fieldrow"><div><div class="fl">Giao diện</div></div><select><option>Tối</option><option>Sáng</option><option>Theo hệ thống</option></select></div>
+              <div class="fieldrow"><div><div class="fl">Múi giờ</div><div class="fd">Dùng cho lên lịch đăng</div></div><select><option>GMT+7 Hồ Chí Minh</option></select></div>
+              <div class="fieldrow"><div><div class="fl">Yêu cầu duyệt tay trước khi đăng</div><div class="fd">Tắt để luồng tự động chạy hoàn toàn không cần bạn</div></div><div class="switch on"><i></i></div></div>
+            </div></div>
+            <div class="tabpane active" id="g2"><div class="card">
+              <div class="fieldrow"><div><div class="fl">Số luồng xử lý song song</div><div class="fd">Nhiều luồng nhanh hơn nhưng ngốn RAM và VRAM</div></div><select><option>4 luồng</option><option>2 luồng</option><option>8 luồng</option></select></div>
+              <div class="fieldrow"><div><div class="fl">Tăng tốc GPU</div><div class="fd">Đã phát hiện: NVIDIA RTX 4070 · NVENC khả dụng</div></div><div class="switch on"><i></i></div></div>
+              <div class="fieldrow"><div><div class="fl">Bật Inpaint AI (ProPainter)</div><div class="fd">Chất lượng xoá watermark tốt nhất — cần ≥8GB VRAM, chậm 5–20× thời lượng video</div></div><div class="switch on"><i></i></div></div>
+              <div class="fieldrow"><div><div class="fl">Engine nhận dạng giọng nói</div><div class="fd">Whisper large-v3 chạy local, không tốn phí API</div></div><select><option>Whisper large-v3 (local)</option><option>Whisper API</option></select></div>
+              <div class="fieldrow"><div><div class="fl">Đường dẫn FFmpeg</div><div class="fd mono">/usr/local/bin/ffmpeg · phiên bản 7.1</div></div><button class="btn sm">Đổi</button></div>
+              <div class="fieldrow"><div><div class="fl">Tự kiểm sót watermark sau render</div><div class="fd">Chạy lại OCR + template matching, chặn đăng nếu còn dấu vết</div></div><div class="switch on"><i></i></div></div>
+            </div></div>
+            <div class="tabpane" id="g3"><div class="card">
+              <div class="fieldrow"><div><div class="fl">LLM dịch thuật</div><div class="fd mono">sk-ant-••••••••••••4f2a · còn $412 hạn mức</div></div><div class="row" style="margin:0"><span class="dot ok"></span><button class="btn sm">Kiểm tra</button></div></div>
+              <div class="fieldrow"><div><div class="fl">ElevenLabs TTS</div><div class="fd mono">••••••••••••8b1c · còn 108K ký tự tháng này</div></div><div class="row" style="margin:0"><span class="dot ok"></span><button class="btn sm">Kiểm tra</button></div></div>
+              <div class="fieldrow"><div><div class="fl">FPT.AI TTS (dự phòng)</div><div class="fd">Tự chuyển sang khi ElevenLabs hết hạn mức</div></div><div class="row" style="margin:0"><span class="dot ok"></span><button class="btn sm">Kiểm tra</button></div></div>
+              <div class="fieldrow"><div><div class="fl">Hạn mức chi tiêu / tháng</div><div class="fd">Tự dừng luồng tự động khi vượt</div></div><input type="text" value="$200" style="max-width:100px"></div>
+            </div></div>
+            <div class="tabpane" id="g4"><div class="card">
+              <h3>Giới hạn mặc định theo nền tảng</h3>
+              <div class="hint w">⚠ Các nền tảng thay đổi giới hạn theo thời gian. Đây là giá trị bạn tự cấu hình, app không tự cập nhật.</div>
+              <table class="tbl">
+                <thead><tr><th>Nền tảng</th><th>Thời lượng tối đa</th><th>Tiêu đề</th><th>Hashtag</th><th>Bài/ngày an toàn</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="pf tiktok">TikTok</span></td><td><input type="text" value="600s" style="width:70px;padding:3px 7px"></td><td><input type="text" value="2200" style="width:64px;padding:3px 7px"></td><td><input type="text" value="5" style="width:48px;padding:3px 7px"></td><td><input type="text" value="4" style="width:48px;padding:3px 7px"></td></tr>
+                  <tr><td><span class="pf yt">Shorts</span></td><td><input type="text" value="180s" style="width:70px;padding:3px 7px"></td><td><input type="text" value="100" style="width:64px;padding:3px 7px"></td><td><input type="text" value="10" style="width:48px;padding:3px 7px"></td><td><input type="text" value="3" style="width:48px;padding:3px 7px"></td></tr>
+                  <tr><td><span class="pf fb">FB Reels</span></td><td><input type="text" value="90s" style="width:70px;padding:3px 7px"></td><td><input type="text" value="2200" style="width:64px;padding:3px 7px"></td><td><input type="text" value="8" style="width:48px;padding:3px 7px"></td><td><input type="text" value="3" style="width:48px;padding:3px 7px"></td></tr>
+                  <tr><td><span class="pf ig">IG Reels</span></td><td><input type="text" value="180s" style="width:70px;padding:3px 7px"></td><td><input type="text" value="2200" style="width:64px;padding:3px 7px"></td><td><input type="text" value="10" style="width:48px;padding:3px 7px"></td><td><input type="text" value="3" style="width:48px;padding:3px 7px"></td></tr>
+                  <tr><td><span class="pf zalo">Zalo Video</span></td><td><input type="text" value="300s" style="width:70px;padding:3px 7px"></td><td><input type="text" value="500" style="width:64px;padding:3px 7px"></td><td><input type="text" value="5" style="width:48px;padding:3px 7px"></td><td><input type="text" value="3" style="width:48px;padding:3px 7px"></td></tr>
+                </tbody>
+              </table>
+            </div></div>
+            <div class="tabpane" id="g5"><div class="card">
+              <div class="fieldrow"><div><div class="fl">Thư mục lưu trữ</div><div class="fd mono">/Volumes/Media/reup-studio</div></div><button class="btn sm">Đổi</button></div>
+              <div class="fieldrow"><div><div class="fl">Tự xoá file thô sau khi đăng</div><div class="fd">Giữ lại bản render, xoá video gốc và audio tạm</div></div><select><option>14 ngày</option><option>7 ngày</option><option>Không xoá</option></select></div>
+              <div class="fieldrow"><div><div class="fl">Proxy tải nguồn Trung Quốc</div><div class="fd mono">4 proxy hoạt động · 1 lỗi</div></div><button class="btn sm">Quản lý</button></div>
+              <div class="fieldrow"><div><div class="fl">Gán proxy riêng cho mỗi kênh đăng</div><div class="fd">Tránh nền tảng liên kết các tài khoản với nhau</div></div><div class="switch on"><i></i></div></div>
+            </div></div>
+            <div class="tabpane" id="g6"><div class="card">
+              <div class="fieldrow"><div><div class="fl">Thông báo trong app</div></div><div class="switch on"><i></i></div></div>
+              <div class="fieldrow"><div><div class="fl">Telegram bot</div><div class="fd mono">@reupstudio_bot · đã kết nối</div></div><div class="switch on"><i></i></div></div>
+              <div class="fieldrow"><div><div class="fl">Báo khi có Content ID claim</div><div class="fd">Gửi ngay, kèm link video và kênh bị ảnh hưởng</div></div><div class="switch on"><i></i></div></div>
+              <div class="fieldrow"><div><div class="fl">Báo cáo tổng kết hằng ngày</div><div class="fd">Gửi lúc 22:00 mỗi ngày</div></div><div class="switch on"><i></i></div></div>
+            </div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div class="backdrop" id="backdrop" onclick="if(event.target===this)closeModal()">
+
+  <!-- WIZARD -->
+  <div class="modal wide" id="mdWizard" style="display:none">
+    <div class="mhead"><h2>⚡ Tạo luồng tự động</h2><span class="mx" onclick="closeModal()">✕</span></div>
+    <div class="mbody">
+      <div class="steps-bar">
+        <div class="stp on" data-s="1">Kênh nguồn</div><div class="stp" data-s="2">Bộ lọc</div>
+        <div class="stp" data-s="3">Xử lý</div><div class="stp" data-s="4">Kênh Việt Nam</div>
+        <div class="stp" data-s="5">Lịch đăng</div><div class="stp" data-s="6">Xác nhận</div>
+      </div>
+
+      <div class="wpane active" data-w="1">
+        <div class="field"><label>Dán link kênh Trung Quốc muốn theo dõi</label>
+          <input type="text" id="wzSrc" value="https://www.douyin.com/user/MS4wLjABAAAA_xiaotianju"></div>
+        <div class="hint">✅ Nhận diện: <b>抖音 Douyin · @小甜剧场</b> · 1.2M follower · 342 video · chủ yếu phim ngắn dọc 9:16, 30–90 giây</div>
+        <div class="field"><label>Chu kỳ quét video mới</label>
+          <select id="wzCycle"><option>Mỗi 6 giờ</option><option>Mỗi giờ</option><option>Mỗi 15 phút</option><option>Mỗi ngày</option></select></div>
+        <div class="field"><label>Tên luồng</label><input type="text" id="wzName" value="Phim ngắn ngôn tình → TikTok + Shorts"></div>
+      </div>
+
+      <div class="wpane" data-w="2">
+        <div class="hint">🔎 Chỉ lấy video thoả điều kiện — giúp không tốn chi phí xử lý cho video kém.</div>
+        <div class="grid2" style="grid-template-columns:1fr 1fr;margin:0">
+          <div class="field"><label>Thời lượng</label><div class="row" style="margin:0"><input type="text" value="15" style="width:64px">–<input type="text" value="90" style="width:64px"> giây</div></div>
+          <div class="field"><label>Lượt xem tối thiểu</label><input type="text" value="100000"></div>
+          <div class="field"><label>Tỷ lệ khung hình</label><select><option>Chỉ dọc 9:16</option><option>Mọi tỷ lệ</option></select></div>
+          <div class="field"><label>Đăng trong vòng</label><select><option>7 ngày qua</option><option>30 ngày qua</option><option>Không giới hạn</option></select></div>
+        </div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">🚫</span><div><div class="ot">Bỏ qua video đã có người Việt reup</div><div class="od">Đối chiếu pHash với video đang có trên TikTok/YouTube VN</div></div><span class="ock">✓</span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">⚠️</span><div><div class="ot">Chặn nội dung nhạy cảm</div><div class="od">Chính trị, cờ bạc, 18+, thuốc — gắn cờ chờ duyệt tay</div></div><span class="ock">✓</span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">🔁</span><div><div class="ot">Không lấy trùng video đã tải</div><div class="od">So ID nguồn + MD5 + pHash khung hình</div></div><span class="ock">✓</span></div>
+      </div>
+
+      <div class="wpane" data-w="3">
+        <div class="field"><label>Preset xử lý</label>
+          <select id="wzPreset"><option>Douyin sạch — xoá logo + sub + dịch + lồng tiếng</option><option>Chỉ phụ đề Việt</option><option>Giữ nguyên tiếng gốc</option><option>Tuỳ chỉnh…</option></select></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">🧹</span><div><div class="ot">Xoá watermark Douyin (Inpaint AI)</div><div class="od">Bám logo động 4 góc + xoá chuỗi ID</div></div><span class="ock">✓</span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">📝</span><div><div class="ot">Xoá phụ đề cứng tiếng Trung</div><div class="od">Inpaint vùng chữ theo timeline</div></div><span class="ock">✓</span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">🇻🇳</span><div><div class="ot">Dịch &amp; burn phụ đề Việt</div><div class="od">Văn phong ngôn tình · font Be Vietnam Pro · tránh vùng UI</div></div><span class="ock">✓</span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">🎙</span><div><div class="ot">Lồng tiếng nữ miền Nam</div><div class="od">ElevenLabs · giữ nhạc nền gốc · ducking tự động</div></div><span class="ock">✓</span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">📱</span><div><div class="ot">Chuẩn hoá 9:16 + hook 3 giây đầu</div><div class="od">Tự cắt theo giới hạn từng nền tảng, chia tập nếu quá dài</div></div><span class="ock">✓</span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">🎲</span><div><div class="ot">Chống trùng mức nhẹ + ngẫu nhiên hoá</div><div class="od">Crop 3% · tốc độ 1.02× · logo kênh · đổi metadata</div></div><span class="ock">✓</span></div>
+      </div>
+
+      <div class="wpane" data-w="4">
+        <div class="hint">📱 Chọn kênh Việt Nam sẽ nhận video từ luồng này. Mỗi kênh sẽ nhận bản render riêng đúng chuẩn nền tảng đó.</div>
+        <div id="wzChannels"></div>
+        <div class="field" style="margin-top:14px"><label>Khi một kênh bị tạm dừng (claim/strike)</label>
+          <select><option>Chuyển video sang kênh còn lại</option><option>Giữ lại chờ kênh hoạt động lại</option><option>Dừng cả luồng</option></select></div>
+      </div>
+
+      <div class="wpane" data-w="5">
+        <div class="grid2" style="grid-template-columns:1fr 1fr;margin:0">
+          <div class="field"><label>Số bài mỗi kênh mỗi ngày</label><select id="wzPerDay"><option>3 bài</option><option>2 bài</option><option>4 bài</option><option>5 bài</option></select></div>
+          <div class="field"><label>Khoảng cách tối thiểu</label><select><option>4 giờ</option><option>2 giờ</option><option>6 giờ</option></select></div>
+          <div class="field"><label>Khung giờ được phép đăng</label><div class="row" style="margin:0"><input type="text" value="08:00" style="width:78px">–<input type="text" value="22:00" style="width:78px"></div></div>
+          <div class="field"><label>Ưu tiên khung giờ vàng</label><select><option>Có — 12:00 và 20:00</option><option>Rải đều</option></select></div>
+        </div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">👀</span><div><div class="ot">Cần tôi duyệt trước khi đăng</div><div class="od">Video vào mục "Chờ duyệt", bạn bấm ✓ là đăng theo lịch</div></div><span class="ock">✓</span></div>
+        <div class="optrow" onclick="tg(this)"><span class="oi">🤖</span><div><div class="ot">Đăng hoàn toàn tự động</div><div class="od">Không cần duyệt — chỉ dừng khi hệ thống gắn cờ rủi ro</div></div><span class="ock"></span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">🛑</span><div><div class="ot">Tự dừng khi có claim hoặc strike</div><div class="od">Dừng kênh bị ảnh hưởng và báo Telegram ngay</div></div><span class="ock">✓</span></div>
+      </div>
+
+      <div class="wpane" data-w="6">
+        <div class="summary" id="wzSummary"></div>
+        <div class="hint" style="margin-top:14px">✅ Sau khi kích hoạt, luồng chạy hoàn toàn tự động. Bạn chỉ mở app khi có video vào mục "Chờ duyệt" hoặc khi nhận cảnh báo.</div>
+        <div class="hint w">⚠ Chỉ dùng với nội dung bạn có quyền sử dụng. Reup video của creator khác mà không có phép có thể khiến kênh bị gỡ video hoặc khoá.</div>
+      </div>
+    </div>
+    <div class="mfoot">
+      <span style="margin-right:auto;font-size:12px;color:var(--muted)" id="wzStepTxt">Bước 1/6</span>
+      <button class="btn" id="wzBack" onclick="wizStep(-1)" disabled>Quay lại</button>
+      <button class="btn primary" id="wzNext" onclick="wizStep(1)">Tiếp tục →</button>
+    </div>
+  </div>
+
+  <!-- ADD CHANNEL -->
+  <div class="modal" id="mdAddChannel" style="display:none">
+    <div class="mhead"><h2>Kết nối kênh Việt Nam</h2><span class="mx" onclick="closeModal()">✕</span></div>
+    <div class="mbody">
+      <div class="field"><label>Chọn nền tảng video ngắn</label>
+        <div class="pgrid">
+          <div class="pcard on" onclick="pickOne(this)"><div class="pi">♪</div><div class="pn">TikTok</div><div class="pd">Content Posting API</div></div>
+          <div class="pcard" onclick="pickOne(this)"><div class="pi">▶</div><div class="pn">YouTube Shorts</div><div class="pd">Data API v3</div></div>
+          <div class="pcard" onclick="pickOne(this)"><div class="pi">f</div><div class="pn">Facebook Reels</div><div class="pd">Graph API</div></div>
+          <div class="pcard" onclick="pickOne(this)"><div class="pi">◎</div><div class="pn">Instagram Reels</div><div class="pd">Graph API</div></div>
+          <div class="pcard" onclick="pickOne(this)"><div class="pi">Z</div><div class="pn">Zalo Video</div><div class="pd">Zalo OA API</div></div>
+          <div class="pcard" onclick="pickOne(this)"><div class="pi">🍋</div><div class="pn">Lemon8</div><div class="pd">Đăng bán tự động</div></div>
+        </div>
+      </div>
+      <div class="field"><label>Tên hiển thị trong app</label><input type="text" id="newChanName" placeholder="VD: Drama Ngắn TQ 2"></div>
+      <div class="field"><label>Cụm kênh</label><select><option>Drama ngắn</option><option>Ẩm thực</option><option>Đời sống</option><option>+ Tạo cụm mới</option></select></div>
+      <div class="field"><label>Proxy riêng cho kênh này</label><select><option>Tự động chọn proxy chưa dùng</option><option>103.xx.xx.12</option><option>Không dùng proxy</option></select></div>
+      <div class="hint">🔐 Bấm "Kết nối" sẽ mở cửa sổ đăng nhập chính thức của nền tảng. App không lưu mật khẩu, chỉ lưu token đã mã hoá.</div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Huỷ</button><button class="btn primary" onclick="addChannel()">Kết nối qua OAuth</button></div>
+  </div>
+
+  <!-- ADD SOURCE -->
+  <div class="modal" id="mdAddSource" style="display:none">
+    <div class="mhead"><h2>Theo dõi kênh nguồn Trung Quốc</h2><span class="mx" onclick="closeModal()">✕</span></div>
+    <div class="mbody">
+      <div class="field"><label>Link kênh</label><input type="text" placeholder="https://www.douyin.com/user/… hoặc https://space.bilibili.com/…" value="https://www.douyin.com/user/MS4wLjABAAAA_dushi"></div>
+      <div class="hint">✅ Nhận diện: <b>抖音 · @都市剧场</b> · 860K follower · phần lớn video dọc 40–80 giây</div>
+      <div class="grid2" style="grid-template-columns:1fr 1fr;margin:0">
+        <div class="field"><label>Chu kỳ quét</label><select><option>Mỗi 6 giờ</option><option>Mỗi giờ</option><option>Mỗi ngày</option></select></div>
+        <div class="field"><label>Tối đa mỗi lần quét</label><select><option>5 video</option><option>10 video</option><option>Không giới hạn</option></select></div>
+        <div class="field"><label>Preset lọc</label><select><option>Phim ngắn dọc 9:16</option><option>Mặc định</option></select></div>
+        <div class="field"><label>Preset xử lý</label><select><option>Douyin sạch</option><option>Chỉ phụ đề Việt</option></select></div>
+      </div>
+      <div class="field"><label>Gán vào luồng tự động</label><select><option>Phim ngắn ngôn tình → TikTok + Shorts</option><option>Không gán — chỉ tải về thư viện</option></select></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Huỷ</button><button class="btn primary" onclick="addSource()">Bắt đầu theo dõi</button></div>
+  </div>
+
+  <!-- SCHEDULE BULK -->
+  <div class="modal" id="mdSchedule" style="display:none">
+    <div class="mhead"><h2>Xếp lịch đăng</h2><span class="mx" onclick="closeModal()">✕</span></div>
+    <div class="mbody">
+      <div class="hint" id="schedInfo">📅 Đang xếp lịch cho <b>0 video</b>.</div>
+      <div class="field"><label>Đăng lên</label>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">♪</span><div><div class="ot">Drama Ngắn TQ</div><div class="od">TikTok · còn 2 suất hôm nay</div></div><span class="ock">✓</span></div>
+        <div class="optrow on" onclick="tg(this)"><span class="oi">▶</span><div><div class="ot">Phim Hoa Ngữ</div><div class="od">YouTube Shorts · còn 1 suất hôm nay</div></div><span class="ock">✓</span></div>
+        <div class="optrow" onclick="tg(this)"><span class="oi">f</span><div><div class="ot">Phim Hoa Ngữ FB</div><div class="od">Facebook Reels · còn 3 suất</div></div><span class="ock"></span></div>
+      </div>
+      <div class="grid2" style="grid-template-columns:1fr 1fr;margin:0">
+        <div class="field"><label>Kiểu xếp</label><select><option>Rải đều theo khung giờ vàng</option><option>Đăng ngay tất cả</option><option>Chọn giờ cụ thể</option></select></div>
+        <div class="field"><label>Bắt đầu từ</label><select><option>Hôm nay 19:30</option><option>Ngày mai 08:30</option></select></div>
+        <div class="field"><label>Số bài / kênh / ngày</label><select><option>3 bài</option><option>2 bài</option><option>4 bài</option></select></div>
+        <div class="field"><label>Cách nhau tối thiểu</label><select><option>4 giờ</option><option>2 giờ</option></select></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Huỷ</button><button class="btn primary" onclick="doSchedule()">Xếp lịch</button></div>
+  </div>
+
+  <!-- AUTO DISTRIBUTE -->
+  <div class="modal" id="mdAuto" style="display:none">
+    <div class="mhead"><h2>⚡ Rải tự động toàn bộ hàng chờ</h2><span class="mx" onclick="closeModal()">✕</span></div>
+    <div class="mbody">
+      <div class="hint">Hiện có <b id="autoPend">15 video</b> chưa xếp lịch. Hệ thống sẽ phân bổ vào các suất trống, tôn trọng hạn ngạch từng kênh.</div>
+      <div class="grid2" style="grid-template-columns:1fr 1fr;margin:0">
+        <div class="field"><label>Trong khoảng</label><select><option>7 ngày tới</option><option>3 ngày tới</option><option>14 ngày tới</option></select></div>
+        <div class="field"><label>Ưu tiên</label><select><option>Khung giờ vàng (12h, 20h)</option><option>Rải đều cả ngày</option></select></div>
+        <div class="field"><label>Khung giờ cho phép</label><div class="row" style="margin:0"><input type="text" value="08:00" style="width:76px">–<input type="text" value="22:00" style="width:76px"></div></div>
+        <div class="field"><label>Cách nhau tối thiểu</label><select><option>4 giờ</option><option>3 giờ</option><option>6 giờ</option></select></div>
+      </div>
+      <div class="optrow on" onclick="tg(this)"><span class="oi">🔀</span><div><div class="ot">Không đăng cùng video lên 2 kênh cùng lúc</div><div class="od">Giãn cách tối thiểu 6 giờ giữa các kênh</div></div><span class="ock">✓</span></div>
+      <div class="optrow on" onclick="tg(this)"><span class="oi">📊</span><div><div class="ot">Ưu tiên video có điểm dự đoán cao</div><div class="od">Dựa trên view của video gốc và hiệu quả nguồn</div></div><span class="ock">✓</span></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Huỷ</button><button class="btn primary" onclick="autoDistribute()">Rải 15 video</button></div>
+  </div>
+
+  <!-- PRESET -->
+  <div class="modal" id="mdPreset" style="display:none">
+    <div class="mhead"><h2>Áp preset xử lý</h2><span class="mx" onclick="closeModal()">✕</span></div>
+    <div class="mbody">
+      <div class="optrow on" onclick="pickRow(this)"><span class="oi">🧹</span><div><div class="ot">Douyin sạch</div><div class="od">Xoá logo động + sub cứng · dịch · lồng tiếng nữ Nam · 9:16 · hook</div></div><span class="ock">✓</span></div>
+      <div class="optrow" onclick="pickRow(this)"><span class="oi">📝</span><div><div class="ot">Chỉ phụ đề Việt</div><div class="od">Giữ tiếng gốc, chỉ burn sub · nhanh gấp 4×</div></div><span class="ock"></span></div>
+      <div class="optrow" onclick="pickRow(this)"><span class="oi">🎙</span><div><div class="ot">Lồng tiếng nam miền Bắc</div><div class="od">Dùng cho kênh kể chuyện, review</div></div><span class="ock"></span></div>
+      <div class="optrow" onclick="pickRow(this)"><span class="oi">⚡</span><div><div class="ot">Nhanh nhất</div><div class="od">Blur logo thay vì inpaint · không lồng tiếng</div></div><span class="ock"></span></div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Huỷ</button><button class="btn primary" onclick="applyPreset()">Áp cho video đã chọn</button></div>
+  </div>
+
+  <!-- ASSIGN -->
+  <div class="modal" id="mdAssign" style="display:none">
+    <div class="mhead"><h2>Gán kênh Việt Nam</h2><span class="mx" onclick="closeModal()">✕</span></div>
+    <div class="mbody" id="assignBody"></div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Huỷ</button><button class="btn primary" onclick="applyAssign()">Gán</button></div>
+  </div>
+
+  <!-- GROUP -->
+  <div class="modal" id="mdGroup" style="display:none">
+    <div class="mhead"><h2>Cụm kênh</h2><span class="mx" onclick="closeModal()">✕</span></div>
+    <div class="mbody">
+      <div class="hint">Cụm kênh giúp gán 1 video cho nhiều nền tảng cùng lúc — mỗi kênh nhận bản render đúng chuẩn của nó.</div>
+      <div class="card" style="background:var(--panel2);margin-bottom:10px">
+        <h3>🎭 Drama ngắn <span class="more">Sửa</span></h3>
+        <div class="chrow"><span class="pf tiktok">TikTok</span> Drama Ngắn TQ <span class="q">231K</span></div>
+        <div class="chrow"><span class="pf yt">Shorts</span> Phim Hoa Ngữ <span class="q">42.3K</span></div>
+        <div class="chrow"><span class="pf fb">FB Reels</span> Phim Hoa Ngữ FB <span class="q">18.2K</span></div>
+      </div>
+      <div class="card" style="background:var(--panel2)">
+        <h3>🍜 Ẩm thực <span class="more">Sửa</span></h3>
+        <div class="chrow"><span class="pf tiktok">TikTok</span> Ẩm Thực Hoa <span class="q">89.4K</span></div>
+        <div class="chrow"><span class="pf ig">IG Reels</span> Drama TQ IG <span class="q">9.4K</span></div>
+      </div>
+    </div>
+    <div class="mfoot"><button class="btn" onclick="closeModal()">Đóng</button><button class="btn primary" onclick="toast('ok','Đã tạo cụm mới','Cụm trống — thêm kênh vào để dùng')">+ Cụm mới</button></div>
+  </div>
+
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ================= DATA ================= */
+var PF={tiktok:{n:'TikTok',c:'tiktok',i:'♪'},yt:{n:'Shorts',c:'yt',i:'▶'},fb:{n:'FB Reels',c:'fb',i:'f'},ig:{n:'IG Reels',c:'ig',i:'◎'},zalo:{n:'Zalo',c:'zalo',i:'Z'}};
+
+var videos=[
+ {id:1,t:'Chuyện tình tổng tài lạnh lùng — Tập 12',src:'抖音',au:'@小甜剧场',dur:'0:47',th:'🎭',st:'ready',step:5,ch:['tiktok','yt'],note:'Đã render 3 bản · chờ xếp lịch'},
+ {id:2,t:'Món ăn đường phố Thành Đô cay xé lưỡi',src:'哔哩哔哩',au:'@美食家老王',dur:'3:20',th:'🍜',st:'running',step:3,ch:['tiktok'],note:'Đang xoá watermark… 68%'},
+ {id:3,t:'Truyền thuyết rồng phương Đông',src:'快手',au:'@国风频道',dur:'1:05',th:'🐉',st:'review',step:3,ch:['tiktok','ig'],note:'⚠ Dò watermark tin cậy 54% — cần kiểm tra tay'},
+ {id:4,t:'Cô gái Hán phục dạo phố cổ Tây An',src:'小红书',au:'@汉服日常',dur:'0:58',th:'👘',st:'posted',step:6,ch:['tiktok','yt','fb'],note:'Đã đăng · 24.1K view'},
+ {id:5,t:'Lễ hội đèn lồng Bắc Kinh 2026',src:'微博',au:'@北京生活',dur:'2:14',th:'🏮',st:'error',step:2,ch:[],note:'Lỗi dịch: hết hạn mức API'},
+ {id:6,t:'Tổng tài trả thù vợ cũ — Tập 5',src:'抖音',au:'@都市剧场',dur:'1:12',th:'💔',st:'queue',step:0,ch:['tiktok','yt'],note:'Trong hàng đợi · vị trí 3'},
+ {id:7,t:'Bí quyết làm lẩu Trùng Khánh tại nhà',src:'哔哩哔哩',au:'@美食家老王',dur:'4:40',th:'🌶',st:'queue',step:0,ch:['tiktok'],note:'Sẽ chia 2 tập cho Shorts'},
+ {id:8,t:'Ngày thường của cô gái Thượng Hải',src:'小红书',au:'@上海日常',dur:'0:52',th:'🌆',st:'running',step:2,ch:['ig','fb'],note:'Đang dịch phụ đề… 22%'},
+ {id:9,t:'Võ thuật Thiếu Lâm — cảnh quay hiếm',src:'抖音',au:'@武术频道',dur:'1:33',th:'🥋',st:'review',step:4,ch:['tiktok','yt'],note:'⚠ Nội dung có thể bị gắn cờ bạo lực nhẹ'},
+ {id:10,t:'Chợ đêm Tây An về khuya',src:'快手',au:'@西安美食',dur:'2:05',th:'🌙',st:'ready',step:5,ch:['tiktok','fb'],note:'Sẵn sàng đăng'}
+];
+var ST={queue:'Chờ xử lý',running:'Đang chạy',review:'Chờ duyệt',ready:'Sẵn sàng',posted:'Đã đăng',error:'Lỗi'};
+
+var channels=[
+ {n:'Drama Ngắn TQ',p:'tiktok',f:'231K follower',tok:'còn 44 ngày',tokS:'ok',today:'2/4 bài',claim:'sạch',claimS:'ok',g:'linear-gradient(135deg,#25F4EE,#FE2C55)',e:'♪'},
+ {n:'Phim Hoa Ngữ',p:'yt',f:'42.3K sub',tok:'còn 58 ngày',tokS:'ok',today:'2/3 bài',claim:'1 claim — tạm dừng',claimS:'err',g:'linear-gradient(135deg,#FF0033,#F2B33D)',e:'▶'},
+ {n:'Ẩm Thực Hoa',p:'tiktok',f:'89.4K follower',tok:'hết hạn sau 2 ngày',tokS:'warn',today:'4/5 bài',claim:'sạch',claimS:'ok',g:'linear-gradient(135deg,#6E56CF,#E5484D)',e:'🍜'},
+ {n:'Phim Hoa Ngữ FB',p:'fb',f:'18.2K follower',tok:'còn 71 ngày',tokS:'ok',today:'1/3 bài',claim:'sạch',claimS:'ok',g:'linear-gradient(135deg,#0866FF,#4F7CFF)',e:'f'},
+ {n:'Drama TQ IG',p:'ig',f:'9.4K follower',tok:'còn 39 ngày',tokS:'ok',today:'0/3 bài',claim:'sạch',claimS:'ok',g:'linear-gradient(135deg,#E1306C,#F2B33D)',e:'◎'}
+];
+
+var sources=[
+ {n:'@小甜剧场',p:'抖音 Douyin',cy:'6 giờ',pr:'Douyin sạch',dst:'Drama ngắn',got:24,last:'12 phút trước'},
+ {n:'@都市剧场',p:'抖音 Douyin',cy:'6 giờ',pr:'Douyin sạch',dst:'Drama ngắn',got:18,last:'34 phút trước'},
+ {n:'@美食家老王',p:'哔哩哔哩',cy:'1 ngày',pr:'Chỉ phụ đề',dst:'Ẩm thực',got:12,last:'3 giờ trước'},
+ {n:'@国风频道',p:'快手 Kuaishou',cy:'6 giờ',pr:'Douyin sạch',dst:'Drama ngắn',got:9,last:'1 giờ trước'},
+ {n:'@汉服日常',p:'小红书',cy:'1 ngày',pr:'Chỉ phụ đề',dst:'Đời sống',got:7,last:'5 giờ trước'},
+ {n:'@上海日常',p:'小红书',cy:'6 giờ',pr:'Chỉ phụ đề',dst:'Đời sống',got:4,last:'2 giờ trước'}
+];
+
+var pipelines=[
+ {n:'Phim ngắn ngôn tình → TikTok + Shorts',src:'@小甜剧场 · @都市剧场',pre:'Douyin sạch + TTS nữ Nam',ch:['tiktok','yt','fb'],on:true,d:{'Đã xử lý':42,'Đã đăng':38,'Chờ duyệt':3,'View 30 ngày':'1.2M'}},
+ {n:'Ẩm thực Trung Hoa → TikTok',src:'@美食家老王',pre:'Chỉ phụ đề Việt',ch:['tiktok','ig'],on:true,d:{'Đã xử lý':19,'Đã đăng':17,'Chờ duyệt':0,'View 30 ngày':'384K'}},
+ {n:'Đời sống Trung Quốc → Reels',src:'@汉服日常 · @上海日常',pre:'Chỉ phụ đề Việt',ch:['fb','ig'],on:false,d:{'Đã xử lý':11,'Đã đăng':9,'Chờ duyệt':2,'View 30 ngày':'127K'}}
+];
+
+var schedule=[
+ {d:0,t:'08:30',c:'Phim Hoa Ngữ',p:'yt',v:'Tổng tài #9'},{d:0,t:'12:00',c:'Drama Ngắn TQ',p:'tiktok',v:'Hán phục Tây An'},{d:0,t:'19:30',c:'Ẩm Thực Hoa',p:'tiktok',v:'Lẩu Trùng Khánh'},
+ {d:1,t:'08:30',c:'Phim Hoa Ngữ',p:'yt',v:'Tổng tài #10'},{d:1,t:'13:00',c:'Drama Ngắn TQ',p:'tiktok',v:'Cô gái Thượng Hải'},{d:1,t:'20:00',c:'Phim Hoa Ngữ FB',p:'fb',v:'Chợ đêm Tây An'},
+ {d:2,t:'12:00',c:'Drama Ngắn TQ',p:'tiktok',v:'Võ thuật Thiếu Lâm'},{d:2,t:'19:30',c:'Drama TQ IG',p:'ig',v:'Lễ hội đèn lồng'},
+ {d:3,t:'08:30',c:'Phim Hoa Ngữ',p:'yt',v:'Tổng tài #11',done:true},{d:3,t:'12:00',c:'Drama Ngắn TQ',p:'tiktok',v:'Món Thành Đô',done:true},{d:3,t:'19:30',c:'Drama Ngắn TQ',p:'tiktok',v:'Tổng tài #12'},{d:3,t:'21:00',c:'Ẩm Thực Hoa',p:'tiktok',v:'Bánh bao Thượng Hải'},
+ {d:4,t:'08:30',c:'Phim Hoa Ngữ',p:'yt',v:'Truyền thuyết rồng'},{d:4,t:'12:00',c:'Drama Ngắn TQ',p:'tiktok',v:'Tổng tài #13'},{d:4,t:'18:00',c:'Phim Hoa Ngữ FB',p:'fb',v:'Hán phục #2'},{d:4,t:'21:00',c:'Ẩm Thực Hoa',p:'tiktok',v:'Mì Lan Châu'},
+ {d:5,t:'09:00',c:'Phim Hoa Ngữ',p:'yt',v:'Tổng tài #14'},{d:5,t:'11:00',c:'Drama Ngắn TQ',p:'tiktok',v:'Ngôn tình #3'},{d:5,t:'14:00',c:'Drama TQ IG',p:'ig',v:'Phố cổ Tây An'},{d:5,t:'18:00',c:'Phim Hoa Ngữ FB',p:'fb',v:'Chợ đêm #2'},{d:5,t:'21:00',c:'Ẩm Thực Hoa',p:'tiktok',v:'Vịt quay Bắc Kinh'},
+ {d:6,t:'10:00',c:'Drama Ngắn TQ',p:'tiktok',v:'Ngôn tình #4'},{d:6,t:'14:00',c:'Phim Hoa Ngữ',p:'yt',v:'Tổng tài #15'},{d:6,t:'18:30',c:'Drama TQ IG',p:'ig',v:'Hán phục #3'},{d:6,t:'21:00',c:'Ẩm Thực Hoa',p:'tiktok',v:'Lẩu cay #2'}
+];
+var pending=['🎭 Tổng tài #16','🍜 Bánh bao Thượng Hải','🐉 Truyền thuyết rồng','👘 Hán phục Tây An','🏮 Lễ hội đèn lồng','🥋 Thiếu Lâm #2','🌙 Chợ đêm #3','🌆 Thượng Hải #2','🌶 Lẩu cay #3'];
+var DAYS=['T2 03','T3 04','T4 05','T5 06','T6 07','T7 08','CN 09'];
+
+var libFilter='all', libQuery='', selected={};
+
+/* ================= NAV ================= */
+function go(p,filter){
+  document.querySelectorAll('.nav-item').forEach(function(x){x.classList.toggle('active',x.dataset.p===p)});
+  document.querySelectorAll('.page').forEach(function(x){x.classList.toggle('active',x.id===p)});
+  document.getElementById('main').scrollTop=0;
+  if(p==='lib'&&filter){libFilter=filter;renderLib()}
+}
+document.querySelectorAll('.nav-item').forEach(function(n){n.onclick=function(){go(n.dataset.p)}});
+
+/* generic tab groups */
+document.querySelectorAll('[data-tabs]').forEach(function(g){
+  g.querySelectorAll('[data-t]').forEach(function(t){
+    t.onclick=function(){
+      g.querySelectorAll('[data-t]').forEach(function(x){x.classList.remove('active')});
+      t.classList.add('active');
+      var ids=[];g.querySelectorAll('[data-t]').forEach(function(x){ids.push(x.dataset.t)});
+      ids.forEach(function(id){var el=document.getElementById(id);if(el)el.classList.toggle('active',id===t.dataset.t)});
+    };
+  });
+});
+document.querySelectorAll('.switch').forEach(function(s){s.onclick=function(){s.classList.toggle('on')}});
+document.querySelectorAll('.chips .chip').forEach(function(c){
+  if(c.closest('#libChips'))return;
+  c.onclick=function(){c.parentElement.querySelectorAll('.chip').forEach(function(x){x.classList.remove('active')});c.classList.add('active')};
+});
+document.querySelectorAll('.tool').forEach(function(t){
+  if(t.closest('[data-tabs]'))return;
+  t.onclick=function(){var p=t.parentElement;p.querySelectorAll('.tool').forEach(function(x){x.classList.remove('active')});t.classList.add('active')};
+});
+function tg(el){el.classList.toggle('on');el.querySelector('.ock').textContent=el.classList.contains('on')?'✓':''}
+function pickRow(el){el.parentElement.querySelectorAll('.optrow').forEach(function(x){x.classList.remove('on');x.querySelector('.ock').textContent=''});el.classList.add('on');el.querySelector('.ock').textContent='✓'}
+function pickOne(el){el.parentElement.querySelectorAll('.pcard').forEach(function(x){x.classList.remove('on')});el.classList.add('on')}
+function setSlider(e,el){var r=el.getBoundingClientRect();var p=Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100));el.querySelector('i').style.width=p+'%';el.querySelector('b').style.left=p+'%'}
+function seek(e){var r=e.currentTarget.getBoundingClientRect();var p=Math.max(0,Math.min(100,(e.clientX-r.left)/r.width*100));document.getElementById('seekFill').style.width=p+'%';document.getElementById('seekDot').style.left=p+'%';document.getElementById('tcode').textContent='0:'+String(Math.round(p*.47)).padStart(2,'0')+' / 0:47'}
+function togglePlay(b){b.textContent=b.textContent==='▶'?'❚❚':'▶'}
+function toggleNotif(e){e.stopPropagation();document.getElementById('notifPanel').classList.toggle('show')}
+document.body.onclick=function(e){if(!e.target.closest('.bell')&&!e.target.closest('.notif'))document.getElementById('notifPanel').classList.remove('show')};
+
+/* ================= TOAST ================= */
+function toast(type,title,desc){
+  var w=document.getElementById('toasts');
+  var d=document.createElement('div');
+  d.className='toast '+(type==='ok'?'':type);
+  d.innerHTML='<div class="tt">'+title+'</div>'+(desc?'<div class="td">'+desc+'</div>':'');
+  w.appendChild(d);
+  setTimeout(function(){d.style.opacity='0';d.style.transform='translateX(20px)';d.style.transition='.25s';setTimeout(function(){d.remove()},250)},3400);
+}
+
+/* ================= MODAL ================= */
+var curModal=null;
+function openModal(id){
+  curModal=id;
+  document.querySelectorAll('.backdrop .modal').forEach(function(m){m.style.display='none'});
+  document.getElementById(id).style.display='flex';
+  document.getElementById('backdrop').classList.add('show');
+  if(id==='mdSchedule'){document.getElementById('schedInfo').innerHTML='📅 Đang xếp lịch cho <b>'+selCount()+' video</b> đã chọn.'}
+  if(id==='mdAssign')renderAssign();
+}
+function closeModal(){document.getElementById('backdrop').classList.remove('show');curModal=null}
+document.onkeydown=function(e){if(e.key==='Escape')closeModal()};
+
+/* ================= RENDER: DASHBOARD ================= */
+function renderJobs(){
+  var jobs=[['Render','抖音_8821 · Chuyện tình tổng tài',68],['Dịch','抖音_8822 · Cô gái Thượng Hải',22],['Xoá logo','B站_1140 · Món Thành Đô',91],['Tải','快手_2201 · Chợ đêm Tây An',15]];
+  document.getElementById('jobList').innerHTML=jobs.map(function(j){
+    return '<div class="job"><span class="tag">'+j[0]+'</span><span class="nm">'+j[1]+'</span><div class="pbar"><span style="width:'+j[2]+'%"></span></div><span class="pc">'+j[2]+'%</span></div>';
+  }).join('');
+}
+function renderQuota(){
+  document.getElementById('quotaList').innerHTML=channels.map(function(c){
+    var parts=c.today.split('/');var pct=parseInt(parts[0])/parseInt(parts[1])*100;
+    var s=c.claimS==='err'?'err':(pct>=100?'ok':'run');
+    return '<div class="chrow"><span class="dot '+s+'"></span><span class="pf '+PF[c.p].c+'">'+PF[c.p].n+'</span> '+c.n+' <span class="q">'+c.today+'</span></div>';
+  }).join('');
+}
+
+/* ================= RENDER: PIPELINES ================= */
+function renderPipes(){
+  document.getElementById('pipeList').innerHTML=pipelines.map(function(p,i){
+    var chips=p.ch.map(function(c){return '<span class="pf '+PF[c].c+'">'+PF[c].n+'</span>'}).join(' ');
+    var stats=Object.keys(p.d).map(function(k){return '<div><b>'+p.d[k]+'</b>'+k+'</div>'}).join('');
+    return '<div class="pipe"><div class="pipehead"><span class="dot '+(p.on?'ok':'warn')+'"></span><b style="font-size:14px">'+p.n+'</b>'+
+      '<span class="tag" style="margin-left:6px">'+(p.on?'Đang chạy':'Tạm dừng')+'</span>'+
+      '<div style="margin-left:auto;display:flex;gap:6px"><div class="switch '+(p.on?'on':'')+'" onclick="togglePipe('+i+',this)"><i></i></div>'+
+      '<button class="btn sm" onclick="toast(\'info\',\'Mở cấu hình luồng\',\''+p.n+'\')">Cấu hình</button>'+
+      '<button class="btn sm" onclick="go(\'lib\')">Xem video</button></div></div>'+
+      '<div class="pipeflow"><span class="pnode">🇨🇳 '+p.src+'</span><span class="parrow">→</span>'+
+      '<span class="pnode">⚙ '+p.pre+'</span><span class="parrow">→</span>'+
+      '<span class="pnode">📱 9:16 + hook</span><span class="parrow">→</span>'+
+      '<span class="pnode">📅 3 bài/ngày</span><span class="parrow">→</span><span class="pnode">'+chips+'</span></div>'+
+      '<div class="pstat">'+stats+'</div></div>';
+  }).join('');
+  document.getElementById('pipeCount').textContent=pipelines.filter(function(p){return p.on}).length;
+}
+function togglePipe(i,el){event.stopPropagation();pipelines[i].on=!pipelines[i].on;renderPipes();toast(pipelines[i].on?'ok':'warn',pipelines[i].on?'Đã bật luồng':'Đã tạm dừng luồng',pipelines[i].n)}
+
+/* ================= RENDER: SOURCE ================= */
+function renderSources(){
+  document.getElementById('srcTable').innerHTML=sources.map(function(s){
+    return '<tr><td><b>'+s.n+'</b></td><td>'+s.p+'</td><td>'+s.cy+'</td><td><span class="tag">'+s.pr+'</span></td><td>'+s.dst+'</td><td>'+s.got+'</td><td style="color:var(--muted)">'+s.last+'</td>'+
+      '<td style="text-align:right"><div class="switch on" style="display:inline-block"><i></i></div></td></tr>';
+  }).join('');
+  document.getElementById('srcCount').textContent=sources.length;
+}
+var dlItems=[
+ {t:'恋爱脑女主终于清醒了',s:'抖音 · @小甜剧场 · 1080×1920 · 128万 view',p:74,st:'run'},
+ {t:'霸道总裁的秘密',s:'抖音 · @都市剧场 · 1080×1920',p:100,st:'ok'},
+ {t:'中华小当家 第3集',s:'哔哩哔哩 · 1920×1080',p:0,st:'err'}
+];
+function renderDL(){
+  document.getElementById('dlList').innerHTML=dlItems.map(function(d){
+    var right='';
+    if(d.st==='run')right='<div class="pbar" style="width:110px"><span style="width:'+d.p+'%"></span></div><span class="pc">'+d.p+'%</span><button class="btn sm">✕</button>';
+    if(d.st==='ok')right='<span style="color:var(--ok);font-size:12.5px">✓ Đã tải · đang nhận dạng</span>';
+    if(d.st==='err')right='<span style="color:var(--err);font-size:12.5px">Lỗi 403 — cần proxy TQ</span><button class="btn sm" onclick="toast(\'info\',\'Đang đổi proxy\',\'Thử lại với 103.xx.xx.44\')">Đổi proxy</button>';
+    return '<div class="vrow"><div class="thumb">🎬<span class="dur">—</span></div><div class="vinfo"><div class="vtitle">'+d.t+'</div><div class="vmeta">'+d.s+'</div></div>'+right+'</div>';
+  }).join('');
+}
+function addLinks(){
+  var v=document.getElementById('linkBox').value.trim();
+  var n=v?v.split('\n').filter(function(x){return x.trim()}).length:3;
+  toast('ok','Đã thêm '+n+' video vào hàng đợi','Sẽ tự xử lý và gán vào '+document.getElementById('linkTarget').value);
+  document.getElementById('linkBox').value='';
+}
+var cnMock=[
+ {t:'重生之我在古代当团宠',a:'@小甜剧场',v:'482万',l:'38万',d:'0:52',th:'👑'},
+ {t:'总裁的替身新娘',a:'@都市剧场',v:'317万',l:'21万',d:'1:04',th:'💍'},
+ {t:'离婚后前夫跪求复合',a:'@情感剧场',v:'256万',l:'19万',d:'0:47',th:'💔'},
+ {t:'穿越成太子妃第一天',a:'@古装小剧场',v:'198万',l:'14万',d:'1:12',th:'🏯'},
+ {t:'职场逆袭：我被开除后',a:'@都市剧场',v:'176万',l:'12万',d:'0:58',th:'💼'},
+ {t:'霸总的小娇妻竟是大佬',a:'@小甜剧场',v:'163万',l:'11万',d:'1:20',th:'🎀'}
+];
+function searchCN(){
+  var q=document.getElementById('cnQuery').value||'phim ngắn tổng tài';
+  document.getElementById('cnResults').innerHTML='<div class="hint">🔎 '+cnMock.length+' kết quả cho "<b>'+q+'</b>" · đã dịch từ khoá sang tiếng Trung: 短剧 总裁</div>'+
+   cnMock.map(function(c,i){
+    return '<div class="vrow"><div class="cb" onclick="this.classList.toggle(\'on\');this.textContent=this.classList.contains(\'on\')?\'✓\':\'\'"></div>'+
+      '<div class="thumb">'+c.th+'<span class="dur">'+c.d+'</span></div>'+
+      '<div class="vinfo"><div class="vtitle">'+c.t+'</div><div class="vmeta">抖音 <span class="sep">·</span> '+c.a+' <span class="sep">·</span> 👁 '+c.v+' <span class="sep">·</span> ❤ '+c.l+' <span class="sep">·</span> 9:16</div></div>'+
+      '<button class="btn sm" onclick="toast(\'info\',\'Xem trước\',\''+c.t+'\')">Xem</button>'+
+      '<button class="btn sm primary" onclick="toast(\'ok\',\'Đã thêm vào hàng đợi\',\''+c.t+'\')">+ Tải</button></div>';
+   }).join('')+
+   '<div class="bulkbar show" style="margin-top:12px"><span style="font-size:13px;font-weight:500">Chọn nhiều video để tải cùng lúc</span>'+
+   '<button class="btn sm" onclick="toast(\'ok\',\'Đã thêm 6 video\',\'Áp preset Douyin sạch\')" style="margin-left:auto">Tải tất cả kết quả</button></div>';
+}
+
+/* ================= RENDER: LIBRARY ================= */
+function renderChips(){
+  var counts={all:videos.length};
+  Object.keys(ST).forEach(function(k){counts[k]=videos.filter(function(v){return v.st===k}).length});
+  var items=[['all','Tất cả']].concat(Object.keys(ST).map(function(k){return [k,ST[k]]}));
+  document.getElementById('libChips').innerHTML=items.map(function(it){
+    return '<div class="chip '+(libFilter===it[0]?'active':'')+'" onclick="setFilter(\''+it[0]+'\')">'+it[1]+' · '+counts[it[0]]+'</div>';
+  }).join('')+'<div style="margin-left:auto;display:flex;gap:7px"><select><option>Nguồn: tất cả</option><option>抖音</option><option>哔哩哔哩</option></select><select><option>Kênh: tất cả</option><option>TikTok</option><option>Shorts</option></select></div>';
+}
+function setFilter(f){libFilter=f;renderLib()}
+function onSearch(q){libQuery=q.toLowerCase();if(q)go('lib');renderLib()}
+function renderLib(){
+  renderChips();
+  var list=videos.filter(function(v){
+    if(libFilter!=='all'&&v.st!==libFilter)return false;
+    if(libQuery&&v.t.toLowerCase().indexOf(libQuery)<0&&v.au.toLowerCase().indexOf(libQuery)<0)return false;
+    return true;
+  });
+  document.getElementById('libSub').textContent=list.length+' video'+(libFilter!=='all'?' · '+ST[libFilter]:'')+(libQuery?' · tìm "'+libQuery+'"':'');
+  document.getElementById('libCount').textContent=videos.length;
+  if(!list.length){document.getElementById('libList').innerHTML='<div class="empty">Không có video nào khớp bộ lọc.<br><button class="btn" style="margin-top:12px" onclick="setFilter(\'all\')">Bỏ lọc</button></div>';updateBulk();return}
+  document.getElementById('libList').innerHTML=list.map(function(v){
+    var dots='';
+    for(var i=0;i<6;i++){
+      var c='';
+      if(i<v.step)c='ok';
+      else if(i===v.step){c=v.st==='error'?'err':(v.st==='review'?'wait':(v.st==='running'?'run':''))}
+      dots+='<b class="'+c+'"></b>';
+    }
+    var chs=v.ch.map(function(c){return '<span class="pf '+PF[c].c+'">'+PF[c].n+'</span>'}).join(' ');
+    var act='';
+    if(v.st==='ready')act='<button class="btn sm">Xem trước</button><button class="btn sm primary" onclick="event.stopPropagation();quickPost('+v.id+')">Đăng ngay</button>';
+    else if(v.st==='review')act='<button class="btn sm primary" onclick="event.stopPropagation();go(\'editor\')">Mở Editor</button><button class="btn sm" onclick="event.stopPropagation();approve('+v.id+')">✓ Duyệt</button>';
+    else if(v.st==='error')act='<button class="btn sm" onclick="event.stopPropagation();retry('+v.id+')">Thử lại</button>';
+    else if(v.st==='posted')act='<button class="btn sm">Xem số liệu</button>';
+    else act='<button class="btn sm" onclick="event.stopPropagation();go(\'editor\')">Mở</button>';
+    var noteColor=v.st==='error'?'color:var(--err)':(v.st==='review'?'color:var(--warn)':(v.st==='posted'?'color:var(--ok)':''));
+    return '<div class="vrow '+(selected[v.id]?'sel':'')+'" onclick="go(\'editor\')">'+
+      '<div class="cb '+(selected[v.id]?'on':'')+'" onclick="event.stopPropagation();toggleSel('+v.id+')">'+(selected[v.id]?'✓':'')+'</div>'+
+      '<div class="thumb">'+v.th+'<span class="dur">'+v.dur+'</span></div>'+
+      '<div class="vinfo"><div class="vtitle">'+v.t+'</div>'+
+      '<div class="vmeta">'+v.src+' <span class="sep">·</span> '+v.au+' '+(chs?'<span class="sep">·</span> '+chs:'')+'</div>'+
+      '<div class="steps">'+dots+'<span style="'+noteColor+'">'+v.note+'</span></div></div>'+
+      '<div class="vact">'+act+'</div></div>';
+  }).join('');
+  updateBulk();
+}
+function toggleSel(id){selected[id]=!selected[id];if(!selected[id])delete selected[id];renderLib()}
+function selCount(){return Object.keys(selected).length}
+function updateBulk(){
+  var n=selCount();
+  document.getElementById('bulkbar').classList.toggle('show',n>0);
+  document.getElementById('bulkCount').textContent='Đã chọn '+n+' video';
+}
+function approve(id){var v=videos.find(function(x){return x.id===id});v.st='ready';v.step=5;v.note='Đã duyệt · sẵn sàng đăng';renderLib();toast('ok','Đã duyệt',v.t)}
+function retry(id){var v=videos.find(function(x){return x.id===id});v.st='running';v.note='Đang thử lại bước dịch… 5%';renderLib();toast('info','Đang thử lại','Dùng API dự phòng')}
+function quickPost(id){var v=videos.find(function(x){return x.id===id});v.st='posted';v.step=6;v.note='Đã đăng · đang thu số liệu';renderLib();toast('ok','Đã đăng lên '+v.ch.map(function(c){return PF[c].n}).join(' + '),v.t)}
+function bulkApprove(){var n=selCount();Object.keys(selected).forEach(function(id){var v=videos.find(function(x){return x.id===+id});if(v.st==='review'||v.st==='queue'){v.st='ready';v.step=5;v.note='Đã duyệt · sẵn sàng đăng'}});selected={};renderLib();toast('ok','Đã duyệt '+n+' video','Chuyển sang trạng thái Sẵn sàng')}
+function bulkDelete(){var n=selCount();videos=videos.filter(function(v){return !selected[v.id]});selected={};renderLib();toast('warn','Đã xoá '+n+' video','File thô cũng được dọn khỏi ổ đĩa')}
+function applyPreset(){var n=selCount();closeModal();Object.keys(selected).forEach(function(id){var v=videos.find(function(x){return x.id===+id});if(v){v.st='running';v.note='Đang xử lý lại theo preset mới… 4%'}});selected={};renderLib();toast('ok','Đã áp preset cho '+n+' video','Ước tính hoàn tất sau 18 phút')}
+function renderAssign(){
+  document.getElementById('assignBody').innerHTML='<div class="hint">Gán <b>'+selCount()+' video</b> cho kênh Việt Nam. Mỗi kênh nhận bản render riêng đúng chuẩn nền tảng.</div>'+
+    channels.map(function(c){
+      return '<div class="optrow" onclick="tg(this)"><span class="oi">'+c.e+'</span><div><div class="ot">'+c.n+'</div><div class="od"><span class="pf '+PF[c.p].c+'">'+PF[c.p].n+'</span> '+c.f+' · hôm nay '+c.today+'</div></div><span class="ock"></span></div>';
+    }).join('');
+}
+function applyAssign(){var n=selCount();closeModal();selected={};renderLib();toast('ok','Đã gán '+n+' video','Sẽ render bản riêng cho từng nền tảng')}
+function doSchedule(){
+  var n=selCount();closeModal();
+  Object.keys(selected).forEach(function(id){var v=videos.find(function(x){return x.id===+id});if(v){v.note='Đã xếp lịch · 19:30 hôm nay'}});
+  selected={};renderLib();
+  toast('ok','Đã xếp lịch '+n+' video','Rải vào khung giờ vàng 3 ngày tới');
+}
+
+/* ================= RENDER: CHANNELS ================= */
+function renderChannels(){
+  document.getElementById('chanGrid').innerHTML=channels.map(function(c){
+    return '<div class="chcard"><div class="chhead"><div class="chav" style="background:'+c.g+'">'+c.e+'</div>'+
+      '<div><div style="font-weight:600;font-size:13.5px">'+c.n+'</div><div style="font-size:11.5px;color:var(--muted)"><span class="pf '+PF[c.p].c+'">'+PF[c.p].n+'</span> '+c.f+'</div></div></div>'+
+      '<div class="chline"><span class="dot '+c.tokS+'"></span> Token <span class="v">'+c.tok+'</span></div>'+
+      '<div class="chline"><span class="dot ok"></span> Hôm nay <span class="v">'+c.today+'</span></div>'+
+      '<div class="chline"><span class="dot '+c.claimS+'"></span> Bản quyền <span class="v" style="'+(c.claimS==='err'?'color:var(--err)':'')+'">'+c.claim+'</span></div>'+
+      '<div class="row">'+(c.tokS==='warn'?'<button class="btn sm primary" onclick="toast(\'ok\',\'Đã kết nối lại\',\''+c.n+'\')">Kết nối lại</button>':'<button class="btn sm" onclick="toast(\'info\',\'Cấu hình kênh\',\''+c.n+'\')">Cấu hình</button>')+
+      '<button class="btn sm" onclick="go(\'sched\')">Xem lịch</button></div></div>';
+  }).join('')+
+  '<div class="chcard" style="display:flex;align-items:center;justify-content:center;border-style:dashed;min-height:180px;cursor:pointer" onclick="openModal(\'mdAddChannel\')">'+
+  '<div style="text-align:center;color:var(--muted)"><div style="font-size:26px;margin-bottom:7px">+</div><div style="font-size:12.5px">Kết nối kênh mới<br><span style="font-size:11px;opacity:.7">TikTok · Shorts · FB Reels · IG Reels · Zalo</span></div></div></div>';
+  document.getElementById('chanCount').textContent=channels.length;
+}
+function addChannel(){
+  var name=document.getElementById('newChanName').value||'Kênh mới';
+  var sel=document.querySelector('#mdAddChannel .pcard.on');
+  var map={'TikTok':'tiktok','YouTube Shorts':'yt','Facebook Reels':'fb','Instagram Reels':'ig','Zalo Video':'zalo','Lemon8':'tiktok'};
+  var pf=map[sel.querySelector('.pn').textContent]||'tiktok';
+  channels.push({n:name,p:pf,f:'0 follower',tok:'vừa kết nối',tokS:'ok',today:'0/3 bài',claim:'sạch',claimS:'ok',g:'linear-gradient(135deg,#4F7CFF,#6E56CF)',e:sel.querySelector('.pi').textContent});
+  closeModal();renderChannels();renderQuota();
+  toast('ok','Đã kết nối '+name,'Token đã lưu mã hoá · sẵn sàng nhận video');
+}
+function addSource(){
+  sources.push({n:'@都市剧场 (mới)',p:'抖音 Douyin',cy:'6 giờ',pr:'Douyin sạch',dst:'Drama ngắn',got:0,last:'chưa quét'});
+  closeModal();renderSources();
+  toast('ok','Đã thêm kênh theo dõi','Lần quét đầu tiên sẽ chạy sau 5 phút');
+}
+
+/* ================= RENDER: SCHEDULE ================= */
+function renderCal(){
+  var counts=[0,0,0,0,0,0,0];
+  schedule.forEach(function(e){counts[e.d]++});
+  document.getElementById('calGrid').innerHTML=
+    DAYS.map(function(d){return '<div class="calh">'+d+'</div>'}).join('')+
+    DAYS.map(function(d,i){
+      var evs=schedule.filter(function(e){return e.d===i}).sort(function(a,b){return a.t<b.t?-1:1});
+      return '<div class="calday '+(i===3?'today':'')+'"><div class="dn"><span>'+(i===3?'Hôm nay':'')+'</span><span>'+counts[i]+' bài</span></div>'+
+        evs.map(function(e){return '<div class="ev '+e.p+' '+(e.done?'done':'')+'" onclick="toast(\'info\',\''+e.t+' · '+e.c+'\',\''+e.v+'\')">'+e.t+' '+e.v+'</div>'}).join('')+'</div>';
+    }).join('');
+  document.getElementById('pendCount').textContent=pending.length;
+  document.getElementById('autoPend').textContent=pending.length+' video';
+  document.getElementById('pendChips').innerHTML=pending.map(function(p){return '<div class="chip">'+p+'</div>'}).join('')||'<span style="color:var(--muted);font-size:12.5px">Không còn video nào chờ — tất cả đã xếp lịch ✓</span>';
+}
+function autoDistribute(){
+  var slots=['09:00','11:30','14:00','16:30','20:00','21:30'];
+  var added=pending.length;
+  pending.forEach(function(p,i){
+    var day=(i%5)+2; if(day>6)day=6;
+    var ch=channels[i%channels.length];
+    schedule.push({d:day,t:slots[i%slots.length],c:ch.n,p:ch.p,v:p.replace(/^\S+\s/,'')});
+  });
+  pending=[];
+  closeModal();renderCal();
+  toast('ok','Đã rải '+added+' video','Phân bổ vào 5 ngày tới, ưu tiên 20:00–21:30');
+}
+
+/* ================= EDITOR ACTIONS ================= */
+function autoDetect(kind){
+  toast('info','Đang phân tích…',kind==='watermark'?'Trích 48 khung, tính phương sai theo thời gian':'Chạy PaddleOCR trên vùng 20% dưới');
+  setTimeout(function(){
+    toast('ok',kind==='watermark'?'Tìm thấy 1 watermark động':'Tìm thấy 1 vùng phụ đề cứng',kind==='watermark'?'Douyin · nhảy 4 góc · tin cậy 94%':'5 đoạn chữ · tin cậy 78%');
+  },1100);
+}
+function preview5s(){toast('info','Đang render thử 5 giây','Inpaint AI · ước tính 22 giây');setTimeout(function(){toast('ok','Xem trước sẵn sàng','Không phát hiện dấu vết logo còn lại')},1600)}
+function renderVideo(){toast('info','Đã đưa vào hàng đợi render','3 bản: TikTok · Shorts · FB Reels');setTimeout(function(){toast('ok','Render xong 3/3 bản','Đã tự xếp lịch vào khung 19:30 và 20:00')},2200)}
+function genTitles(){
+  var opts=['Cô ấy tỉnh ra sau 3 năm bị coi thường 💔','3 năm nhẫn nhịn đổi lấy một câu nói này 😳','Khi người phụ nữ hết yêu, cô ấy im lặng rời đi','Anh nghĩ tôi sẽ quay lại sao? #phimngan','Cái kết khiến tổng tài phải quỳ xuống 😱'];
+  document.getElementById('postTitle').value=opts[Math.floor(Math.random()*opts.length)];
+  toast('ok','Đã sinh 5 phương án','Bấm lại để đổi phương án khác');
+}
+var antidup=[
+ ['Zoom / crop','3%',true],['Đổi tốc độ','1.02×',true],['Lật gương','tắt — video có chữ',false],
+ ['Chỉnh màu / LUT','nhẹ',true],['Chèn logo kênh','góc dưới trái',true],['Thay nhạc nền','giữ nhạc gốc',false],
+ ['Cắt đầu/cuối','0.6s',true],['Intro / Outro','outro 2s',true],['Đổi metadata file','đầy đủ',true],
+ ['Re-encode','CRF 21 · 30fps',true],['Thêm nhiễu nhẹ','1%',false],['Đổi tỷ lệ khung','giữ 9:16',false]
+];
+function renderAntidup(){
+  document.getElementById('antidupGrid').innerHTML=antidup.map(function(a,i){
+    return '<div class="card" style="padding:13px"><div style="display:flex;align-items:center;gap:9px"><b style="font-size:12.5px;flex:1">'+a[0]+'</b>'+
+      '<div class="switch '+(a[2]?'on':'')+'" onclick="this.classList.toggle(\'on\')"><i></i></div></div>'+
+      '<div style="font-size:11.5px;color:var(--muted);margin-top:5px">'+a[1]+'</div>'+
+      '<div class="slider" style="width:100%;margin-top:9px" onclick="setSlider(event,this)"><i style="width:'+((20+i*5)%80)+'%"></i><b style="left:'+((20+i*5)%80)+'%"></b></div></div>';
+  }).join('');
+}
+
+/* ================= WIZARD ================= */
+var wStep=1;
+function openWizard(){wStep=1;updateWiz();renderWizChannels();openModal('mdWizard')}
+function wizStep(d){
+  if(wStep+d<1)return;
+  if(wStep+d>6){activatePipeline();return}
+  wStep+=d;updateWiz();
+}
+function updateWiz(){
+  document.querySelectorAll('#mdWizard .stp').forEach(function(s){
+    var n=+s.dataset.s;s.classList.toggle('on',n===wStep);s.classList.toggle('done',n<wStep);
+  });
+  document.querySelectorAll('#mdWizard .wpane').forEach(function(p){p.classList.toggle('active',+p.dataset.w===wStep)});
+  document.getElementById('wzStepTxt').textContent='Bước '+wStep+'/6';
+  document.getElementById('wzBack').disabled=wStep===1;
+  document.getElementById('wzNext').textContent=wStep===6?'⚡ Kích hoạt luồng':'Tiếp tục →';
+  if(wStep===6)buildSummary();
+}
+function renderWizChannels(){
+  document.getElementById('wzChannels').innerHTML=channels.map(function(c,i){
+    var on=i<3;
+    return '<div class="optrow '+(on?'on':'')+'" onclick="tg(this)"><span class="oi">'+c.e+'</span>'+
+      '<div><div class="ot">'+c.n+'</div><div class="od"><span class="pf '+PF[c.p].c+'">'+PF[c.p].n+'</span> '+c.f+' · hạn ngạch '+c.today.split('/')[1]+'</div></div>'+
+      '<span class="ock">'+(on?'✓':'')+'</span></div>';
+  }).join('');
+}
+function buildSummary(){
+  var chs=[];document.querySelectorAll('#wzChannels .optrow.on .ot').forEach(function(e){chs.push(e.textContent)});
+  var rows=[
+    ['Tên luồng',document.getElementById('wzName').value],
+    ['Kênh nguồn','抖音 @小甜剧场'],
+    ['Chu kỳ quét',document.getElementById('wzCycle').value],
+    ['Bộ lọc','15–90s · ≥100K view · chỉ dọc 9:16 · 7 ngày qua'],
+    ['Xử lý',document.getElementById('wzPreset').value],
+    ['Kênh Việt Nam',chs.join(', ')||'chưa chọn'],
+    ['Lịch đăng',document.getElementById('wzPerDay').value+'/kênh/ngày · 08:00–22:00 · ưu tiên giờ vàng'],
+    ['Duyệt tay','Có — video vào mục Chờ duyệt'],
+    ['Chi phí ước tính','~$0.42/video · khoảng $38/tháng với 3 video/ngày']
+  ];
+  document.getElementById('wzSummary').innerHTML=rows.map(function(r){
+    return '<div class="sline"><span class="sk">'+r[0]+'</span><span class="sv">'+r[1]+'</span></div>';
+  }).join('');
+}
+function activatePipeline(){
+  var chs=[];document.querySelectorAll('#wzChannels .optrow.on').forEach(function(e,i){chs.push(channels[Array.prototype.indexOf.call(e.parentElement.children,e)].p)});
+  pipelines.unshift({n:document.getElementById('wzName').value,src:'@小甜剧场',pre:document.getElementById('wzPreset').value.split('—')[0].trim(),ch:chs.length?chs:['tiktok'],on:true,d:{'Đã xử lý':0,'Đã đăng':0,'Chờ duyệt':0,'View 30 ngày':'—'}});
+  closeModal();renderPipes();go('pipe');
+  toast('ok','Đã kích hoạt luồng tự động','Lần quét đầu tiên chạy trong 5 phút · sẽ báo khi có video chờ duyệt');
+}
+
+/* ================= INIT ================= */
+renderJobs();renderQuota();renderPipes();renderSources();renderDL();renderLib();renderChannels();renderCal();renderAntidup();searchCN();
+
+/* live queue simulation */
+setInterval(function(){
+  document.querySelectorAll('#jobList .pbar span').forEach(function(b){
+    var w=parseInt(b.style.width)||0;w=(w+Math.floor(Math.random()*4)+1)%100;
+    b.style.width=w+'%';b.parentElement.nextElementSibling.textContent=w+'%';
+  });
+},2200);
+</script>
+</body>
+</html>

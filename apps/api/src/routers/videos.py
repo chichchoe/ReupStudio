@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+import uuid
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, Query, Response
+from fastapi.responses import FileResponse
+from sqlalchemy.orm import Session
+
+from ..db import get_db
+from ..errors import NotFound
+from ..schemas.common import Page, TaskAccepted
+from ..schemas.video import (
+    BulkAction,
+    CreateFromLinks,
+    CreateFromLinksResult,
+    JobRunOut,
+    SubtitleOut,
+    VideoDetail,
+    VideoOut,
+    VideoUpdate,
+)
+from ..services import task_bridge, video_service
+
+router = APIRouter(prefix="/videos", tags=["videos"])
+
+
+@router.get("", response_model=Page[VideoOut])
+def list_videos(
+    status: str | None = None,
+    q: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    items, total = video_service.list_videos(db, status=status, q=q, page=page, limit=limit)
+    return Page(items=items, total=total, page=page, limit=limit)
+
+
+@router.get("/counts")
+def counts(db: Session = Depends(get_db)) -> dict[str, int]:
+    return video_service.counts_by_status(db)
+
+
+@router.post("/from-links", response_model=CreateFromLinksResult, status_code=202)
+def create_from_links(body: CreateFromLinks, db: Session = Depends(get_db)):
+    result = video_service.create_from_links(db, body.urls, body.process_config)
+    db.commit()
+    if body.autostart:
+        for vid in result["video_ids"]:
+            task_bridge.start_processing(vid)
+    return result
+
+
+@router.get("/{video_id}", response_model=VideoDetail)
+def get_video(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    return video_service.get_video(db, video_id)
+
+
+@router.patch("/{video_id}", response_model=VideoDetail)
+def update_video(video_id: uuid.UUID, body: VideoUpdate, db: Session = Depends(get_db)):
+    video = video_service.get_video(db, video_id)
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(video, field, value)
+    return video
+
+
+@router.delete("/{video_id}", status_code=204)
+def delete_video(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    video_service.soft_delete(db, video_id)
+    return Response(status_code=204)
+
+
+@router.post("/{video_id}/retry", response_model=TaskAccepted, status_code=202)
+def retry(video_id: uuid.UUID, from_step: str | None = None, db: Session = Depends(get_db)):
+    video_service.get_video(db, video_id)
+    task_id = task_bridge.retry_from(video_id, from_step)
+    return TaskAccepted(task_id=task_id, message="Đã đưa vào hàng đợi xử lý lại")
+
+
+@router.post("/{video_id}/approve", response_model=VideoDetail)
+def approve(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    return video_service.approve(db, video_id)
+
+
+@router.post("/bulk")
+def bulk(body: BulkAction, db: Session = Depends(get_db)) -> dict:
+    done = 0
+    for vid in body.ids:
+        if body.action == "approve":
+            video_service.approve(db, vid)
+        elif body.action == "delete":
+            video_service.soft_delete(db, vid)
+        elif body.action == "retry":
+            task_bridge.retry_from(vid, None)
+        done += 1
+    return {"affected": done, "action": body.action}
+
+
+@router.get("/{video_id}/subtitles", response_model=list[SubtitleOut])
+def subtitles(video_id: uuid.UUID, lang: str | None = None, db: Session = Depends(get_db)):
+    video_service.get_video(db, video_id)
+    return video_service.get_subtitles(db, video_id, lang)
+
+
+@router.get("/{video_id}/job-runs", response_model=list[JobRunOut])
+def job_runs(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    video_service.get_video(db, video_id)
+    return video_service.get_job_runs(db, video_id)
+
+
+@router.get("/{video_id}/file")
+def download_file(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Tải bản render cuối cùng."""
+    video = video_service.get_video(db, video_id)
+    if not video.out_path or not Path(video.out_path).exists():
+        raise NotFound("Video chưa render xong hoặc file đã bị xoá")
+    return FileResponse(
+        video.out_path,
+        media_type="video/mp4",
+        filename=f"{video.title_vi or video.source_video_id}.mp4",
+    )
