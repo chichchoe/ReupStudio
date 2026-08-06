@@ -1,7 +1,8 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { useMemo } from "react";
 import { api } from "@/lib/api";
 import { STATUS_LABEL, type VideoStatus } from "@/lib/types";
 import { useReupSocket } from "@/lib/ws";
@@ -15,15 +16,39 @@ const CARDS: { key: VideoStatus | "all"; tone: string }[] = [
 ];
 
 export default function DashboardPage() {
-  const { connected, progress } = useReupSocket();
-  const { data: counts } = useQuery({
-    queryKey: ["counts"],
-    queryFn: api.counts,
-    refetchInterval: 10_000,
+  const queryClient = useQueryClient();
+
+  // Cần biết ID các video đang chạy để subscribe đúng topic `video:<id>` —
+  // WS giờ chỉ đẩy progress cho client đã subscribe, không broadcast tràn lan.
+  const { data: runningVideos } = useQuery({
+    queryKey: ["videos", "running"],
+    queryFn: () => api.listVideos({ status: "running", limit: 50 }),
   });
+  const runningTopics = useMemo(
+    () => (runningVideos?.items ?? []).map((v) => `video:${v.id}`),
+    [runningVideos],
+  );
+
+  const { connected, progress, queue } = useReupSocket({
+    topics: runningTopics,
+    onStatusChange: () => {
+      queryClient.invalidateQueries({ queryKey: ["counts"] });
+      queryClient.invalidateQueries({ queryKey: ["videos", "running"] });
+    },
+  });
+
+  const { data: counts } = useQuery({ queryKey: ["counts"], queryFn: api.counts });
   const { data: health } = useQuery({ queryKey: ["health"], queryFn: api.health, retry: false });
 
   const activeJobs = Object.entries(progress);
+
+  // "queued"/"running" ưu tiên số liệu realtime từ topic `queue`; các trạng
+  // thái khác lấy từ /videos/counts (làm tươi khi có sự kiện status).
+  const cardValue = (key: VideoStatus | "all"): number => {
+    if (key === "queued" && queue) return queue.pending;
+    if (key === "running" && queue) return queue.active;
+    return counts?.[key] ?? 0;
+  };
 
   return (
     <div>
@@ -37,7 +62,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-5 gap-3 mb-5">
         {CARDS.map(({ key, tone }) => (
           <Link key={key} href={`/library?status=${key}`} className="card hover:border-[#39404F]">
-            <div className={`text-2xl font-semibold ${tone}`}>{counts?.[key] ?? 0}</div>
+            <div className={`text-2xl font-semibold ${tone}`}>{cardValue(key)}</div>
             <div className="text-xs text-muted mt-0.5">{STATUS_LABEL[key as VideoStatus]}</div>
           </Link>
         ))}

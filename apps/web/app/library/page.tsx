@@ -30,14 +30,25 @@ function LibraryInner() {
     queryClient.invalidateQueries({ queryKey: ["counts"] });
   };
 
-  const { progress } = useReupSocket(refresh);
-
   const { data, isLoading } = useQuery({
     queryKey: ["videos", status, query],
     queryFn: () => api.listVideos({ status, q: query || undefined }),
-    refetchInterval: 15_000,
   });
   const { data: counts } = useQuery({ queryKey: ["counts"], queryFn: api.counts });
+
+  const videos = useMemo(() => data?.items ?? [], [data]);
+
+  // Chỉ video đang chạy/chờ mới cần theo dõi tiến trình — subscribe sớm cả
+  // "queued" để không lỡ mất progress đầu tiên khi video chuyển sang running.
+  const activeTopics = useMemo(
+    () =>
+      videos
+        .filter((v) => v.status === "running" || v.status === "queued")
+        .map((v) => `video:${v.id}`),
+    [videos],
+  );
+
+  const { progress } = useReupSocket({ topics: activeTopics, onStatusChange: refresh });
 
   const retryMutation = useMutation({
     mutationFn: (id: string) => api.retry(id),
@@ -55,8 +66,6 @@ function LibraryInner() {
       refresh();
     },
   });
-
-  const videos = useMemo(() => data?.items ?? [], [data]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {

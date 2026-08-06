@@ -115,4 +115,5 @@ export type WsEvent =
   | { type: "hello"; clients: number }
   | { type: "progress"; video_id: string; step: PipelineStep; percent: number; note?: string }
   | { type: "status"; video_id: string; status: VideoStatus; step: PipelineStep | null; error?: string }
+  | { type: "queue"; active: number; pending: number }
   | { type: "alert"; level: string; title: string; detail?: string };
