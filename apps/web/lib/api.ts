@@ -3,9 +3,13 @@
  */
 
 import type {
+  BulkAction,
+  BulkResult,
   CreateFromLinksResult,
   JobRun,
   Page,
+  Preset,
+  PresetKind,
   Subtitle,
   Video,
 } from "./types";
@@ -81,10 +85,10 @@ export const api = {
 
   remove: (id: string) => request<void>(`/videos/${id}`, { method: "DELETE" }),
 
-  bulk: (ids: string[], action: "approve" | "delete" | "retry") =>
-    request<{ affected: number; action: string }>("/videos/bulk", {
+  bulk: (ids: string[], action: BulkAction, payload: Record<string, unknown> = {}) =>
+    request<BulkResult>("/videos/bulk", {
       method: "POST",
-      body: JSON.stringify({ ids, action }),
+      body: JSON.stringify({ ids, action, payload }),
     }),
 
   subtitles: (id: string, lang?: string) =>
@@ -93,6 +97,9 @@ export const api = {
   jobRuns: (id: string) => request<JobRun[]>(`/videos/${id}/job-runs`),
 
   fileUrl: (id: string) => `${PREFIX}/videos/${id}/file`,
+
+  listPresets: (kind?: PresetKind) =>
+    request<Preset[]>(`/presets${kind ? `?kind=${kind}` : ""}`),
 };
 
 export const WS_URL = `${BASE.replace(/^http/, "ws")}/ws`;

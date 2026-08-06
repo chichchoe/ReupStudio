@@ -110,6 +110,33 @@ export interface CreateFromLinksResult {
   video_ids: string[];
 }
 
+export type PresetKind = "filter" | "process" | "antidup" | "subtitle";
+
+export interface Preset {
+  id: string;
+  kind: PresetKind;
+  name: string;
+  config: Record<string, unknown>;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Khớp `Literal[...]` của `BulkAction.action` ở backend (`schemas/video.py`). */
+export type BulkAction = "approve" | "delete" | "retry" | "apply_preset" | "assign_channels";
+
+export interface BulkSkip {
+  id: string;
+  reason: string;
+}
+
+/** Response của `POST /videos/bulk` — `skipped` LUÔN kèm lý do, không được bỏ qua khi hiển thị. */
+export interface BulkResult {
+  affected: number;
+  action: string;
+  skipped: BulkSkip[];
+}
+
 /** Sự kiện đẩy xuống qua WebSocket. */
 export type WsEvent =
   | { type: "hello"; clients: number }

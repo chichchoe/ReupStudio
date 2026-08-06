@@ -1,34 +1,45 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import clsx from "clsx";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { BulkActionBar } from "@/components/BulkActionBar";
+import { BulkSkipNotice } from "@/components/BulkSkipNotice";
+import { StatusChips } from "@/components/StatusChips";
 import { VideoRow } from "@/components/VideoRow";
 import { api } from "@/lib/api";
-import { STATUS_LABEL, type VideoStatus } from "@/lib/types";
+import type { BulkResult } from "@/lib/types";
+import { useLibraryMutations } from "@/lib/useLibraryMutations";
 import { useReupSocket } from "@/lib/ws";
 
-const FILTERS: (VideoStatus | "all")[] = [
-  "all",
-  "queued",
-  "running",
-  "review",
-  "ready",
-  "error",
-];
+/** Chờ 300ms sau lần gõ cuối mới bắn request tìm kiếm — tránh gọi API mỗi phím. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 function LibraryInner() {
   const params = useSearchParams();
+  const router = useRouter();
   const [status, setStatus] = useState<string>(params.get("status") ?? "all");
-  const [query, setQuery] = useState("");
+  const [queryInput, setQueryInput] = useState(params.get("q") ?? "");
+  const [query, setQuery] = useState(params.get("q") ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkNotice, setBulkNotice] = useState<BulkResult | null>(null);
   const queryClient = useQueryClient();
 
-  const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["videos"] });
-    queryClient.invalidateQueries({ queryKey: ["counts"] });
-  };
+  // Debounce ô tìm kiếm, đồng thời đồng bộ vào query string để tải lại trang
+  // vẫn giữ từ khoá đang tìm.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(queryInput);
+      const next = new URLSearchParams(params.toString());
+      if (queryInput) next.set("q", queryInput);
+      else next.delete("q");
+      router.replace(`?${next.toString()}`, { scroll: false });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // Chỉ debounce theo giá trị gõ — params/router lấy tại thời điểm chạy timer,
+    // đưa vào deps sẽ chạy lại effect mỗi lần URL đổi (kể cả do chính nó gây ra).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryInput]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["videos", status, query],
@@ -48,22 +59,20 @@ function LibraryInner() {
     [videos],
   );
 
-  const { progress } = useReupSocket({ topics: activeTopics, onStatusChange: refresh });
+  const { progress } = useReupSocket({
+    topics: activeTopics,
+    onStatusChange: () => {
+      queryClient.invalidateQueries({ queryKey: ["videos"] });
+      queryClient.invalidateQueries({ queryKey: ["counts"] });
+    },
+  });
 
-  const retryMutation = useMutation({
-    mutationFn: (id: string) => api.retry(id),
-    onSuccess: refresh,
-  });
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.remove(id),
-    onSuccess: refresh,
-  });
-  const bulkMutation = useMutation({
-    mutationFn: ({ ids, action }: { ids: string[]; action: "approve" | "delete" | "retry" }) =>
-      api.bulk(ids, action),
-    onSuccess: () => {
+  const { retry, remove, bulk, bulkPending } = useLibraryMutations({
+    status,
+    query,
+    onBulkDone: (result) => {
       setSelected(new Set());
-      refresh();
+      setBulkNotice(result.skipped.length > 0 ? result : null);
     },
   });
 
@@ -88,23 +97,14 @@ function LibraryInner() {
         <input
           className="input w-72"
           placeholder="🔍 Tìm theo tiêu đề hoặc tác giả…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={queryInput}
+          onChange={(e) => setQueryInput(e.target.value)}
         />
       </header>
 
-      <div className="flex gap-2 flex-wrap mb-3">
-        {FILTERS.map((key) => (
-          <button
-            key={key}
-            onClick={() => setStatus(key)}
-            className={clsx("chip", status === key && "chip-active")}
-          >
-            {key === "all" ? "Tất cả" : STATUS_LABEL[key as VideoStatus]}
-            {counts?.[key] != null && ` · ${counts[key]}`}
-          </button>
-        ))}
-      </div>
+      <StatusChips status={status} counts={counts} onChange={setStatus} />
+
+      {bulkNotice && <BulkSkipNotice result={bulkNotice} onDismiss={() => setBulkNotice(null)} />}
 
       {isLoading && <p className="text-[13px] text-muted py-8 text-center">Đang tải…</p>}
 
@@ -121,30 +121,19 @@ function LibraryInner() {
           progress={progress[video.id]}
           selected={selected.has(video.id)}
           onToggle={toggle}
-          onRetry={(id) => retryMutation.mutate(id)}
-          onDelete={(id) => deleteMutation.mutate(id)}
+          onRetry={retry}
+          onDelete={remove}
         />
       ))}
 
-      {selected.size > 0 && (
-        <div className="sticky bottom-0 flex items-center gap-2.5 bg-panel2 border border-accent/30 rounded-xl px-4 py-3 mt-3 shadow-[0_-6px_26px_rgba(0,0,0,0.4)]">
-          <span className="text-[13px] font-medium">Đã chọn {selected.size} video</span>
-          <button
-            className="btn btn-sm"
-            onClick={() =>
-              bulkMutation.mutate({ ids: [...selected], action: "retry" })
-            }
-          >
-            Xử lý lại
-          </button>
-          <button
-            className="btn btn-sm text-err border-err/35 ml-auto"
-            onClick={() => bulkMutation.mutate({ ids: [...selected], action: "delete" })}
-          >
-            Xoá
-          </button>
-        </div>
-      )}
+      <BulkActionBar
+        selectedCount={selected.size}
+        pending={bulkPending}
+        onApprove={() => bulk([...selected], "approve")}
+        onRetry={() => bulk([...selected], "retry")}
+        onDelete={() => bulk([...selected], "delete")}
+        onApplyPreset={(presetId) => bulk([...selected], "apply_preset", { preset_id: presetId })}
+      />
     </div>
   );
 }
