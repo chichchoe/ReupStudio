@@ -85,16 +85,7 @@ def approve(video_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @router.post("/bulk")
 def bulk(body: BulkAction, db: Session = Depends(get_db)) -> dict:
-    done = 0
-    for vid in body.ids:
-        if body.action == "approve":
-            video_service.approve(db, vid)
-        elif body.action == "delete":
-            video_service.soft_delete(db, vid)
-        elif body.action == "retry":
-            task_bridge.retry_from(vid, None)
-        done += 1
-    return {"affected": done, "action": body.action}
+    return video_service.bulk_action(db, body.ids, body.action, body.payload)
 
 
 @router.get("/{video_id}/subtitles", response_model=list[SubtitleOut])

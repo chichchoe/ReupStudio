@@ -6,12 +6,16 @@ import uuid
 from typing import Any
 
 import sqlalchemy as sa
-from reup_core.enums import VideoStatus
+from reup_core.enums import PresetKind, VideoStatus
+from reup_core.logging import get_logger
 from reup_core.models import JobRun, Subtitle, Video
 from reup_core.source_url import parse_source_url
 from sqlalchemy.orm import Session
 
-from ..errors import NotFound
+from ..errors import ApiError, NotFound
+from . import preset_service, task_bridge
+
+log = get_logger(__name__)
 
 
 def list_videos(
@@ -142,3 +146,104 @@ def counts_by_status(db: Session) -> dict[str, int]:
         result[str(status)] = count
     result["all"] = sum(result[s.value] for s in VideoStatus)
     return result
+
+
+def _preset_id_tu_payload(payload: dict[str, Any]) -> uuid.UUID:
+    """Đọc và kiểm tra ``payload["preset_id"]`` cho action ``apply_preset``."""
+    raw = payload.get("preset_id")
+    if not raw:
+        raise ApiError("Thiếu preset_id trong payload")
+    try:
+        return uuid.UUID(str(raw))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ApiError(f"preset_id không hợp lệ: {raw!r}") from exc
+
+
+def _channel_ids_tu_payload(payload: dict[str, Any]) -> list[str]:
+    """Đọc và kiểm tra ``payload["channel_ids"]`` cho action ``assign_channels``."""
+    raw = payload.get("channel_ids")
+    if not isinstance(raw, list) or not raw:
+        raise ApiError("Thiếu channel_ids (danh sách) trong payload")
+    try:
+        return [str(uuid.UUID(str(item))) for item in raw]
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ApiError(f"channel_ids chứa id không hợp lệ: {raw!r}") from exc
+
+
+def bulk_action(
+    db: Session,
+    ids: list[uuid.UUID],
+    action: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Áp một hành động cho nhiều video cùng lúc.
+
+    Hỗ trợ 5 action: ``approve``, ``delete``, ``retry``, ``apply_preset``,
+    ``assign_channels``. Video không áp được (không tìm thấy, đã xoá mềm, sai
+    trạng thái) rơi vào ``skipped`` kèm lý do — không bao giờ bị bỏ qua âm thầm.
+    Video đã xoá mềm (``deleted_at IS NOT NULL``) không bao giờ bị tác động.
+
+    ``assign_channels``: bảng ``publish_channels`` thuộc chặng M5, CHƯA CÓ ở
+    M2. Ở đây chỉ lưu danh sách id vào ``video.process_config["target_channel_ids"]``
+    dưới dạng chuỗi thô, KHÔNG có khoá ngoại. M5 sẽ thay bằng khoá ngoại thật
+    trỏ tới bảng ``publish_channels``.
+    """
+    payload = payload or {}
+    skipped: list[dict[str, str]] = []
+    affected = 0
+
+    preset = None
+    if action == "apply_preset":
+        preset = preset_service.get_preset(db, _preset_id_tu_payload(payload))
+        if preset.kind != PresetKind.PROCESS:
+            raise ApiError(
+                f"Preset '{preset.name}' có kind='{preset.kind}', "
+                f"apply_preset chỉ chấp nhận kind='{PresetKind.PROCESS.value}'"
+            )
+
+    channel_ids: list[str] = []
+    if action == "assign_channels":
+        channel_ids = _channel_ids_tu_payload(payload)
+
+    for video_id in ids:
+        video = db.get(Video, video_id)
+        if video is None:
+            skipped.append({"id": str(video_id), "reason": "Không tìm thấy video"})
+            continue
+        if video.deleted_at is not None:
+            skipped.append({"id": str(video_id), "reason": "Video đã bị xoá mềm"})
+            continue
+
+        if action == "approve":
+            if video.status != VideoStatus.REVIEW:
+                skipped.append(
+                    {
+                        "id": str(video_id),
+                        "reason": f"Sai trạng thái để duyệt: đang ở '{video.status}'",
+                    }
+                )
+                continue
+            video.status = VideoStatus.READY
+            video.flags = {**video.flags, "approved": True}
+        elif action == "delete":
+            video.deleted_at = sa.func.now()
+        elif action == "retry":
+            task_bridge.retry_from(video_id, None)
+        elif action == "apply_preset":
+            assert preset is not None  # đã được lấy trước vòng lặp
+            video.process_config = {**video.process_config, **preset.config}
+        elif action == "assign_channels":
+            video.process_config = {
+                **video.process_config,
+                "target_channel_ids": channel_ids,
+            }
+        affected += 1
+
+    log.info(
+        "video.bulk_action",
+        action=action,
+        affected=affected,
+        skipped=len(skipped),
+        total=len(ids),
+    )
+    return {"affected": affected, "action": action, "skipped": skipped}
