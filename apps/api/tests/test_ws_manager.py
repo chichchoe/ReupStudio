@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+import json
 import uuid
 
 import pytest
@@ -122,6 +123,55 @@ def test_unsubscribe_thi_thoi_nhan() -> None:
     asyncio.run(manager.broadcast("video:a", {"type": "progress"}))
 
     assert tab.sent == []
+
+
+# --- reup:status:* -> tính lại queue_counts -> đẩy cho client subscribe queue ---
+
+
+def test_status_message_day_queue_cho_client_da_subscribe_queue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Không cần Redis/Postgres: mock thẳng queue_service.queue_counts."""
+    monkeypatch.setattr(queue_service, "queue_counts", lambda db: {"active": 4, "pending": 12})
+
+    manager = WsManager(redis_url="redis://unused")
+    sub_queue, sub_video_khac = FakeWebSocket(), FakeWebSocket()
+    manager.subscribe(sub_queue, ["queue"])
+    manager.subscribe(sub_video_khac, ["video:khac"])
+
+    status_payload = {"type": "status", "video_id": "abc", "status": "ready", "step": None}
+    fake_redis_message = {
+        "type": "pmessage",
+        "channel": "reup:status:abc",
+        "data": json.dumps(status_payload),
+    }
+    asyncio.run(manager._handle_message(fake_redis_message))
+
+    # Client subscribe "queue" nhận payload queue vừa tính lại (không nhận
+    # status vì không subscribe video:abc).
+    assert sub_queue.sent == [{"type": "queue", "active": 4, "pending": 12}]
+    # Client subscribe kênh khác thì không nhận gì cả — cả status lẫn queue.
+    assert sub_video_khac.sent == []
+
+
+def test_status_message_client_khong_subscribe_queue_thi_khong_nhan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(queue_service, "queue_counts", lambda db: {"active": 1, "pending": 2})
+
+    manager = WsManager(redis_url="redis://unused")
+    sub_video = FakeWebSocket()
+    manager.subscribe(sub_video, ["video:abc"])
+
+    fake_redis_message = {
+        "type": "pmessage",
+        "channel": "reup:status:abc",
+        "data": json.dumps({"type": "status", "video_id": "abc", "status": "ready"}),
+    }
+    asyncio.run(manager._handle_message(fake_redis_message))
+
+    # Nhận đúng sự kiện status của video mình subscribe, KHÔNG nhận queue.
+    assert sub_video.sent == [{"type": "status", "video_id": "abc", "status": "ready"}]
 
 
 # --- queue_counts trên SQLite ---

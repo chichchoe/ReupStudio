@@ -136,10 +136,19 @@ class WsManager:
             await self._push_queue_counts()
 
     async def _push_queue_counts(self) -> None:
+        # Phần chạm DB là đồng bộ, có thể chờ tới pool_timeout (mặc định 30s)
+        # khi Postgres chậm/pool cạn — chạy trong thread riêng để không chặn
+        # event loop (mọi WebSocket/HTTP khác trên cùng worker sẽ bị đứng nếu
+        # gọi trực tiếp trong coroutine này).
         try:
-            with session_scope() as db:
-                counts = queue_service.queue_counts(db)
+            counts = await asyncio.to_thread(_fetch_queue_counts)
         except Exception as exc:  # DB rớt không được làm sập vòng lặp pub/sub
             log.warning("ws.queue_counts_failed", error=str(exc))
             return
         await self.broadcast("queue", {"type": "queue", **counts})
+
+
+def _fetch_queue_counts() -> dict[str, int]:
+    """Hàm đồng bộ chạm DB — chỉ gọi qua ``asyncio.to_thread`` từ manager."""
+    with session_scope() as db:
+        return queue_service.queue_counts(db)
