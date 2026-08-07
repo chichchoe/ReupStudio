@@ -41,3 +41,12 @@ class VideoTooLongError(ReupError):
 
 class DedupError(ReupError):
     """Không tính hoặc không so sánh được dấu vân tay video."""
+
+
+class PlatformLimitNotFoundError(ReupError):
+    """Không tìm thấy dòng ``platform_limits`` cho nền tảng cần tính vùng an toàn.
+
+    Cố tình KHÔNG âm thầm dùng số mặc định khi thiếu dòng — làm vậy là tái
+    lập đúng kiểu hardcode mà bảng ``platform_limits`` sinh ra để dọn (luật
+    số 5 CLAUDE.md).
+    """

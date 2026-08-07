@@ -12,14 +12,14 @@ from pathlib import Path
 from celery import chain
 from reup_core.enums import M1_STEPS, PipelineStep, VideoStatus
 from reup_core.logging import get_logger
-from reup_core.models import Subtitle, Video
+from reup_core.models import PlatformLimit, Subtitle, Video
 from reup_core.paths import audio_path, raw_video, subtitle_path
 from sqlalchemy import select
 
 from .. import progress as prog
 from ..celery_app import app
 from ..config import get_settings
-from ..errors import VideoTooLongError
+from ..errors import PlatformLimitNotFoundError, VideoTooLongError
 from ..ffmpeg.burn import extract_audio
 from ..ffmpeg.probe import probe
 from ..milestones import percent_of
@@ -27,12 +27,18 @@ from ..pipeline.cues import Cue, cues_from_dicts, cues_to_dicts
 from ..pipeline.dedup import fingerprint, is_similar_phash
 from ..pipeline.download import download_video
 from ..pipeline.render import build_proxy, render_with_subtitles
+from ..pipeline.shortform.safe_area import SafeArea
 from ..pipeline.subtitle_format import FormatOptions, format_cues
 from ..pipeline.transcribe import transcribe
 from ..pipeline.translate import translate_cues
 from .base import pipeline_step
 
 log = get_logger(__name__)
+
+#: Nền tảng dùng khi video chưa cấu hình ``target_platforms`` — tiktok có
+#: vùng an toàn phía dưới chặt nhất (bottom=0.18, xem seed platform_limits)
+#: nên là lựa chọn an toàn nhất cho bản render "master" duy nhất hiện có.
+_DEFAULT_TARGET_PLATFORM = "tiktok"
 
 
 def _save_subtitle(session, video, lang: str, source: str, cues: list[Cue]) -> None:
@@ -52,6 +58,43 @@ def _load_subtitle(session, video, lang: str) -> list[Cue]:
         select(Subtitle).where(Subtitle.video_id == video.id, Subtitle.lang == lang)
     )
     return cues_from_dicts(row.cues) if row else []
+
+
+def _target_platform(video) -> str:
+    """Nền tảng đích dùng để tính vùng an toàn phụ đề cho bản render "master".
+
+    Ở M4, pipeline vẫn chỉ sinh MỘT bản render "master" — tách nhiều
+    ``render_variants`` theo từng nền tảng đích (luật số 8 CLAUDE.md) là việc
+    của milestone sau. Vì vậy chỉ cần MỘT nền tảng đại diện: nền tảng đầu
+    tiên trong ``target_platforms`` nếu có cấu hình, ngược lại mặc định
+    tiktok (xem ``_DEFAULT_TARGET_PLATFORM``).
+    """
+    config = video.process_config or {}
+    platforms = config.get("target_platforms")
+    if isinstance(platforms, list) and platforms:
+        return str(platforms[0])
+    if isinstance(platforms, str) and platforms:
+        return platforms
+    return _DEFAULT_TARGET_PLATFORM
+
+
+def _load_safe_area(session, platform: str) -> SafeArea:
+    """Đọc vùng an toàn của một nền tảng từ bảng ``platform_limits``.
+
+    Không tìm thấy dòng tương ứng thì báo lỗi rõ ràng (``PlatformLimitNotFoundError``)
+    — KHÔNG âm thầm dùng số mặc định, vì làm vậy tái lập đúng kiểu hardcode
+    mà bảng ``platform_limits`` sinh ra để dọn.
+    """
+    limit = session.get(PlatformLimit, platform)
+    if limit is None:
+        raise PlatformLimitNotFoundError(
+            f"Không tìm thấy platform_limits cho nền tảng '{platform}' — "
+            "không thể tính vùng an toàn phụ đề để burn."
+        )
+    area = limit.safe_area
+    return SafeArea(
+        top=area["top"], bottom=area["bottom"], left=area["left"], right=area["right"]
+    )
 
 
 def _find_duplicate(session, video) -> tuple[Video, str] | None:
@@ -285,12 +328,17 @@ def render_video_task(session, video) -> dict:
         prog.status_changed(vid, VideoStatus.READY.value, None)
         return {"subtitles": 0, "note": "không có lời thoại, giữ nguyên video"}
 
+    platform = _target_platform(video)
+    safe = _load_safe_area(session, platform)
+
     out = render_with_subtitles(
         vid,
         source,
         vi_cues,
         progress_cb=lambda p: prog.progress(vid, PipelineStep.RENDER.value, p),
         duration_sec=video.duration_sec,
+        safe=safe,
+        video_height=video.height,
     )
     video.out_path = str(out)
     video.status = VideoStatus.READY

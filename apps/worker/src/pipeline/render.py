@@ -10,6 +10,7 @@ from reup_core.paths import out_video, proxy_path, subtitle_path
 
 from ..ffmpeg.burn import burn_subtitles, make_proxy
 from .cues import Cue, write_srt
+from .shortform.safe_area import SafeArea
 
 log = get_logger(__name__)
 
@@ -22,8 +23,15 @@ def render_with_subtitles(
     target: str = "master",
     progress_cb: Callable[[int], None] | None = None,
     duration_sec: float | None = None,
+    safe: SafeArea | None = None,
+    video_height: int | None = None,
 ) -> Path:
-    """Ghi SRT rồi burn vào video, trả về đường dẫn file kết quả."""
+    """Ghi SRT rồi burn vào video, trả về đường dẫn file kết quả.
+
+    ``safe``/``video_height`` (tuỳ chọn) được chuyển thẳng cho
+    ``burn_subtitles`` để đặt lề dưới phụ đề theo vùng an toàn của nền tảng
+    đích — không truyền thì giữ lề mặc định cũ.
+    """
     srt = write_srt(cues, subtitle_path(video_id, "vi"))
     dst = out_video(video_id, target)
 
@@ -31,7 +39,15 @@ def render_with_subtitles(
         log.info("render.skip_existing", path=str(dst))
         return dst
 
-    burn_subtitles(source, srt, dst, progress_cb=progress_cb, duration_sec=duration_sec)
+    burn_subtitles(
+        source,
+        srt,
+        dst,
+        progress_cb=progress_cb,
+        duration_sec=duration_sec,
+        safe=safe,
+        video_height=video_height,
+    )
     log.info("render.done", path=str(dst), size=dst.stat().st_size)
     return dst
 

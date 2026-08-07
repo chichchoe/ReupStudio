@@ -8,7 +8,13 @@ from pathlib import Path
 from reup_core.paths import tmp_sibling
 
 from ..config import get_settings
+from ..pipeline.shortform.safe_area import SafeArea, margin_v_pixels
 from .runner import run_ffmpeg, run_ffmpeg_progress
+
+#: Lề dưới cũ, dùng trước khi bảng platform_limits tồn tại. CHỈ còn dùng khi
+#: không truyền ``safe``/``video_height`` — giữ để không phá hành vi của các
+#: chỗ gọi sẵn có (backward-compat, xem test_safe_area.py).
+_LEGACY_MARGIN_V_PX = 120
 
 
 def _escape_for_filter(path: Path) -> str:
@@ -23,9 +29,21 @@ def _escape_for_filter(path: Path) -> str:
     return text
 
 
-def build_force_style() -> str:
-    """Kiểu chữ phụ đề tiếng Việt: chữ vàng, viền đen dày, đặt trên vùng UI."""
+def build_force_style(
+    safe: SafeArea | None = None, video_height: int | None = None
+) -> str:
+    """Kiểu chữ phụ đề tiếng Việt: chữ vàng, viền đen dày, đặt trên vùng UI.
+
+    Truyền cả ``safe`` (vùng an toàn đọc từ bảng ``platform_limits``) lẫn
+    ``video_height`` thì ``MarginV`` tính từ ``margin_v_pixels`` — không còn
+    số cứng. Thiếu một trong hai thì giữ nguyên lề mặc định cũ, để các chỗ
+    gọi sẵn có (chưa truyền hai tham số này) không đổi hành vi.
+    """
     s = get_settings()
+    if safe is not None and video_height is not None:
+        margin_v = margin_v_pixels(safe, video_height)
+    else:
+        margin_v = _LEGACY_MARGIN_V_PX
     parts = [
         f"FontName={s.sub_font}",
         f"FontSize={s.sub_font_size}",
@@ -35,7 +53,7 @@ def build_force_style() -> str:
         "Outline=3",
         "Shadow=1",
         "Alignment=2",  # căn giữa, sát đáy
-        "MarginV=120",  # đẩy lên tránh vùng caption của TikTok
+        f"MarginV={margin_v}",
         "Bold=1",
     ]
     return ",".join(parts)
@@ -49,17 +67,22 @@ def burn_subtitles(
     timeout: int | None = None,
     progress_cb: Callable[[int], None] | None = None,
     duration_sec: float | None = None,
+    safe: SafeArea | None = None,
+    video_height: int | None = None,
 ) -> Path:
     """Ghi phụ đề vào khung hình.
 
     Ghi ra file tạm rồi rename để không bao giờ có file dở dang ở đường dẫn đích.
     Truyền cả ``progress_cb`` lẫn ``duration_sec`` thì bắn tiến trình qua
     ``run_ffmpeg_progress``; thiếu một trong hai thì giữ nguyên hành vi cũ.
+    ``safe``/``video_height`` được chuyển thẳng cho ``build_force_style`` để
+    đặt lề dưới theo vùng an toàn của nền tảng đích (xem module đó).
     """
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
 
-    vf = f"subtitles='{_escape_for_filter(srt)}':force_style='{build_force_style()}'"
+    force_style = build_force_style(safe, video_height)
+    vf = f"subtitles='{_escape_for_filter(srt)}':force_style='{force_style}'"
     args = [
         "-i", str(src),
         "-vf", vf,
