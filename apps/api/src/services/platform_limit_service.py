@@ -29,6 +29,12 @@ _POSITIVE_INT_FIELDS = (
 #: 4 khoá bắt buộc của ``safe_area`` — toạ độ phần trăm khung hình (0-1).
 _SAFE_AREA_KEYS = ("top", "bottom", "left", "right")
 
+#: Tổng safe_area mỗi chiều (top+bottom, left+right) không được vượt quá giá
+#: trị này — đảm bảo LUÔN còn tối thiểu 40% khung hình để đặt phụ đề. Chặn
+#: riêng lẻ từng khoá `< 0.5` KHÔNG đủ: top=0.45, bottom=0.45 vẫn lọt qua chặn
+#: riêng nhưng chỉ còn 10% chỗ đặt phụ đề — vô dụng trên thực tế.
+_MAX_SAFE_AREA_SUM = 0.6
+
 
 def list_limits(db: Session) -> list[PlatformLimit]:
     stmt = sa.select(PlatformLimit).order_by(PlatformLimit.platform)
@@ -60,7 +66,13 @@ def _validate_max_duration_sec(value: Any) -> None:
         )
 
 
-def _validate_safe_area(safe_area: dict[str, Any]) -> None:
+def _validate_safe_area(safe_area: Any) -> None:
+    if not isinstance(safe_area, dict):
+        raise ApiError(
+            f"'safe_area' phải là object đủ 4 khoá {_SAFE_AREA_KEYS!r}, "
+            f"nhận được {safe_area!r}"
+        )
+
     thieu = [key for key in _SAFE_AREA_KEYS if key not in safe_area]
     if thieu:
         raise ApiError(
@@ -76,15 +88,30 @@ def _validate_safe_area(safe_area: dict[str, Any]) -> None:
                 f"safe_area['{key}'] phải trong khoảng [0, 0.5), nhận được {value!r}"
             )
 
-    if safe_area["top"] + safe_area["bottom"] >= 1:
+    phan_tram_chua_lai = int(round((1 - _MAX_SAFE_AREA_SUM) * 100))
+    if safe_area["top"] + safe_area["bottom"] > _MAX_SAFE_AREA_SUM:
         raise ApiError(
-            "safe_area không hợp lệ: top + bottom phải nhỏ hơn 1, nếu không sẽ "
-            "không còn chỗ nào để đặt phụ đề theo chiều dọc"
+            "safe_area không hợp lệ: vùng an toàn (top + bottom) chiếm quá nhiều "
+            "khung hình, không còn chỗ đặt phụ đề (chừa lại tối thiểu "
+            f"{phan_tram_chua_lai}% mỗi chiều)"
         )
-    if safe_area["left"] + safe_area["right"] >= 1:
+    if safe_area["left"] + safe_area["right"] > _MAX_SAFE_AREA_SUM:
         raise ApiError(
-            "safe_area không hợp lệ: left + right phải nhỏ hơn 1, nếu không sẽ "
-            "không còn chỗ nào để đặt phụ đề theo chiều ngang"
+            "safe_area không hợp lệ: vùng an toàn (left + right) chiếm quá nhiều "
+            "khung hình, không còn chỗ đặt phụ đề (chừa lại tối thiểu "
+            f"{phan_tram_chua_lai}% mỗi chiều)"
+        )
+
+
+def _validate_aspect_ratios(value: Any) -> None:
+    hop_le = (
+        isinstance(value, list)
+        and len(value) > 0
+        and all(isinstance(item, str) for item in value)
+    )
+    if not hop_le:
+        raise ApiError(
+            f"'aspect_ratios' phải là danh sách chuỗi không rỗng, nhận được {value!r}"
         )
 
 
@@ -93,7 +120,10 @@ def update_limit(db: Session, platform: str, data: dict[str, Any]) -> PlatformLi
 
     Nếu ``platform`` không tồn tại thì ném ``NotFound``. Nếu dữ liệu không hợp
     lệ (số ≤ 0 — riêng ``max_duration_sec`` chỉ cấm số âm vì 0 nghĩa là không
-    giới hạn — hoặc ``safe_area`` thiếu khoá/sai khoảng) thì ném ``ApiError``.
+    giới hạn — hoặc ``safe_area``/``aspect_ratios`` sai kiểu/thiếu khoá/rỗng)
+    thì ném ``ApiError``. Kiểm cả trường hợp client gửi tường minh ``null`` cho
+    ``safe_area``/``aspect_ratios`` (hai cột ``NOT NULL``) — nếu không sẽ lọt
+    xuống DB và vỡ thành ``IntegrityError``/``TypeError`` không kiểm soát được.
     """
     limit = get_limit(db, platform)
 
@@ -102,6 +132,8 @@ def update_limit(db: Session, platform: str, data: dict[str, Any]) -> PlatformLi
         _validate_max_duration_sec(data["max_duration_sec"])
     if "safe_area" in data:
         _validate_safe_area(data["safe_area"])
+    if "aspect_ratios" in data:
+        _validate_aspect_ratios(data["aspect_ratios"])
 
     for field, value in data.items():
         setattr(limit, field, value)
