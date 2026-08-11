@@ -5,11 +5,14 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from reup_core.logging import get_logger
 from reup_core.paths import tmp_sibling
 
 from ..config import get_settings
 from ..pipeline.shortform.safe_area import SafeArea, margin_v_pixels
 from .runner import run_ffmpeg, run_ffmpeg_progress
+
+log = get_logger(__name__)
 
 #: Lề dưới cũ, dùng trước khi bảng platform_limits tồn tại. CHỈ còn dùng khi
 #: không truyền ``safe``/``video_height`` — giữ để không phá hành vi của các
@@ -43,6 +46,17 @@ def build_force_style(
     if safe is not None and video_height is not None:
         margin_v = margin_v_pixels(safe, video_height)
     else:
+        # Có safe HOẶC video_height (không phải cả hai) nghĩa là chỗ gọi định
+        # dùng vùng an toàn nhưng thiếu dữ liệu (VD: video.height chưa có lúc
+        # render) — khác với chỗ gọi cũ chủ động không truyền gì cả. Log rõ để
+        # không lặng lẽ rơi về lề cứng mà không ai biết.
+        if safe is not None or video_height is not None:
+            log.warning(
+                "burn.margin_v.thieu_du_lieu_dung_le_du_phong",
+                has_safe=safe is not None,
+                has_video_height=video_height is not None,
+                margin_v_du_phong=_LEGACY_MARGIN_V_PX,
+            )
         margin_v = _LEGACY_MARGIN_V_PX
     parts = [
         f"FontName={s.sub_font}",
