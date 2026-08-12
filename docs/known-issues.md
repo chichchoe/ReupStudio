@@ -9,7 +9,8 @@ Cập nhật sau mỗi buổi test (task `X-01` trong backlog).
 | 1 | Link rút gọn (`v.douyin.com`) tạo ID tạm; sau khi tải xong chưa cập nhật lại ID thật vào DB | Có thể tải trùng nếu dán cả link rút gọn lẫn link đầy đủ của cùng video | M2 (cùng với chống trùng pHash) |
 | 2 | Chưa có proxy — nền tảng TQ có thể chặn IP Việt Nam | Tải lỗi 403 | M2 |
 | 3 | Whisper chạy CPU chậm ~5× so với GPU | Video 60s mất vài phút | Không phải lỗi, cần GPU |
-| 4 | Font phụ đề mặc định "Be Vietnam Pro" phải cài sẵn trên máy, chưa tự đóng gói | Chữ hiển thị sai font | M2 |
+| 4 | Font phụ đề mặc định "Be Vietnam Pro" phải cài sẵn trên máy, chưa tự đóng gói. **Cụ thể hoá 2026-08-12:** `apps/worker/Dockerfile` chỉ cài `fonts-dejavu`, không có "Be Vietnam Pro" → trong Docker phụ đề rơi về font mặc định | Chữ hiển thị sai font | Đóng gói font vào image, hoặc đổi `SUB_FONT` |
+| 6 | **ffmpeg Homebrew trên máy Mac dev thiếu `libass` và `libfreetype`** → không có filter `subtitles`/`ass`/`drawtext`. Nghĩa là **burn phụ đề và chèn hook KHÔNG chạy được trên máy dev**. Các filter khác (`delogo`, `boxblur`, `overlay`, `crop`, `scale`) đều có. Đường chạy thật KHÔNG bị ảnh hưởng: `apps/worker/Dockerfile` cài ffmpeg từ kho Debian, bản đó có đủ libass + libfreetype | Chạy worker thẳng trên Mac sẽ lỗi ở bước render; chạy trong Docker thì bình thường | Cài lại ffmpeg đầy đủ trên Mac, hoặc luôn chạy worker qua Docker |
 | 5 | Chưa chống lệch khi video nguồn có timestamp không đều (VBR) | Phụ đề lệch nhẹ ở video dài | M4 |
 
 ## Quyết định phạm vi đã chốt
