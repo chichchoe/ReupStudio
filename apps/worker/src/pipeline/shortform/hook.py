@@ -82,24 +82,37 @@ def _escape_drawtext_text(text: str) -> str:
     - Tầng 1 (escape riêng giá trị option): ``\\`` và ``:`` và ``'`` là ký tự
       đặc biệt, escape bằng cách thêm ``\\`` phía trước.
     - Tầng 2 (escape khi nhúng vào toàn bộ mô tả filtergraph): ``\\`` và ``'``
-      lại đặc biệt LẦN NỮA (escape thêm một lớp), và dấu phẩy ``,`` (phân
-      tách các filter trong cùng một chain) cũng phải escape ở tầng này.
+      lại đặc biệt LẦN NỮA (escape thêm một lớp), và các ký tự cấu trúc
+      filtergraph — dấu phẩy ``,`` (phân tách filter trong cùng một chain),
+      dấu chấm phẩy ``;`` (phân tách các chain), ``[`` ``]`` (bọc tên nhãn
+      pad) — cũng phải escape ở tầng này (xem ``man ffmpeg-filters``, mục
+      "Filtering introduction": "Filters in the same linear chain are
+      separated by commas, and distinct linear chains of filters are
+      separated by semicolons... labelled by names enclosed in square
+      brackets").
 
     Gộp 2 tầng, hiệu ứng RÒNG trên từng ký tự gốc:
     ``\\`` -> 4 dấu ``\\``,  ``:`` -> 2 dấu ``\\`` + ``:``,
-    ``'`` -> 3 dấu ``\\`` + ``'``,  ``,`` -> 1 dấu ``\\`` + ``,``.
+    ``'`` -> 3 dấu ``\\`` + ``'``,
+    ``,`` / ``;`` / ``[`` / ``]`` -> 1 dấu ``\\`` + chính ký tự đó.
 
     Đã đối chiếu khớp TỪNG KÝ TỰ với ví dụ chính thức trong tài liệu ffmpeg
     (chuỗi ``this is a 'string': may contain one, or more, special
     characters`` -> ``this is a \\\\\\'string\\\\\\'\\\\: may contain
     one\\, or more\\, special characters`` khi nhúng vào
-    ``drawtext=text=...``) — xem ``tests/test_hook.py``.
+    ``drawtext=text=...``) — xem ``tests/test_hook.py``. ``;``/``[``/``]``
+    dùng đúng công thức escape 1 lớp như ``,`` (cùng là ký tự cấu trúc tầng 2,
+    không đặc biệt ở tầng 1) — đã xác nhận lại bằng ffmpeg thật, không chỉ suy
+    diễn từ công thức của ``,`` (xem báo cáo Task 5, phần "Sửa nối tiếp").
 
     Thứ tự escape BẮT BUỘC: ``\\`` trước tiên. Escape ``\\`` sau cùng sẽ nhân
-    đôi luôn cả những dấu ``\\`` do các bước escape ``:``/``'``/``,`` phía sau
-    vừa sinh ra — sai hoàn toàn. Vì mỗi bước sau chỉ thay ký tự GỐC (``:``,
-    ``'``, ``,``), không đụng tới ``\\`` đã escape ở bước trước, thứ tự escape
-    ``:``/``'``/``,`` với nhau không quan trọng.
+    đôi luôn cả những dấu ``\\`` do các bước escape ``:``/``'``/``,``/``;``/
+    ``[``/``]`` phía sau vừa sinh ra — sai hoàn toàn. Vì mỗi bước sau chỉ thay
+    ký tự GỐC, không đụng tới ``\\`` đã escape ở bước trước, thứ tự escape
+    các ký tự còn lại với nhau không quan trọng.
+
+    ``\n`` (xuống dòng) KHÔNG phải ký tự đặc biệt của filtergraph — không
+    escape (đã kiểm bằng ffmpeg thật: không gây lỗi cú pháp).
 
     KHÔNG escape ``%``: ``build_hook_filter`` đặt ``expansion=none`` cho
     drawtext — tắt hẳn cơ chế nội suy ``%{...}`` mặc định của drawtext, nên
@@ -111,7 +124,8 @@ def _escape_drawtext_text(text: str) -> str:
     escaped = escaped.replace("\\", "\\" * 4)
     escaped = escaped.replace(":", "\\" * 2 + ":")
     escaped = escaped.replace("'", "\\" * 3 + "'")
-    escaped = escaped.replace(",", "\\" + ",")
+    for special in (",", ";", "[", "]"):
+        escaped = escaped.replace(special, "\\" + special)
     return escaped
 
 

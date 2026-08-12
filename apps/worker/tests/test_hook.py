@@ -127,6 +127,23 @@ def test_escape_dau_phay() -> None:
     assert _text_value(filt) == "Xem\\, đừng bỏ lỡ"
 
 
+def test_escape_dau_cham_phay() -> None:
+    """``;`` phân tách các filterchain khác nhau — không escape sẽ làm ffmpeg
+    hiểu nhầm là kết thúc chain hiện tại (đã xác nhận lỗi thật bằng ffmpeg,
+    xem báo cáo Task 5, phần "Sửa nối tiếp")."""
+    box = hook_box(TIKTOK)
+    filt = build_hook_filter("Bước 1; bước 2", box, 1080, 1920)
+    assert _text_value(filt) == "Bước 1\\; bước 2"
+
+
+def test_escape_dau_ngoac_vuong() -> None:
+    """``[`` ``]`` bọc tên nhãn pad trong filtergraph — không escape sẽ làm
+    ffmpeg cố hiểu ``[abc]`` là một nhãn liên kết filter, không phải chữ."""
+    box = hook_box(TIKTOK)
+    filt = build_hook_filter("Xem phần [1] trước", box, 1080, 1920)
+    assert _text_value(filt) == "Xem phần \\[1\\] trước"
+
+
 def test_escape_chuoi_tieng_viet_co_dau_giu_nguyen_khong_bi_bien_dang() -> None:
     """Chữ tiếng Việt có dấu không chứa ký tự đặc biệt nào của drawtext — phải
     hiện ra y nguyên, không bị escape nhầm hay mất dấu."""
@@ -137,10 +154,10 @@ def test_escape_chuoi_tieng_viet_co_dau_giu_nguyen_khong_bi_bien_dang() -> None:
 
 
 def test_escape_tat_ca_ky_tu_nguy_hiem_cung_luc_khong_pha_cu_phap() -> None:
-    """Trộn cả 5 ký tự nguy hiểm (: ' \\ % ,) trong một chuỗi — kết quả phải có
-    số dấu nháy đơn CHẴN quanh mỗi cặp escape và không vỡ cấu trúc filter."""
+    """Trộn cả 8 ký tự nguy hiểm (: ' \\ % , ; [ ]) trong một chuỗi — kết quả
+    phải giữ nguyên cấu trúc filter (các option khác không bị lẫn vào text)."""
     box = hook_box(TIKTOK)
-    text = "Giá: 'giảm' 50%, còn C:\\videos"
+    text = "Giá: 'giảm' 50%, còn C:\\videos; xem phần [1]"
     filt = build_hook_filter(text, box, 1080, 1920)
     # Filter phải parse được thành các cặp key=value phân tách bởi dấu ':' KHÔNG
     # bị escape (enable=, expansion=, fontsize=... vẫn còn nguyên vẹn).
