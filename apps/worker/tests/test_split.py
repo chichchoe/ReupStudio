@@ -10,13 +10,11 @@ from itertools import pairwise
 
 import pytest
 
-from src.errors import ReupError
+from src.errors import InvalidSplitLimitError, ReupError
 from src.pipeline.cues import Cue
 from src.pipeline.shortform.split import (
-    InvalidSplitLimitError,
     Part,
     _chon_bien,
-    _gop_tap_cuoi_qua_ngan,
     silence_cut_points,
     split_by_duration,
 )
@@ -125,45 +123,44 @@ def test_khong_co_cut_points_dung_duoc_thi_cat_deu() -> None:
     assert [p.end for p in parts[:-1]] == [90.0, 180.0]
 
 
+def test_cut_point_gan_ly_tuong_thua_khi_vi_pham_min_part_sec() -> None:
+    """Giao thoa cut_points + nhìn trước min_part_sec: total=184, max=90,
+    min_part_sec=10. Vị trí lý tưởng của lần cắt thứ hai là 180; mốc 179 gần
+    lý tưởng đó nhưng cắt tại 179 để lại đuôi 184-179=5s (< 10). min_part_sec
+    THẮNG — mốc 179 bị loại (nó nằm ngoài cửa sổ đã lùi (90, 174]), thuật
+    toán lùi hẳn về 174 (cắt theo min_part_sec, không phải theo cue nào)."""
+    parts = split_by_duration(184.0, 90, cut_points=[179.0], min_part_sec=10.0)
+
+    assert parts[1].end == 174.0
+    assert parts[-1].duration == pytest.approx(10.0)
+
+
+def test_cut_point_trong_vung_da_lui_van_duoc_uu_tien_hon_cat_deu() -> None:
+    """172 nằm trong cửa sổ đã lùi vì min_part_sec, tức (90, 174] — vẫn được
+    ưu tiên hơn cắt thẳng tại 174 (vị trí lùi arithmetic không theo cue nào),
+    vì né cắt giữa câu vẫn quan trọng hơn một khi đã nằm trong vùng khả thi."""
+    parts = split_by_duration(184.0, 90, cut_points=[172.0], min_part_sec=10.0)
+
+    assert parts[1].end == 172.0
+    assert parts[-1].duration == pytest.approx(12.0)
+
+
 # --------------------------------------------------------------------------- #
 # Tập cuối ngắn hơn min_part_sec
+#
+# KHÔNG có bước gộp hậu kỳ (đã xoá _gop_tap_cuoi_qua_ngan): chứng minh được
+# rằng gộp lại SAU khi _chon_bien đã cắt xong là bất khả thi toán học — hễ
+# vòng lặp còn phải cắt tiếp thì phần còn lại tại thời điểm đó đã vượt
+# max_duration_sec, nên 2 tập cuối cộng lại luôn vượt max, không bao giờ gộp
+# được. Vì vậy min_part_sec phải được xử lý ngay trong _chon_bien (nhìn
+# trước, lùi mốc), test dưới đây nhắm thẳng vào cơ chế thật đó.
 # --------------------------------------------------------------------------- #
-
-
-def test_tap_cuoi_ngan_duoc_gop_vao_tap_truoc_qua_helper_gop() -> None:
-    """Test trực tiếp _gop_tap_cuoi_qua_ngan — helper THUẦN, nhận list biên và
-    trả list biên đã gộp. boundaries=[0, 45, 49]: tập cuối dài 4s (<10, min
-    mặc định), gộp với tập trước (45-0=45) cho tổng 49 <= max(50) => gộp
-    thành công, biên giữa (45.0) bị loại bỏ."""
-    boundaries = _gop_tap_cuoi_qua_ngan([0.0, 45.0, 49.0], 50, 10.0)
-
-    assert boundaries == [0.0, 49.0]
-
-
-def test_gop_se_vuot_max_thi_khong_gop_giu_nguyen_tap_ngan() -> None:
-    """boundaries=[0, 90, 94]: tập cuối dài 4s (<10), nhưng gộp lại
-    (94-0=94) sẽ vượt max=90 => KHÔNG gộp, giữ nguyên 2 tập."""
-    boundaries = _gop_tap_cuoi_qua_ngan([0.0, 90.0, 94.0], 90, 10.0)
-
-    assert boundaries == [0.0, 90.0, 94.0]
-
-
-def test_helper_gop_khong_dong_neu_tap_cuoi_du_dai() -> None:
-    boundaries = _gop_tap_cuoi_qua_ngan([0.0, 90.0, 120.0], 90, 10.0)
-
-    assert boundaries == [0.0, 90.0, 120.0]
 
 
 def test_split_by_duration_khong_bao_gio_tra_tap_cuoi_qua_ngan_khi_kha_thi() -> None:
-    """Trước đây _chon_bien luôn cắt tham lam đúng tại vị trí lý tưởng
-    (current + max), nên với total=184, max=90 sẽ để lại tập cuối 184-180=4s
-    (< min_part_sec=10) — và việc gộp ngược 2 tập cuối (90 + 4 = 94 > 90)
-    LUÔN vượt max nên không bao giờ gộp được: đây là hệ quả toán học của vòng
-    lặp "cắt khi phần còn lại > max" — hễ còn phải cắt tiếp thì phần còn lại
-    tại thời điểm đó đã vượt max, nên 2 tập cuối cộng lại luôn vượt max, gộp
-    ngược không bao giờ khả thi. split_by_duration phải né trước bằng cách
-    lùi mốc chọn (xem _chon_bien), không được để lọt tập cuối 4s ra ngoài.
-    """
+    """total=184, max=90: cắt đều tại vị trí lý tưởng sẽ để lại tập cuối
+    184-180=4s (< min_part_sec=10). split_by_duration phải né trước (nhìn
+    trước trong _chon_bien), không được để lọt tập cuối 4s ra ngoài."""
     parts = split_by_duration(184.0, 90, min_part_sec=10.0)
 
     assert parts[-1].duration >= 10.0
@@ -175,10 +172,11 @@ def test_split_by_duration_khong_bao_gio_tra_tap_cuoi_qua_ngan_khi_kha_thi() -> 
         assert prev.end == nxt.start
 
 
-def test_split_by_duration_gop_gan_dung_khi_min_part_sec_khong_kha_thi() -> None:
+def test_split_by_duration_giu_nguyen_tap_ngan_khi_min_part_sec_khong_kha_thi() -> None:
     """Khi min_part_sec >= max_duration_sec, không có cách nào đảm bảo tập nào
-    cũng đủ min_part_sec — _chon_bien bỏ qua nhìn trước, tập cuối ngắn được
-    giữ nguyên (gộp sẽ luôn vượt max, đúng theo quy tắc)."""
+    cũng đủ min_part_sec trong giới hạn max — _chon_bien bỏ qua nhìn trước,
+    tập cuối ngắn được giữ nguyên (đúng theo quy tắc: chỉ đảm bảo min_part_sec
+    khi điều đó còn khả thi)."""
     parts = split_by_duration(95.0, 90, min_part_sec=95.0)
 
     assert len(parts) == 2
@@ -197,6 +195,23 @@ def test_chon_bien_lui_moc_de_tranh_duoi_qua_ngan() -> None:
     # Đúng lẽ ra cắt đều sẽ ra [0, 90, 180, 184] (đuôi 4s) — thuật toán phải
     # lùi mốc thứ hai lại 174 để đuôi đủ 10s.
     assert boundaries == [0.0, 90.0, 174.0, 184.0]
+
+
+def test_chon_bien_khong_lui_moc_khi_duoi_da_du_dai() -> None:
+    """total=240, max=90, min_part_sec=10: đuôi tự nhiên đã là 60s (>=10),
+    không cần lùi mốc — kết quả giống hệt cắt đều thuần tuý."""
+    boundaries = _chon_bien(240.0, 90, [], 10.0)
+
+    assert boundaries == [0.0, 90.0, 180.0, 240.0]
+
+
+def test_chon_bien_bo_qua_nhin_truoc_khi_min_part_sec_khong_kha_thi() -> None:
+    """min_part_sec(95) >= max_duration_sec(90): không thể đảm bảo mọi tập đủ
+    min_part_sec trong giới hạn max — thuật toán không lùi mốc, chấp nhận
+    tập cuối ngắn hơn min_part_sec (cắt đều tại vị trí lý tưởng như thường)."""
+    boundaries = _chon_bien(95.0, 90, [], 95.0)
+
+    assert boundaries == [0.0, 90.0, 95.0]
 
 
 # --------------------------------------------------------------------------- #

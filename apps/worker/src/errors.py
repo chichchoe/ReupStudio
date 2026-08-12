@@ -50,3 +50,11 @@ class PlatformLimitNotFoundError(ReupError):
     lập đúng kiểu hardcode mà bảng ``platform_limits`` sinh ra để dọn (luật
     số 5 CLAUDE.md).
     """
+
+
+class InvalidSplitLimitError(ReupError):
+    """``max_duration_sec`` hoặc ``min_part_sec`` âm khi chia tập theo thời lượng.
+
+    Số 0 của ``max_duration_sec`` là hợp lệ (nghĩa là không giới hạn); chỉ số
+    ÂM mới là lỗi. Cố tình KHÔNG âm thầm coi số âm là "không giới hạn".
+    """
