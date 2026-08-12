@@ -9,10 +9,10 @@ dọc 9:16 (xem CLAUDE.md — "Video dọc 9:16 là mặc định"). Hai chế �
   bản rõ ở giữa. Không bao giờ cắt mất chủ thể vì giữ nguyên toàn bộ khung
   ngang gốc — an toàn tuyệt đối, đánh đổi bằng viền mờ hai bên (hoặc trên/dưới
   tuỳ tỉ lệ video gốc).
-- ``reframe_crop`` (bám chủ thể, CẦN OpenCV/numpy): dò cột chứa chủ thể bằng
-  ``subject_column`` rồi cắt một dải dọc quanh nó, phóng to lấp đầy khung
-  đích. Đẹp hơn ``blur`` (không viền mờ) nhưng có rủi ro cắt hụt nếu chủ thể
-  di chuyển ra ngoài dải đã chọn giữa các mốc lấy mẫu.
+- ``reframe_crop`` (bám chủ thể): dò cột chứa chủ thể bằng ``subject_column``
+  rồi cắt một dải dọc quanh nó, phóng to lấp đầy khung đích. Đẹp hơn ``blur``
+  (không viền mờ) nhưng có rủi ro cắt hụt nếu chủ thể di chuyển ra ngoài dải
+  đã chọn giữa các mốc lấy mẫu.
 
 ``subject_column`` là hàm THUẦN (không đụng ffmpeg/DB/celery): nhận sẵn mảng
 khung xám (numpy, 2 chiều, dạng trích bằng
@@ -21,14 +21,17 @@ gì về file. Nhờ vậy test được bằng mảng tự sinh, không cần f
 ``tests/test_reframe.py``).
 
 Cách dò chủ thể: KHÔNG dùng model học sâu (ngoài phạm vi, ngoài danh sách thư
-viện đã chốt trong ``docs/01-KIEN-TRUC-VA-STACK.md``). Ưu tiên ``cv2.saliency``
-nếu bản OpenCV cài có module đó; bản ``opencv-python`` (không phải
-``-contrib``) trong danh sách đã chốt KHÔNG có module này trên máy phát triển
-(``cv2.saliency`` không tồn tại), nên phương án chạy thật là phương sai theo
-thời gian: vùng chuyển động nhiều giữa các khung liên tiếp = chủ thể. Lấy
-TRUNG VỊ vị trí trọng tâm chuyển động qua nhiều cặp khung liên tiếp (không
-phải trung bình) để một vài khung nhiễu/giật không kéo lệch kết quả — camera
-rung nhẹ hay có người đi ngang qua nền chỉ là ngoại lệ, trung vị bỏ qua được.
+viện đã chốt trong ``docs/01-KIEN-TRUC-VA-STACK.md``), và **KHÔNG dùng OpenCV**
+dù package ``opencv-python`` có mặt trong ``pyproject.toml`` (xem comment ở đó
+— thêm sẵn cho M3, chưa ai `import cv2` ở M4). ``subject_column`` chỉ dùng
+numpy thuần: phương sai theo thời gian — vùng chuyển động nhiều giữa các khung
+liên tiếp = chủ thể. Lý do không dùng ``cv2.saliency`` (phương án "nếu có" nêu
+trong brief): module đó thuộc ``opencv-contrib-python``, ngoài danh sách đã
+chốt, và bản ``opencv-python`` (không phải ``-contrib``) không có module này
+(``hasattr(cv2, "saliency") is False`` — đã kiểm trên máy dev). Lấy TRUNG VỊ vị
+trí trọng tâm chuyển động qua nhiều cặp khung liên tiếp (không phải trung
+bình) để một vài khung nhiễu/giật không kéo lệch kết quả — camera rung nhẹ hay
+có người đi ngang qua nền chỉ là ngoại lệ, trung vị bỏ qua được.
 
 Toạ độ trả về LUÔN là phần trăm 0–1 theo bề ngang khung hình (luật số 5 của
 plan M4) — không có pixel nào lọt vào giá trị trả về của hàm công khai; đổi
@@ -58,8 +61,15 @@ DEFAULT_OUT_HEIGHT = 1920
 #: giữa khung hình, không thiên về bên nào.
 DEFAULT_CENTER = 0.5
 
-#: Sigma của filter ``boxblur`` cho nền mờ ở chế độ blur.
-BLUR_SIGMA = 20
+#: Bán kính (``luma_radius``) của filter ``boxblur`` cho nền mờ ở chế độ blur.
+#: ``boxblur`` không có khái niệm sigma (đó là thuật ngữ của Gaussian blur) —
+#: chỉ có bán kính hộp trượt + số lần lặp (``luma_power``). Muốn nền mờ hơn thì
+#: TĂNG BÁN KÍNH này, đừng tăng số lần lặp — mỗi lần lặp thêm là một lượt quét
+#: toàn khung, tốn thời gian tuyến tính theo số lần lặp (xem lịch sử: từng để
+#: ``luma_power=20`` — lặp tận 20 lần — khiến reframe_blur mất 8.88s trên clip
+#: 6 giây, gấp ~8 lần reframe_crop; hạ về ``luma_power=1`` là đúng chuẩn boxblur
+#: một lượt, xem số đo mới trong ``scripts/try_reframe.py`` / báo cáo).
+BLUR_RADIUS = 20
 
 #: Số khung / kích thước mỗi khung lấy mẫu để dò chuyển động cho chế độ crop.
 #: 128x128 đủ để thấy vùng chuyển động lớn (chủ thể) mà vẫn nhẹ; ép vuông vẫn
@@ -138,7 +148,8 @@ def reframe_blur(
     )
     bg = (
         f"[0:v]scale={out_width}:{out_height}:force_original_aspect_ratio=increase,"
-        f"crop={out_width}:{out_height},boxblur={BLUR_SIGMA}:{BLUR_SIGMA}[bg]"
+        f"crop={out_width}:{out_height},"
+        f"boxblur=luma_radius={BLUR_RADIUS}:luma_power=1[bg]"
     )
     overlay = "[bg][fg]overlay=(W-w)/2:(H-h)/2[outv]"
     filter_complex = ";".join([fg, bg, overlay])
@@ -173,13 +184,14 @@ def reframe_crop(
     out_height: int = DEFAULT_OUT_HEIGHT,
     timeout: int | None = None,
 ) -> Path:
-    """Đổi ngang sang dọc bằng cắt bám chủ thể — CẦN OpenCV/numpy để dò vị trí.
+    """Đổi ngang sang dọc bằng cắt bám chủ thể — dùng numpy để dò vị trí, KHÔNG dùng OpenCV.
 
     Trích một loạt khung xám nhỏ (``SAMPLE_FRAME_SIZE``) rải đều trên video để
-    dò cột chứa chủ thể (``subject_column``), rồi cắt một dải dọc cao bằng cả
-    khung nguồn quanh cột đó, cuối cùng scale lấp đầy khung đích. Toạ độ phần
-    trăm trả về từ ``subject_column`` chỉ được đổi sang pixel NGAY TẠI ĐÂY,
-    sát chỗ dựng filter ffmpeg — không có chỗ nào khác đổi pixel.
+    dò cột chứa chủ thể (``subject_column``, chỉ numpy — xem docstring module),
+    rồi cắt một dải dọc cao bằng cả khung nguồn quanh cột đó, cuối cùng scale
+    lấp đầy khung đích. Toạ độ phần trăm trả về từ ``subject_column`` chỉ được
+    đổi sang pixel NGAY TẠI ĐÂY, sát chỗ dựng filter ffmpeg — không có chỗ nào
+    khác đổi pixel.
     """
     info = probe(src)
     out_aspect = out_width / out_height

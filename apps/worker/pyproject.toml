@@ -9,6 +9,9 @@ dependencies = [
     "yt-dlp>=2024.8.6",
     "httpx>=0.27",
     "pydantic-settings>=2.3",
+    # M4-WK-01 (reframe.py) KHÔNG dùng cv2 — subject_column chỉ dùng numpy.
+    # Cài sẵn ở đây cho M3 (detect/static_logo.py dùng morphology, inpaint/fast.py
+    # dùng cv2.inpaint) — đừng tưởng M4 đang dùng opencv chỉ vì thấy dòng này.
     "opencv-python>=4.10",
     "numpy>=1.26",
 ]
