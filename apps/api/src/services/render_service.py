@@ -83,7 +83,16 @@ def list_variants(db: Session, video_id: uuid.UUID) -> list[RenderVariant]:
 
 
 def get_variant(db: Session, variant_id: uuid.UUID) -> RenderVariant:
+    """Lấy một ``render_variant``, chặn luôn video cha đã bị xoá mềm.
+
+    ``RenderVariant.video_id`` có ``ondelete="CASCADE"`` nên hàng variant
+    KHÔNG tự biến mất khi video bị xoá MỀM (chỉ mất khi hard-delete) — không
+    thể trông chờ CASCADE làm hộ việc này. Gọi lại ``video_service.get_video``
+    (hàm DUY NHẤT trong repo kiểm ``deleted_at``, giống ``list_variants`` đã
+    làm) để video đã xoá không thể bị tải file qua ``variant_id`` còn giữ lại.
+    """
     variant = db.get(RenderVariant, variant_id)
     if variant is None:
         raise NotFound(f"Không tìm thấy render variant {variant_id}")
+    video_service.get_video(db, variant.video_id)
     return variant

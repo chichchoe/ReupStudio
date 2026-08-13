@@ -307,6 +307,27 @@ def test_tai_file_variant_khong_ton_tai_tra_notfound(ctx) -> None:
     assert resp.status_code == 404
 
 
+def test_tai_file_variant_cua_video_da_xoa_mem_tra_notfound(ctx, tmp_path) -> None:
+    """Finding review coordinator: xoá mềm video KHÔNG xoá dòng render_variants
+    (``ondelete="CASCADE"`` chỉ chạy khi hard-delete) — nếu không kiểm riêng,
+    ai còn giữ ``variant_id`` vẫn tải được file dù video "đã xoá". File THẬT
+    còn tồn tại trên đĩa (không phải ca thiếu file) để khẳng định chặn đúng vì
+    video cha bị xoá, không phải vì thiếu file.
+    """
+    video_id = _tao_video(ctx["session_factory"])
+    out_file = tmp_path / "tiktok_p1.mp4"
+    out_file.write_bytes(b"fake mp4 content")
+    variant_id = _tao_variant(ctx["session_factory"], video_id, out_path=str(out_file))
+    with ctx["session_factory"]() as session:
+        video = session.get(Video, video_id)
+        video.deleted_at = __import__("datetime").datetime.now()
+        session.commit()
+
+    resp = ctx["client"].get(f"/api/v1/variants/{variant_id}/file")
+
+    assert resp.status_code == 404
+
+
 def test_tai_file_variant_da_render_tra_ve_file_that(ctx, tmp_path) -> None:
     video_id = _tao_video(ctx["session_factory"])
     out_file = tmp_path / "tiktok_p1.mp4"
