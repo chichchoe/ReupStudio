@@ -61,6 +61,18 @@ def out_video(video_id: str, target: str = "master") -> Path:
     return out_dir(video_id) / f"{target}.mp4"
 
 
+def variant_video(video_id: str, target: str, part_index: int = 1) -> Path:
+    """File render của một ``render_variants`` — một bản mỗi nền tảng đích.
+
+    Một video sinh nhiều bản (luật số 8 CLAUDE.md), mỗi bản ứng với một dòng
+    ``render_variants``: ``media/out/<video_id>/<target>.p<part_index>.mp4``.
+    Khác ``out_video()`` (giữ nguyên cho pipeline M1 chưa tách theo nền tảng)
+    ở chỗ luôn có ``part_index`` trong tên file, kể cả khi không chia tập
+    (``part_index=1``) — nhờ vậy tên file không bao giờ đụng ``out_video()``.
+    """
+    return out_dir(video_id) / f"{target}.p{part_index}.mp4"
+
+
 def tmp_sibling(path: Path) -> Path:
     """Đường dẫn tạm cạnh file đích.
 
