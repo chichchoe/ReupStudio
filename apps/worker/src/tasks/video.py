@@ -124,6 +124,31 @@ def _target_platforms(video) -> list[str]:
     return [_DEFAULT_TARGET_PLATFORM]
 
 
+def _reframe_mode(video) -> str:
+    """Chế độ đổi khung ngang->dọc (M4-WK-05b), đọc từ ``process_config``.
+
+    Thiếu khoá (hoặc rỗng) mặc định ``"blur"`` (an toàn nhất — không cắt mất
+    ai). Giá trị LẠ vẫn được trả nguyên văn, không tự chuẩn hoá ở đây —
+    ``render_variant`` (tầng pipeline) mới là nơi kiểm hợp lệ và ném lỗi rõ
+    ràng (luật số 7 CLAUDE.md); tầng ``tasks/`` chỉ đọc, không phán xét.
+    """
+    config = video.process_config or {}
+    mode = config.get("reframe_mode")
+    return str(mode) if mode else "blur"
+
+
+def _hook_text(video) -> str | None:
+    """Câu hook chèn 3 giây đầu (M4-WK-05b), đọc từ ``process_config``.
+
+    Không có (hoặc rỗng) trả ``None`` — ``render_variant`` không tự sinh hook
+    khi thiếu, đúng quyết định đã chốt ở task-9-brief.md (sinh bừa còn tệ hơn
+    không có).
+    """
+    config = video.process_config or {}
+    text = config.get("hook_text")
+    return str(text) if text else None
+
+
 def _load_platform_limits(session, targets: list[str]) -> dict[str, int]:
     """Đọc ``max_duration_sec`` của các nền tảng trong ``targets`` từ ``platform_limits``.
 
@@ -458,6 +483,11 @@ def render_variants_task(session, video) -> dict:
     "master" duy nhất) — task này được gọi riêng (Task 7 làm API kích hoạt),
     không nằm trong chain M1.
 
+    Từ M4-WK-05b: đọc thêm ``reframe_mode``/``hook_text`` từ ``process_config``
+    (qua ``_reframe_mode``/``_hook_text``) rồi truyền cho ``render_variant`` —
+    quyết định đổi khung ngang->dọc và chèn hook nằm ở tầng pipeline, tầng này
+    chỉ đọc cấu hình và chuyển tiếp.
+
     Dùng ``PipelineStep.SHORTFORM`` (không phải ``RENDER``) cho decorator lẫn
     ``prog.progress`` — ``RENDER`` đã bị ``render_video_task`` (M1) chiếm.
     Dùng chung sẽ khiến thanh tiến trình bước "render" mà frontend đang nghe
@@ -471,12 +501,22 @@ def render_variants_task(session, video) -> dict:
     targets = _target_platforms(video)
     limits = _load_platform_limits(session, targets)
     plans = plan_variants(video.duration_sec, targets, limits, vi_cues)
+    reframe_mode = _reframe_mode(video)
+    hook_text = _hook_text(video)
 
     done_at = milestones(len(plans))
     for i, plan in enumerate(plans, start=1):
         safe = _load_safe_area(session, plan.target_platform)
         out = render_variant(
-            vid, source, vi_cues, plan, safe=safe, video_height=video.height
+            vid,
+            source,
+            vi_cues,
+            plan,
+            safe=safe,
+            video_width=video.width,
+            video_height=video.height,
+            reframe_mode=reframe_mode,
+            hook_text=hook_text,
         )
         width, height = _probe_variant_dims(out)
         snapshot = {

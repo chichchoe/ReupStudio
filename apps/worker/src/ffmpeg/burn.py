@@ -84,6 +84,7 @@ def burn_subtitles(
     safe: SafeArea | None = None,
     video_height: int | None = None,
     start: float | None = None,
+    hook_filter: str | None = None,
 ) -> Path:
     """Ghi phụ đề vào khung hình.
 
@@ -98,12 +99,24 @@ def burn_subtitles(
     ``duration_sec`` giây kể từ ``start``; ``srt`` phải đã được dịch mốc thời
     gian về gốc 0 của đoạn đó (xem ``pipeline/render.py::render_variant``).
     Không truyền ``start`` thì burn nguyên video như trước (backward-compat).
+
+    ``hook_filter`` (tuỳ chọn, M4-WK-05b): chuỗi filter ``drawtext`` dựng sẵn
+    bởi ``pipeline/shortform/hook.py::build_hook_filter`` — nối thêm vào SAU
+    filter ``subtitles`` trong cùng một ``-vf`` (một lượt encode, không chạy
+    ffmpeg hai lần). Hai filter phủ hai vùng khung hình tách biệt (hook ở
+    trên, phụ đề sát đáy — xem ``hook_box``) nên thứ tự áp giữa chúng không
+    ảnh hưởng kết quả hiển thị. ``src`` (tham số ``src`` của hàm này) PHẢI đã
+    được đổi sang khung ĐÍCH từ trước (xem ``pipeline/render.py::render_variant``,
+    lý do trong docstring ở đó) — tọa độ trong ``hook_filter`` tính theo khung
+    đích, đưa vào khung còn ở tỉ lệ nguồn sẽ lệch vị trí.
     """
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
 
     force_style = build_force_style(safe, video_height)
     vf = f"subtitles='{_escape_for_filter(srt)}':force_style='{force_style}'"
+    if hook_filter:
+        vf = f"{vf},{hook_filter}"
     args: list[str] = []
     if start is not None and start > 0:
         args += ["-ss", f"{start:.3f}"]

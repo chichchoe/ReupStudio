@@ -52,6 +52,16 @@ class PlatformLimitNotFoundError(ReupError):
     """
 
 
+class InvalidReframeModeError(ReupError):
+    """``reframe_mode`` không nằm trong tập giá trị hợp lệ (``"blur"``, ``"crop"``).
+
+    Cố tình KHÔNG âm thầm rơi về mặc định ``"blur"`` khi gặp giá trị lạ (luật
+    số 7 CLAUDE.md) — giá trị lạ thường là lỗi đánh máy trong ``process_config``,
+    im lặng dùng mặc định sẽ khiến người cấu hình không biết lựa chọn của họ
+    chưa hề được áp dụng.
+    """
+
+
 class InvalidSplitLimitError(ReupError):
     """``max_duration_sec`` hoặc ``min_part_sec`` âm khi chia tập theo thời lượng.
 

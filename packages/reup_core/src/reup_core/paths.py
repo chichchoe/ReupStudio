@@ -61,6 +61,19 @@ def out_video(video_id: str, target: str = "master") -> Path:
     return out_dir(video_id) / f"{target}.mp4"
 
 
+def reframed_video(video_id: str, mode: str) -> Path:
+    """File trung gian sau khi đổi khung ngang->dọc (``reframe_blur``/``reframe_crop``).
+
+    DÙNG CHUNG cho MỌI ``render_variants`` của một video (không phụ thuộc nền
+    tảng đích hay tập) — đổi khung không phụ thuộc platform/part, chỉ chạy MỘT
+    LẦN cho cả video rồi mọi tập/nền tảng burn hook + phụ đề TRÊN CÙNG file
+    này (xem ``pipeline/render.py::render_variant``, M4-WK-05b). Tên file gồm
+    ``mode`` (``blur``/``crop``) để đổi ``reframe_mode`` giữa hai lần chạy tự
+    tạo file mới, không lỡ dùng nhầm bản cũ theo mode khác.
+    """
+    return work_dir(video_id) / f"reframe.{mode}.mp4"
+
+
 def variant_video(video_id: str, target: str, part_index: int = 1) -> Path:
     """File render của một ``render_variants`` — một bản mỗi nền tảng đích.
 

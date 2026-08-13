@@ -15,6 +15,12 @@ Chạy với ``cues=[]`` (video mẫu ``testsrc2`` không có lời thoại) nê
 qua nhánh ``trim_video`` (chỉ CẮT, không burn phụ đề) — nhánh có phụ đề
 (``burn_subtitles``) cần ffmpeg build kèm libass/libfreetype, môi trường dev
 container hiện KHÔNG có (xem task-6-report.md).
+
+M4-WK-05b (Task 9): truyền thêm kích thước nguồn thật (``probe``) cho
+``render_variant`` để nhánh REFRAME (ngang -> dọc) chạy — khác nhánh phụ đề,
+``boxblur``/``crop``/``scale``/``overlay`` không cần libass nên CHẠY THẬT được
+trên máy dev. Script tự ``ffprobe`` lại file variant đầu tiên để xác nhận đầu
+ra đúng 9:16 khi nguồn là video ngang (xem task-9-report.md).
 """
 
 from __future__ import annotations
@@ -25,6 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from reup_core.logging import setup_logging  # noqa: E402
+from reup_core.paths import variant_video  # noqa: E402
 
 from src.ffmpeg.probe import probe  # noqa: E402
 from src.pipeline.render import plan_variants, render_variant  # noqa: E402
@@ -37,8 +44,8 @@ VIDEO_ID = "try-render-variants"
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("Dùng: python scripts/try_render_variants.py <video.mp4>")
+    if len(sys.argv) not in (2, 3):
+        print("Dùng: python scripts/try_render_variants.py <video.mp4> [reframe_mode]")
         return 1
 
     src = Path(sys.argv[1])
@@ -53,12 +60,26 @@ def main() -> int:
     plans = plan_variants(info.duration_sec, list(SAMPLE_LIMITS), SAMPLE_LIMITS)
     print(f"plan_variants -> {len(plans)} tập")
 
+    reframe_mode = sys.argv[2] if len(sys.argv) > 2 else "blur"
+    print(f"reframe_mode = {reframe_mode!r} (nguồn ngang: {info.width > info.height})")
+
     for plan in plans:
-        out = render_variant(VIDEO_ID, src, [], plan)
+        out = render_variant(
+            VIDEO_ID, src, [], plan,
+            video_width=info.width, video_height=info.height, reframe_mode=reframe_mode,
+        )
         size_mb = out.stat().st_size / 1_000_000
         print(
             f"  {plan.target_platform} p{plan.part_index}/{plan.part_total} "
             f"[{plan.start:.1f}s-{plan.end:.1f}s] -> {out} ({size_mb:.2f} MB)"
+        )
+
+    if plans:
+        first = variant_video(VIDEO_ID, plans[0].target_platform, plans[0].part_index)
+        out_info = probe(first)
+        print(
+            f"ffprobe {first.name}: {out_info.width}x{out_info.height} "
+            f"(dọc: {out_info.height > out_info.width})"
         )
 
     return 0

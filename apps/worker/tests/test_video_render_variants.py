@@ -19,7 +19,9 @@ from sqlalchemy.orm import Session
 
 from src.pipeline.render import VariantPlan
 from src.tasks.video import (
+    _hook_text,
     _load_platform_limits,
+    _reframe_mode,
     _target_platforms,
     _upsert_render_variant,
 )
@@ -99,6 +101,39 @@ def test_target_platforms_thieu_khoa_thi_mac_dinh_mot_nen_tang() -> None:
 
 def test_target_platforms_list_rong_thi_mac_dinh_mot_nen_tang() -> None:
     assert _target_platforms(_video({"target_platforms": []})) == ["tiktok"]
+
+
+# --------------------------------------------------------------------------- #
+# _reframe_mode / _hook_text (M4-WK-05b) — chỉ đọc process_config, không phán
+# xét giá trị hợp lệ (render_variant ở tầng pipeline mới làm việc đó).
+# --------------------------------------------------------------------------- #
+
+
+def test_reframe_mode_thieu_khoa_mac_dinh_blur() -> None:
+    assert _reframe_mode(_video({})) == "blur"
+
+
+def test_reframe_mode_rong_mac_dinh_blur() -> None:
+    assert _reframe_mode(_video({"reframe_mode": ""})) == "blur"
+
+
+def test_reframe_mode_co_khoa_tra_nguyen_van_khong_chuan_hoa() -> None:
+    """Giá trị lạ (VD gõ nhầm) vẫn được trả nguyên văn — không tự sửa/rơi về
+    mặc định ở tầng tasks/, để render_variant ném lỗi rõ ràng (luật số 7)."""
+    assert _reframe_mode(_video({"reframe_mode": "crop"})) == "crop"
+    assert _reframe_mode(_video({"reframe_mode": "zoom"})) == "zoom"
+
+
+def test_hook_text_thieu_khoa_tra_none() -> None:
+    assert _hook_text(_video({})) is None
+
+
+def test_hook_text_rong_tra_none() -> None:
+    assert _hook_text(_video({"hook_text": ""})) is None
+
+
+def test_hook_text_co_khoa_tra_dung_chuoi() -> None:
+    assert _hook_text(_video({"hook_text": "Xem hết đừng bỏ lỡ!"})) == "Xem hết đừng bỏ lỡ!"
 
 
 # --------------------------------------------------------------------------- #

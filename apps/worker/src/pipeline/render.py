@@ -7,15 +7,21 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from reup_core.logging import get_logger
-from reup_core.paths import out_video, proxy_path, subtitle_path, variant_video
+from reup_core.paths import out_video, proxy_path, reframed_video, subtitle_path, variant_video
 
-from ..errors import PlatformLimitNotFoundError
+from ..errors import InvalidReframeModeError, PlatformLimitNotFoundError
 from ..ffmpeg.burn import burn_subtitles, make_proxy, trim_video
 from .cues import Cue, write_srt
+from .shortform.hook import build_hook_filter, hook_box, trim_slow_intro
+from .shortform.reframe import DEFAULT_OUT_HEIGHT, DEFAULT_OUT_WIDTH, reframe_blur, reframe_crop
 from .shortform.safe_area import SafeArea
 from .shortform.split import silence_cut_points, split_by_duration
 
 log = get_logger(__name__)
+
+#: Giá trị hợp lệ của ``reframe_mode`` (``video.process_config["reframe_mode"]``).
+#: Giá trị khác ném ``InvalidReframeModeError`` — xem ``render_variant``.
+_VALID_REFRAME_MODES = {"blur", "crop"}
 
 
 def render_with_subtitles(
@@ -175,24 +181,94 @@ def render_variant(
     *,
     progress_cb: Callable[[int], None] | None = None,
     safe: SafeArea | None = None,
+    video_width: int | None = None,
     video_height: int | None = None,
+    reframe_mode: str = "blur",
+    hook_text: str | None = None,
 ) -> Path:
     """Render MỘT tập của MỘT nền tảng đích (một dòng ``render_variants``).
 
     Idempotent (luật số 4 CLAUDE.md): file đích đã tồn tại và không rỗng thì
-    bỏ qua, không render lại. Đoạn không có lời thoại (``cues`` rỗng sau khi
-    lọc theo ``[plan.start, plan.end)``) chỉ được CẮT (``trim_video``, không
-    re-encode, không gọi filter ``subtitles``) — giống cách ``render_video_task``
-    xử lý video không lời thoại ở M1.
+    bỏ qua, không render lại. Đoạn không có lời thoại VÀ không có hook chỉ
+    được CẮT (``trim_video``, không re-encode, không gọi filter nào) — giống
+    cách ``render_video_task`` xử lý video không lời thoại ở M1.
+
+    THỨ TỰ BẮT BUỘC (M4-WK-05b): reframe (ngang -> dọc) chạy TRƯỚC, hook và
+    phụ đề burn SAU. ``hook_box``/lề phụ đề (``SafeArea``) tính theo phần trăm
+    của khung ĐÍCH (dọc 1080x1920 mặc định) — nếu burn hook/phụ đề trước rồi
+    mới scale sang dọc, toạ độ đã tính sẵn bị kéo lệch theo tỉ lệ scale và chữ
+    rơi ra ngoài khung hình. ĐỪNG đảo hai bước này.
+
+    - ``video_width``/``video_height``: kích thước NGUỒN thật (từ bước
+      ``probe`` M1). Chỉ đổi khung khi nguồn NGANG (``width > height``) —
+      nguồn đã dọc giữ nguyên, không scale đi scale lại làm giảm chất lượng.
+      Thiếu một trong hai (hiếm — ``probe`` M1 luôn chạy trước bước này) thì
+      coi như không đổi khung, không ném lỗi.
+    - File reframe trung gian (``reup_core.paths.reframed_video``) đặt tên
+      theo ``video_id`` + ``reframe_mode``, KHÔNG theo nền tảng/tập — đổi
+      khung không phụ thuộc platform hay part, nên chỉ tốn công đổi khung
+      MỘT LẦN cho cả video: tập/nền tảng gọi ``render_variant`` đầu tiên tạo
+      file, các lần gọi sau (tập khác, nền tảng khác) thấy file đã tồn tại
+      thì tái sử dụng luôn (vẫn qua nhánh idempotent-skip bên dưới).
+    - ``reframe_mode``: ``"blur"`` (mặc định, an toàn — không cắt mất ai) hoặc
+      ``"crop"``. Giá trị khác ném ``InvalidReframeModeError`` — KHÔNG âm thầm
+      rơi về mặc định (luật số 7 CLAUDE.md).
+    - ``hook_text``: chỉ chèn vào TẬP ĐẦU TIÊN (``plan.part_index == 1``).
+      Không truyền (``None``/rỗng) thì KHÔNG chèn hook gì cả — hàm này không
+      tự sinh câu hook, chỉ dựng filter từ text truyền vào.
+    - Tập đầu còn được ``trim_slow_intro`` cắt bớt phần mở đầu im lặng (dựa
+      trên cue của chính tập đó, chỉ áp khi tập có lời thoại) trước khi burn.
     """
     dst = variant_video(video_id, plan.target_platform, plan.part_index)
     if dst.exists() and dst.stat().st_size > 0:
         log.info("render_variant.skip_existing", path=str(dst))
         return dst
 
+    # --- Bước 1: reframe ngang -> dọc TRƯỚC (xem lý do thứ tự ở docstring) ---
+    render_source = source
+    out_width, out_height = video_width, video_height
+    is_horizontal = (
+        video_width is not None and video_height is not None and video_width > video_height
+    )
+    if is_horizontal:
+        if reframe_mode not in _VALID_REFRAME_MODES:
+            raise InvalidReframeModeError(
+                f"reframe_mode '{reframe_mode}' không hợp lệ — chỉ nhận "
+                f"{sorted(_VALID_REFRAME_MODES)}."
+            )
+        reframed = reframed_video(video_id, reframe_mode)
+        if reframed.exists() and reframed.stat().st_size > 0:
+            log.info("render_variant.reframe_skip_existing", path=str(reframed))
+        else:
+            reframe_fn = reframe_blur if reframe_mode == "blur" else reframe_crop
+            reframe_fn(source, reframed)
+            log.info("render_variant.reframe_done", mode=reframe_mode, path=str(reframed))
+        render_source = reframed
+        out_width, out_height = DEFAULT_OUT_WIDTH, DEFAULT_OUT_HEIGHT
+
+    # --- Bước 2: hook + cắt mở đầu ì ạch, chỉ áp cho TẬP ĐẦU (M4-WK-03) ---
     segment_cues = _cues_for_segment(cues, plan.start, plan.end)
-    if not segment_cues:
-        trim_video(source, dst, start=plan.start, duration_sec=plan.duration)
+    start, duration = plan.start, plan.duration
+    hook_filter: str | None = None
+    if plan.part_index == 1:
+        if segment_cues:
+            skip = trim_slow_intro(segment_cues)
+            if skip > 0:
+                start += skip
+                duration -= skip
+                segment_cues = _cues_for_segment(segment_cues, skip, plan.duration)
+        if hook_text and safe is not None and out_width is not None and out_height is not None:
+            hook_filter = build_hook_filter(hook_text, hook_box(safe), out_width, out_height)
+        elif hook_text:
+            log.warning(
+                "render_variant.hook_skip_thieu_du_lieu",
+                has_safe=safe is not None,
+                has_out_dims=out_width is not None and out_height is not None,
+            )
+
+    # --- Bước 3: burn (hoặc chỉ cắt, nếu không có phụ đề lẫn hook) ---
+    if not segment_cues and hook_filter is None:
+        trim_video(render_source, dst, start=start, duration_sec=duration)
         log.info("render_variant.trim_only", path=str(dst), size=dst.stat().st_size)
         return dst
 
@@ -201,14 +277,15 @@ def render_variant(
         subtitle_path(video_id, f"vi.{plan.target_platform}.p{plan.part_index}"),
     )
     burn_subtitles(
-        source,
+        render_source,
         srt,
         dst,
         progress_cb=progress_cb,
-        duration_sec=plan.duration,
+        duration_sec=duration,
         safe=safe,
-        video_height=video_height,
-        start=plan.start,
+        video_height=out_height,
+        start=start,
+        hook_filter=hook_filter,
     )
     log.info("render_variant.done", path=str(dst), size=dst.stat().st_size)
     return dst
