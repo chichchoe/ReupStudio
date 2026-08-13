@@ -8,8 +8,12 @@ import type {
   CreateFromLinksResult,
   JobRun,
   Page,
+  PlatformLimit,
+  PlatformLimitUpdate,
   Preset,
   PresetKind,
+  RenderAccepted,
+  RenderVariant,
   ResolveChannelResult,
   SourceChannel,
   SourceChannelCreate,
@@ -128,6 +132,25 @@ export const api = {
 
   deleteSourceChannel: (id: string) =>
     request<void>(`/source-channels/${id}`, { method: "DELETE" }),
+
+  // M4-FE-01: giới hạn nền tảng + render nhiều bản + variant.
+  listPlatformLimits: () => request<PlatformLimit[]>("/platform-limits"),
+
+  updatePlatformLimit: (platform: string, body: PlatformLimitUpdate) =>
+    request<PlatformLimit>(`/platform-limits/${platform}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  renderVideo: (id: string, targetPlatforms: string[], presetOverrides: Record<string, unknown> = {}) =>
+    request<RenderAccepted>(`/videos/${id}/render`, {
+      method: "POST",
+      body: JSON.stringify({ target_platforms: targetPlatforms, preset_overrides: presetOverrides }),
+    }),
+
+  listVariants: (id: string) => request<RenderVariant[]>(`/videos/${id}/variants`),
+
+  variantFileUrl: (variantId: string) => `${PREFIX}/variants/${variantId}/file`,
 };
 
 export const WS_URL = `${BASE.replace(/^http/, "ws")}/ws`;

@@ -20,7 +20,7 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
       { href: "/pipelines", label: "Luồng tự động", icon: "⚡", soon: true },
       { href: "/sources", label: "Nguồn Trung Quốc", icon: "↓" },
       { href: "/library", label: "Thư viện", icon: "▤" },
-      { href: "/editor", label: "Editor", icon: "✧", soon: true },
+      { href: "/editor", label: "Editor", icon: "✧" },
     ],
   },
   {

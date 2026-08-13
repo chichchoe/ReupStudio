@@ -21,7 +21,12 @@ export type PipelineStep =
   | "transcribe"
   | "translate"
   | "format_sub"
-  | "render";
+  | "render"
+  // M4-FE-01: task render nhiều bản dùng bước "shortform" (PipelineStep.SHORTFORM
+  // ở backend), KHÔNG phải "render" — hai task chạy nối tiếp, dùng chung "render"
+  // sẽ khiến thanh tiến trình tụt về 0% rồi leo lại (xem docstring
+  // apps/worker/src/tasks/video.py::render_variants_task).
+  | "shortform";
 
 export const M1_STEPS: PipelineStep[] = [
   "download",
@@ -39,6 +44,7 @@ export const STEP_LABEL: Record<PipelineStep, string> = {
   translate: "Dịch",
   format_sub: "Chuẩn hoá sub",
   render: "Render",
+  shortform: "Chuẩn hoá video ngắn",
 };
 
 export const STATUS_LABEL: Record<VideoStatus, string> = {
@@ -224,3 +230,74 @@ export type WsEvent =
   | { type: "status"; video_id: string; status: VideoStatus; step: PipelineStep | null; error?: string }
   | { type: "queue"; active: number; pending: number }
   | { type: "alert"; level: string; title: string; detail?: string };
+
+/** Khớp giá trị enum `Platform` ở `reup_core/enums.py` — nền tảng đăng đích. */
+export type TargetPlatform = "tiktok" | "youtube" | "facebook" | "instagram" | "zalo";
+
+/** Nhãn tiếng Việt cho nền tảng đích, dùng ở bảng giới hạn và chọn nền tảng render. */
+export const TARGET_PLATFORM_LABEL: Record<TargetPlatform, string> = {
+  tiktok: "TikTok",
+  youtube: "YouTube Shorts",
+  facebook: "Facebook Reels",
+  instagram: "Instagram Reels",
+  zalo: "Zalo",
+};
+
+/**
+ * Vùng an toàn cho phụ đề, toạ độ PHẦN TRĂM 0–1 (không phải pixel — luật số 2
+ * CLAUDE.md). Mỗi khoá là tỉ lệ khung hình bị chắn tính từ cạnh tương ứng.
+ */
+export interface SafeArea {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/** Khớp `PlatformLimitOut` ở `schemas/platform_limit.py`. */
+export interface PlatformLimit {
+  platform: string;
+  /** 0 = KHÔNG giới hạn thời lượng (không phải dữ liệu thiếu). */
+  max_duration_sec: number;
+  max_title_len: number;
+  max_desc_len: number;
+  max_hashtags: number;
+  safe_daily_posts: number;
+  aspect_ratios: string[];
+  safe_area: SafeArea;
+  notes: string | null;
+  updated_at: string;
+}
+
+/** Khớp `PlatformLimitUpdate` ở `schemas/platform_limit.py` — mọi trường tuỳ chọn. */
+export interface PlatformLimitUpdate {
+  max_duration_sec?: number;
+  max_title_len?: number;
+  max_desc_len?: number;
+  max_hashtags?: number;
+  safe_daily_posts?: number;
+  aspect_ratios?: string[];
+  safe_area?: SafeArea;
+  notes?: string | null;
+}
+
+/** Khớp `TaskAccepted` (`schemas/common.py`) — response `202` của `POST /videos/{id}/render`. */
+export interface RenderAccepted {
+  task_id: string | null;
+  message: string;
+}
+
+/** Khớp `RenderVariantOut` ở `schemas/render.py`. */
+export interface RenderVariant {
+  id: string;
+  video_id: string;
+  target_platform: string;
+  part_index: number;
+  part_total: number;
+  out_path: string | null;
+  duration_sec: number | null;
+  width: number | null;
+  height: number | null;
+  file_size: number | null;
+  qc_passed: boolean | null;
+}

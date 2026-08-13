@@ -25,3 +25,10 @@ const PLATFORM_LABEL: Record<string, string> = {
 export function platformLabel(key: string): string {
   return PLATFORM_LABEL[key] ?? key;
 }
+
+/** Đổi số byte thành chuỗi dễ đọc (MB) — dùng cho danh sách render variant. */
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes == null || bytes < 0) return "—";
+  const mb = bytes / (1024 * 1024);
+  return `${mb.toFixed(mb < 10 ? 2 : 1)} MB`;
+}
