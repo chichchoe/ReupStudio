@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from reup_core.logging import get_logger
-from reup_core.paths import out_video, proxy_path, subtitle_path
+from reup_core.paths import out_video, proxy_path, subtitle_path, variant_video
 
 from ..errors import PlatformLimitNotFoundError
-from ..ffmpeg.burn import burn_subtitles, make_proxy
+from ..ffmpeg.burn import burn_subtitles, make_proxy, trim_video
 from .cues import Cue, write_srt
 from .shortform.safe_area import SafeArea
 from .shortform.split import silence_cut_points, split_by_duration
@@ -147,3 +147,68 @@ def plan_variants(
             for part in parts
         )
     return plans
+
+
+def _cues_for_segment(cues: list[Cue], start: float, end: float) -> list[Cue]:
+    """Lọc cue rơi vào đoạn ``[start, end)`` và dịch mốc thời gian về gốc 0.
+
+    Cue giao một phần với biên đoạn bị CẮT NGẮN theo biên (không loại bỏ toàn
+    bộ) — tránh mất một phần lời thoại nằm sát ranh giới giữa hai tập.
+    """
+    segment: list[Cue] = []
+    for c in cues:
+        if c.end <= start or c.start >= end:
+            continue
+        new_start = max(0.0, c.start - start)
+        new_end = min(end - start, c.end - start)
+        if new_end <= new_start:
+            continue
+        segment.append(replace(c, start=new_start, end=new_end))
+    return segment
+
+
+def render_variant(
+    video_id: str,
+    source: Path,
+    cues: list[Cue],
+    plan: VariantPlan,
+    *,
+    progress_cb: Callable[[int], None] | None = None,
+    safe: SafeArea | None = None,
+    video_height: int | None = None,
+) -> Path:
+    """Render MỘT tập của MỘT nền tảng đích (một dòng ``render_variants``).
+
+    Idempotent (luật số 4 CLAUDE.md): file đích đã tồn tại và không rỗng thì
+    bỏ qua, không render lại. Đoạn không có lời thoại (``cues`` rỗng sau khi
+    lọc theo ``[plan.start, plan.end)``) chỉ được CẮT (``trim_video``, không
+    re-encode, không gọi filter ``subtitles``) — giống cách ``render_video_task``
+    xử lý video không lời thoại ở M1.
+    """
+    dst = variant_video(video_id, plan.target_platform, plan.part_index)
+    if dst.exists() and dst.stat().st_size > 0:
+        log.info("render_variant.skip_existing", path=str(dst))
+        return dst
+
+    segment_cues = _cues_for_segment(cues, plan.start, plan.end)
+    if not segment_cues:
+        trim_video(source, dst, start=plan.start, duration_sec=plan.duration)
+        log.info("render_variant.trim_only", path=str(dst), size=dst.stat().st_size)
+        return dst
+
+    srt = write_srt(
+        segment_cues,
+        subtitle_path(video_id, f"vi.{plan.target_platform}.p{plan.part_index}"),
+    )
+    burn_subtitles(
+        source,
+        srt,
+        dst,
+        progress_cb=progress_cb,
+        duration_sec=plan.duration,
+        safe=safe,
+        video_height=video_height,
+        start=plan.start,
+    )
+    log.info("render_variant.done", path=str(dst), size=dst.stat().st_size)
+    return dst

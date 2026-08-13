@@ -12,7 +12,7 @@ from pathlib import Path
 from celery import chain
 from reup_core.enums import M1_STEPS, PipelineStep, VideoStatus
 from reup_core.logging import get_logger
-from reup_core.models import PlatformLimit, Subtitle, Video
+from reup_core.models import PlatformLimit, RenderVariant, Subtitle, Video
 from reup_core.paths import audio_path, raw_video, subtitle_path
 from sqlalchemy import select
 
@@ -22,11 +22,17 @@ from ..config import get_settings
 from ..errors import PlatformLimitNotFoundError, VideoTooLongError
 from ..ffmpeg.burn import extract_audio
 from ..ffmpeg.probe import probe
-from ..milestones import percent_of
+from ..milestones import milestones, percent_of
 from ..pipeline.cues import Cue, cues_from_dicts, cues_to_dicts
 from ..pipeline.dedup import fingerprint, is_similar_phash
 from ..pipeline.download import download_video
-from ..pipeline.render import build_proxy, render_with_subtitles
+from ..pipeline.render import (
+    VariantPlan,
+    build_proxy,
+    plan_variants,
+    render_variant,
+    render_with_subtitles,
+)
 from ..pipeline.shortform.safe_area import SafeArea
 from ..pipeline.subtitle_format import FormatOptions, format_cues
 from ..pipeline.transcribe import transcribe
@@ -95,6 +101,95 @@ def _load_safe_area(session, platform: str) -> SafeArea:
     return SafeArea(
         top=area["top"], bottom=area["bottom"], left=area["left"], right=area["right"]
     )
+
+
+def _target_platforms(video) -> list[str]:
+    """Danh sách nền tảng đích để render ``render_variants`` (M4-WK-05).
+
+    Khác ``_target_platform`` (số ít, chỉ chọn MỘT nền tảng đại diện cho bản
+    "master" của pipeline M1): ở đây lấy TOÀN BỘ ``target_platforms`` đã cấu
+    hình, vì luật số 8 CLAUDE.md yêu cầu một video sinh nhiều ``render_variants``
+    — một bản mỗi nền tảng đích, không phải 1-1.
+
+    Thiếu cấu hình thì mặc định về đúng MỘT nền tảng (``_DEFAULT_TARGET_PLATFORM``)
+    thay vì tự ý render cho mọi nền tảng đã biết trong hệ thống — giữ hành vi
+    an toàn tương tự ``_target_platform``.
+    """
+    config = video.process_config or {}
+    platforms = config.get("target_platforms")
+    if isinstance(platforms, list) and platforms:
+        return [str(p) for p in platforms]
+    if isinstance(platforms, str) and platforms:
+        return [platforms]
+    return [_DEFAULT_TARGET_PLATFORM]
+
+
+def _load_platform_limits(session, targets: list[str]) -> dict[str, int]:
+    """Đọc ``max_duration_sec`` của các nền tảng trong ``targets`` từ ``platform_limits``.
+
+    Nền tảng không có dòng tương ứng đơn giản VẮNG MẶT trong dict trả về —
+    ``plan_variants`` tự phát hiện thiếu và ném ``PlatformLimitNotFoundError``
+    rõ ràng, không xử lý trùng lặp ở đây.
+    """
+    rows = session.scalars(
+        select(PlatformLimit).where(PlatformLimit.platform.in_(targets))
+    ).all()
+    return {row.platform: row.max_duration_sec for row in rows}
+
+
+def _probe_variant_dims(path: Path) -> tuple[int | None, int | None]:
+    """Đọc kích thước thật của file variant vừa render — best-effort.
+
+    Lỗi probe không được làm hỏng cả job (file đã render xong, chỉ thiếu
+    metadata phụ) — giống cách ``build_proxy`` xử lý lỗi tạo proxy.
+    """
+    try:
+        info = probe(path)
+        return info.width, info.height
+    except Exception as exc:
+        log.warning("render_variant.probe_failed", path=str(path), error=str(exc))
+        return None, None
+
+
+def _upsert_render_variant(
+    session,
+    video,
+    plan: VariantPlan,
+    out_path: Path,
+    config_snapshot: dict,
+    width: int | None,
+    height: int | None,
+) -> RenderVariant:
+    """Tạo hoặc cập nhật dòng ``render_variants`` cho ``(video, platform, part)``.
+
+    Idempotent ở tầng DB: khớp đúng ràng buộc duy nhất
+    ``(video_id, target_platform, part_index)`` — chạy lại task không tạo dòng
+    trùng, chỉ cập nhật lại dòng cũ.
+    """
+    row = session.scalar(
+        select(RenderVariant).where(
+            RenderVariant.video_id == video.id,
+            RenderVariant.target_platform == plan.target_platform,
+            RenderVariant.part_index == plan.part_index,
+        )
+    )
+    if row is None:
+        row = RenderVariant(
+            video_id=video.id,
+            target_platform=plan.target_platform,
+            part_index=plan.part_index,
+        )
+        session.add(row)
+
+    row.part_total = plan.part_total
+    row.out_path = str(out_path)
+    row.duration_sec = plan.duration
+    row.width = width
+    row.height = height
+    row.file_size = out_path.stat().st_size if out_path.exists() else None
+    row.config_snapshot = config_snapshot
+    session.flush()
+    return row
 
 
 def _find_duplicate(session, video) -> tuple[Video, str] | None:
@@ -349,6 +444,58 @@ def render_video_task(session, video) -> dict:
         "out_size": out.stat().st_size,
         "srt": str(subtitle_path(vid, "vi")),
     }
+
+
+@app.task(name="reup.render_variants")
+@pipeline_step(PipelineStep.RENDER)
+def render_variants_task(session, video) -> dict:
+    """M4-WK-05 — render nhiều bản, một bản mỗi nền tảng đích (luật số 8 CLAUDE.md).
+
+    Task chỉ điều phối: đọc ``platform_limits``, gọi ``plan_variants`` (hàm
+    thuần) để lập kế hoạch, gọi ``render_variant`` cho từng tập rồi ghi kết quả
+    vào bảng ``render_variants``. Idempotent: ``render_variant`` tự bỏ qua nếu
+    file đích đã tồn tại và hợp lệ. Khác ``render_video_task`` (M1, một bản
+    "master" duy nhất) — task này được gọi riêng (Task 7 làm API kích hoạt),
+    không nằm trong chain M1.
+    """
+    vid = str(video.id)
+    source = Path(video.raw_path)
+    vi_cues = _load_subtitle(session, video, "vi")
+
+    targets = _target_platforms(video)
+    limits = _load_platform_limits(session, targets)
+    plans = plan_variants(video.duration_sec, targets, limits, vi_cues)
+
+    done_at = milestones(len(plans))
+    for i, plan in enumerate(plans, start=1):
+        safe = _load_safe_area(session, plan.target_platform)
+        out = render_variant(
+            vid, source, vi_cues, plan, safe=safe, video_height=video.height
+        )
+        width, height = _probe_variant_dims(out)
+        snapshot = {
+            "target_platform": plan.target_platform,
+            "part_index": plan.part_index,
+            "part_total": plan.part_total,
+            "start": plan.start,
+            "end": plan.end,
+            "max_duration_sec": limits[plan.target_platform],
+            "safe_area": {
+                "top": safe.top,
+                "bottom": safe.bottom,
+                "left": safe.left,
+                "right": safe.right,
+            },
+            "process_config": video.process_config,
+        }
+        _upsert_render_variant(session, video, plan, out, snapshot, width, height)
+        if i in done_at:
+            prog.progress(vid, PipelineStep.RENDER.value, percent_of(i, len(plans)))
+
+    video.status = VideoStatus.READY
+    video.current_step = None
+    prog.status_changed(vid, VideoStatus.READY.value, None)
+    return {"variants": len(plans), "targets": targets}
 
 
 # --------------------------------------------------------------------------- #

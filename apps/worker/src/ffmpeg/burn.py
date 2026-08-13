@@ -83,6 +83,7 @@ def burn_subtitles(
     duration_sec: float | None = None,
     safe: SafeArea | None = None,
     video_height: int | None = None,
+    start: float | None = None,
 ) -> Path:
     """Ghi phụ đề vào khung hình.
 
@@ -91,14 +92,25 @@ def burn_subtitles(
     ``run_ffmpeg_progress``; thiếu một trong hai thì giữ nguyên hành vi cũ.
     ``safe``/``video_height`` được chuyển thẳng cho ``build_force_style`` để
     đặt lề dưới theo vùng an toàn của nền tảng đích (xem module đó).
+
+    ``start`` (giây, tuỳ chọn) cắt một ĐOẠN của ``src`` thay vì burn cả video —
+    dùng khi render một tập của ``render_variants`` (M4-WK-05). Đoạn dài
+    ``duration_sec`` giây kể từ ``start``; ``srt`` phải đã được dịch mốc thời
+    gian về gốc 0 của đoạn đó (xem ``pipeline/render.py::render_variant``).
+    Không truyền ``start`` thì burn nguyên video như trước (backward-compat).
     """
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
 
     force_style = build_force_style(safe, video_height)
     vf = f"subtitles='{_escape_for_filter(srt)}':force_style='{force_style}'"
-    args = [
-        "-i", str(src),
+    args: list[str] = []
+    if start is not None and start > 0:
+        args += ["-ss", f"{start:.3f}"]
+    args += ["-i", str(src)]
+    if start is not None and duration_sec is not None:
+        args += ["-t", f"{duration_sec:.3f}"]
+    args += [
         "-vf", vf,
         "-c:v", "libx264",
         "-preset", "medium",
@@ -115,6 +127,34 @@ def burn_subtitles(
         )
     else:
         run_ffmpeg(args, timeout=timeout)
+    tmp.replace(dst)
+    return dst
+
+
+def trim_video(
+    src: Path,
+    dst: Path,
+    *,
+    start: float = 0.0,
+    duration_sec: float | None = None,
+    timeout: int | None = None,
+) -> Path:
+    """Cắt một đoạn của ``src`` MÀ KHÔNG burn phụ đề (video không lời thoại).
+
+    Dùng ``-c copy`` (không re-encode) để nhanh — chấp nhận cắt lệch tới khung
+    hình khoá (keyframe) gần nhất, đủ tốt cho ranh giới tập vì mốc cắt luôn lấy
+    từ khoảng lặng giữa câu, không cần chính xác tới từng khung hình.
+    """
+    tmp = tmp_sibling(dst)
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    args: list[str] = []
+    if start > 0:
+        args += ["-ss", f"{start:.3f}"]
+    args += ["-i", str(src)]
+    if duration_sec is not None:
+        args += ["-t", f"{duration_sec:.3f}"]
+    args += ["-c", "copy", "-movflags", "+faststart", str(tmp)]
+    run_ffmpeg(args, timeout=timeout)
     tmp.replace(dst)
     return dst
 
