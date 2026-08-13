@@ -447,7 +447,7 @@ def render_video_task(session, video) -> dict:
 
 
 @app.task(name="reup.render_variants")
-@pipeline_step(PipelineStep.RENDER)
+@pipeline_step(PipelineStep.SHORTFORM)
 def render_variants_task(session, video) -> dict:
     """M4-WK-05 — render nhiều bản, một bản mỗi nền tảng đích (luật số 8 CLAUDE.md).
 
@@ -457,6 +457,12 @@ def render_variants_task(session, video) -> dict:
     file đích đã tồn tại và hợp lệ. Khác ``render_video_task`` (M1, một bản
     "master" duy nhất) — task này được gọi riêng (Task 7 làm API kích hoạt),
     không nằm trong chain M1.
+
+    Dùng ``PipelineStep.SHORTFORM`` (không phải ``RENDER``) cho decorator lẫn
+    ``prog.progress`` — ``RENDER`` đã bị ``render_video_task`` (M1) chiếm.
+    Dùng chung sẽ khiến thanh tiến trình bước "render" mà frontend đang nghe
+    tụt về 0% rồi leo lại khi hai task chạy nối tiếp, trông như render lỗi
+    phải chạy lại (phát hiện ở review Task 6).
     """
     vid = str(video.id)
     source = Path(video.raw_path)
@@ -490,7 +496,7 @@ def render_variants_task(session, video) -> dict:
         }
         _upsert_render_variant(session, video, plan, out, snapshot, width, height)
         if i in done_at:
-            prog.progress(vid, PipelineStep.RENDER.value, percent_of(i, len(plans)))
+            prog.progress(vid, PipelineStep.SHORTFORM.value, percent_of(i, len(plans)))
 
     video.status = VideoStatus.READY
     video.current_step = None
