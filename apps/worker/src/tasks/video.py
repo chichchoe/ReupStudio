@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from celery import chain
+from reup_core.db import session_scope
 from reup_core.enums import M1_STEPS, PipelineStep, VideoStatus
 from reup_core.logging import get_logger
 from reup_core.models import PlatformLimit, RenderVariant, Subtitle, Video
@@ -401,16 +402,27 @@ def translate_video_task(session, video) -> dict:
 
     config = video.process_config or {}
 
-    #: Chụp usage sau MỖI lô rồi ghi ngay phần chênh vào ``cost_logs``. Ghi
-    #: ngay thay vì gộp cuối vì hai lẽ: video dài dịch cả tiếng, gộp cuối thì
-    #: suốt thời gian đó không ai biết đã tiêu bao nhiêu; và bộ đếm lượt/phút
-    #: phải thấy được lượt gọi ngay mới chặn kịp khi chạm trần.
+    #: Ghi bằng TRANSACTION RIÊNG, commit ngay sau mỗi lô — KHÔNG dùng
+    #: ``session`` của bước pipeline. Bản đầu dùng chung session và chỉ
+    #: ``flush()``: các dòng nằm trong transaction chưa đóng nên tiến trình
+    #: khác không đọc thấy cho tới lúc cả bước kết thúc. Kết quả: dựng hẳn một
+    #: bảng để chia sẻ số liệu giữa các tiến trình rồi lại ghi theo cách ba
+    #: tiếng sau mới thấy. Đo trên video thật mới lộ ra.
     lan_truoc: list = [None]
 
     def _ghi(usage) -> None:
-        cost.ghi_usage(session, video.id, usage, lan_truoc[0])
+        with session_scope() as phien_rieng:
+            cost.ghi_usage(phien_rieng, video.id, usage, lan_truoc[0])
         lan_truoc[0] = usage
-        session.flush()
+
+    def _dem_luot_gan_day() -> int:
+        """Số lượt gọi của CẢ DỰ ÁN trong 60 giây qua, đọc từ ``cost_logs``.
+
+        Phiên riêng để thấy được cả lượt gọi của tiến trình worker khác — đây
+        chính là chỗ bản đầu làm sai khi đếm trong bộ nhớ.
+        """
+        with session_scope() as phien_rieng:
+            return cost.dem_luot(phien_rieng, trong_giay=60)
 
     vi_cues = translate_cues(
         zh_cues,
@@ -418,6 +430,7 @@ def translate_video_task(session, video) -> dict:
         glossary=config.get("glossary"),
         progress_cb=lambda p: prog.progress(vid, PipelineStep.TRANSLATE.value, p),
         on_usage=_ghi,
+        dem_luot_gan_day=_dem_luot_gan_day,
     )
     _save_subtitle(session, video, "vi", "llm", vi_cues)
     tong = lan_truoc[0]

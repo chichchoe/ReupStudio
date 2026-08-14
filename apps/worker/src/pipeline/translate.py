@@ -34,43 +34,49 @@ DEFAULT_GLOSSARY: dict[str, str] = {
 }
 
 
-#: Cho test thay bằng đồng hồ giả — không ai muốn bài test chờ thật 60 giây.
-_now = time.monotonic
+#: Cho test thay bằng hàm giả — không ai muốn bài test chờ thật 60 giây.
 _sleep = time.sleep
 
-#: Cửa sổ trần lượt/phút của nhà cung cấp.
-_CUA_SO_GIAY = 60.0
+#: Mỗi nhịp chờ trước khi hỏi lại bộ đếm. Nhỏ hơn thì hỏi DB quá dày, lớn hơn
+#: thì chờ thừa sau khi hạn mức đã rảnh.
+NHIP_CHO_GIAY = 5.0
+
+#: Chờ tối đa bấy nhiêu rồi thôi, dù bộ đếm vẫn kẹt trần. Kẹt mãi nghĩa là hết
+#: hạn mức NGÀY chứ không phải nghẽn theo phút — chuyện đó do chốt chặn ở tầng
+#: ``tasks/`` xử lý (dừng hẳn, báo người dùng), giãn nhịp không được treo vĩnh
+#: viễn ở đây.
+CHO_TOI_DA_GIAY = 90.0
 
 
 def chunk(items: list, size: int) -> list[list]:
     return [items[i : i + size] for i in range(0, len(items), size)]
 
 
-def _cho_cho_vua_nhip(moc_goi: list[float], tran_moi_phut: int) -> None:
+def _cho_cho_vua_nhip(dem_luot_gan_day, tran_moi_phut: int) -> None:
     """Chờ trước khi gọi lượt tiếp theo, nếu 60 giây qua đã dùng hết trần.
 
-    Retry khi bị từ chối chỉ chữa lỗi TẠM THỜI; trần tính theo phút là giới hạn
-    CẤU TRÚC — bắn hết rồi bị chặn thì mỗi lượt bị từ chối vẫn tính vào hạn
-    mức, càng bắn càng lún. Đo thật: video 672 câu chia 27 lượt vào model trần
-    5 lượt/phút mất 3 TIẾNG.
+    ``dem_luot_gan_day`` là hàm trả về SỐ LƯỢT GỌI của cả dự án trong 60 giây
+    gần nhất — do tầng ``tasks/`` tiêm vào, đằng sau là bảng ``cost_logs``.
+    Tầng này không được chạm DB (luật hai lớp CLAUDE.md).
 
-    ``tran_moi_phut <= 0`` nghĩa là không khai trần — KHÔNG tự ý làm chậm khi
-    người dùng chưa yêu cầu.
+    VÌ SAO PHẢI ĐẾM TỪ NGUỒN CHUNG: bản đầu đếm mốc thời gian trong bộ nhớ của
+    chính tiến trình này. Worker chạy ``concurrency=2``, hai task song song mỗi
+    bên tự thấy mình dưới trần, cộng lại gấp đôi — trần là của CẢ DỰ ÁN, không
+    phải của từng tiến trình. Lỗi đó chỉ lộ khi đo trên video thật; test một
+    tiến trình không thể thấy.
+
+    Không tiêm bộ đếm (script chạy tay, không có DB) thì KHÔNG giãn nhịp —
+    thà chạy thẳng còn hơn bắt người viết script dựng bộ đếm giả.
     """
-    if tran_moi_phut <= 0:
+    if tran_moi_phut <= 0 or dem_luot_gan_day is None:
         return
 
-    bay_gio = _now()
-    trong_cua_so = [t for t in moc_goi if bay_gio - t < _CUA_SO_GIAY]
-    if len(trong_cua_so) < tran_moi_phut:
-        return
-
-    #: Chờ đúng tới lúc lượt CŨ NHẤT rơi khỏi cửa sổ, không chờ thừa.
-    cu_nhat = min(trong_cua_so)
-    con_lai = _CUA_SO_GIAY - (bay_gio - cu_nhat)
-    if con_lai > 0:
-        log.info("translate.pacing", cho_giay=round(con_lai, 1), tran=tran_moi_phut)
-        _sleep(con_lai)
+    da_cho = 0.0
+    while dem_luot_gan_day() >= tran_moi_phut and da_cho < CHO_TOI_DA_GIAY:
+        cho = min(NHIP_CHO_GIAY, CHO_TOI_DA_GIAY - da_cho)
+        log.info("translate.pacing", cho_giay=cho, tran=tran_moi_phut)
+        _sleep(cho)
+        da_cho += cho
 
 
 def translate_cues(
@@ -80,6 +86,7 @@ def translate_cues(
     glossary: dict[str, str] | None = None,
     progress_cb=None,
     on_usage=None,
+    dem_luot_gan_day=None,
 ) -> list[Cue]:
     """Dịch cả danh sách cue, gọi ``on_usage`` sau MỖI lô.
 
@@ -106,10 +113,8 @@ def translate_cues(
     marks = milestones(total) if progress_cb else set()
     out: list[Cue] = []
 
-    moc_goi: list[float] = []
     for index, batch in enumerate(batches, start=1):
-        _cho_cho_vua_nhip(moc_goi, settings.llm_max_requests_per_min)
-        moc_goi.append(_now())
+        _cho_cho_vua_nhip(dem_luot_gan_day, settings.llm_max_requests_per_min)
         texts = [c.text for c in batch]
         translated = _translate_with_guard(translator, texts, tone, merged_glossary)
         out.extend(

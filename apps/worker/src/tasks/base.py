@@ -17,6 +17,7 @@ from reup_core.logging import get_logger
 from reup_core.models import JobRun, Video
 
 from .. import progress as prog
+from ..config import get_settings
 from ..errors import TaskArgumentError
 
 log = get_logger(__name__)
@@ -27,6 +28,43 @@ def load_video(session, video_id: str) -> Video:
     if video is None:
         raise ValueError(f"Không tìm thấy video {video_id}")
     return video
+
+
+#: Khoá sống lâu hơn bước chậm nhất một chút. Bước dịch một video 34 phút từng
+#: chạy 3 tiếng, nhưng đó là bệnh đã chữa (giãn nhịp + lô lớn); 2 giờ là mức
+#: rộng rãi mà vẫn không kẹt cả ngày nếu worker chết đúng lúc.
+_TTL_KHOA_GIAY = 7200
+
+
+def _lay_khoa(key: str, ttl: int) -> bool:
+    """Giành khoá trong Redis. ``True`` nghĩa là giành được.
+
+    Dùng Redis chứ không phải cờ trong DB vì khoá cần TỰ HẾT HẠN: worker chết
+    giữa chừng mà cờ nằm trong DB thì video đó kẹt vĩnh viễn, phải vào sửa tay
+    — đúng chuyện đã xảy ra ngày 2026-08-14 với hai dòng ``job_runs`` mắc kẹt
+    ở trạng thái ``running``.
+
+    Redis hỏng thì CHO CHẠY (trả ``True``): chặn hết mọi việc chỉ vì mất khoá
+    còn tệ hơn nguy cơ chạy trùng hiếm gặp.
+    """
+    try:
+        from redis import Redis
+
+        client = Redis.from_url(get_settings().redis_url)
+        return bool(client.set(key, "1", nx=True, ex=ttl))
+    except Exception:
+        log.warning("khoa.redis_loi_van_cho_chay", key=key, exc_info=True)
+        return True
+
+
+def _tra_khoa(key: str) -> None:
+    try:
+        from redis import Redis
+
+        Redis.from_url(get_settings().redis_url).delete(key)
+    except Exception:
+        #: Không trả được thì thôi — khoá tự hết hạn sau ``_TTL_KHOA_GIAY``.
+        log.warning("khoa.tra_that_bai", key=key, exc_info=True)
 
 
 def coerce_video_id(value: object, step: PipelineStep) -> str:
@@ -101,6 +139,17 @@ def pipeline_step(step: PipelineStep) -> Callable:
             #: video kẹt ``queued`` im lặng và người dùng ngồi chờ vô hạn. Giờ
             #: mọi đường thất bại đều đi qua ``_mark_failed``.
             video_id = coerce_video_id(video_id, step)
+
+            #: Chặn chạy trùng: cùng một bước của cùng một video không được
+            #: chạy hai lần song song. Quan sát thật 2026-08-14: hai task dịch
+            #: cùng một video chạy đồng thời, vừa đốt gấp đôi hạn mức LLM vừa
+            #: ghi đè kết quả của nhau. Task thứ hai THÀNH KHÔNG LÀM GÌ chứ
+            #: không báo lỗi — chạy trùng là thao tác thừa, không phải hỏng hóc.
+            khoa = f"reup:lock:{step.value}:{video_id}"
+            if not _lay_khoa(khoa, _TTL_KHOA_GIAY):
+                log.info("step.bo_qua_dang_chay", step=step.value, video_id=video_id)
+                return video_id
+
             started = time.perf_counter()
             run_id: uuid.UUID | None = None
 
@@ -137,6 +186,10 @@ def pipeline_step(step: PipelineStep) -> Callable:
                 log.exception("step.failed", step=step.value, video_id=video_id)
                 _mark_failed(video_id, step, run_id, exc, elapsed)
                 raise
+            finally:
+                #: Trả khoá CẢ KHI HỎNG — giữ lại thì video đó kẹt tới lúc khoá
+                #: hết hạn, người dùng bấm chạy lại cũng không ăn thua.
+                _tra_khoa(khoa)
 
             elapsed = time.perf_counter() - started
             with session_scope() as session:
