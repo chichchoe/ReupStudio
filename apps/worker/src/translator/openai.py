@@ -91,6 +91,8 @@ class OpenAITranslator(BaseTranslator):
             #: Nguyên văn, KHÔNG cộng lại từ prompt + completion — xem LlmUsage.
             total_tokens=int(usage.get("total_tokens") or 0),
         )
+        #: Báo NGAY tại đây, chỗ duy nhất biết một lượt gọi HTTP vừa xảy ra.
+        self._bao_usage()
 
     def _call(self, system: str, user: str, *, max_tokens: int = 4096) -> str:
         settings = get_settings()

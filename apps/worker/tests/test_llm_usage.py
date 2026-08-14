@@ -130,11 +130,17 @@ def test_translate_cues_bao_usage_ve_cho_goi(monkeypatch) -> None:
     nhan_duoc: list[LlmUsage] = []
 
     class TranslatorGia:
+        """Giả một translator thật: mỗi ``translate_batch`` = MỘT lượt gọi HTTP,
+        và tự báo qua ``on_usage`` đúng tại chỗ gọi."""
+
         def __init__(self):
             self.usage = LlmUsage(model="model-gia")
+            self.on_usage = None
 
         def translate_batch(self, texts, *, tone, glossary):
             self.usage.add(prompt_tokens=5, completion_tokens=5, total_tokens=12)
+            if self.on_usage:
+                self.on_usage(self.usage)
             return [f"vi:{t}" for t in texts]
 
     monkeypatch.setattr("src.pipeline.translate.get_translator", lambda model=None: TranslatorGia())
@@ -148,29 +154,69 @@ def test_translate_cues_bao_usage_ve_cho_goi(monkeypatch) -> None:
     assert nhan_duoc[0].model == "model-gia"
 
 
-def test_moi_lo_bao_usage_mot_lan(monkeypatch) -> None:
-    """Báo theo TỪNG LÔ chứ không gộp cuối: cần biết mốc thời gian từng lượt
-    để đếm lượt/phút cho đúng."""
+def test_bao_mot_lan_cho_MOI_LUOT_GOI_khong_phai_moi_lo(monkeypatch) -> None:
+    """Lô hỏng nở ra nhiều lượt gọi — bộ đếm phải thấy hết.
+
+    Bài test này thay cho bản cũ "mỗi lô báo một lần". Hợp đồng đó SAI, đo thật
+    ngày 2026-08-14 mới lộ: một lô lệch số dòng bị chia đôi rồi dịch từng dòng,
+    4 lô sinh ra 189 lượt gọi mà ``cost_logs`` chỉ ghi 4 dòng.
+    """
     dem: list[LlmUsage] = []
 
-    class TranslatorGia:
+    class TranslatorHayLech:
+        """Trả sai số dòng cho lô lớn -> bị chia đôi -> nhiều lượt gọi hơn số lô."""
+
         def __init__(self):
             self.usage = LlmUsage(model="m")
+            self.on_usage = None
 
         def translate_batch(self, texts, *, tone, glossary):
-            self.usage.add(prompt_tokens=1, completion_tokens=1, total_tokens=2)
+            self.usage.add(total_tokens=2)
+            if self.on_usage:
+                self.on_usage(self.usage)
+            if len(texts) > 1:
+                return [f"vi:{t}" for t in texts] + ["dòng thừa"]
             return [f"vi:{t}" for t in texts]
 
-    monkeypatch.setattr("src.pipeline.translate.get_translator", lambda model=None: TranslatorGia())
-    monkeypatch.setattr("src.pipeline.translate.get_settings", lambda: _cau_hinh_lo(2))
+    monkeypatch.setattr(
+        "src.pipeline.translate.get_translator", lambda model=None: TranslatorHayLech()
+    )
+    monkeypatch.setattr("src.pipeline.translate.get_settings", lambda: _cau_hinh_lo(4))
 
-    cues = [Cue(i, i, i + 1, f"câu {i}") for i in range(5)]
+    cues = [Cue(i, i, i + 1, f"câu {i}") for i in range(4)]
     translate_cues(cues, on_usage=dem.append)
 
-    assert len(dem) == 3  # 5 câu, lô 2 -> 3 lô
+    #: Một lô duy nhất, nhưng lô đó hỏng nên nở ra nhiều lượt gọi.
+    assert len(dem) > 1
 
 
 def _cau_hinh_lo(size: int):
     from src.config import Settings
 
     return Settings(_env_file=None, llm_batch_size=size)
+
+
+def test_bao_usage_theo_TUNG_LUOT_GOI_khong_phai_tung_lo(gia_lap) -> None:
+    """Chốt chặn cho lỗi đo được ngày 2026-08-14.
+
+    Một lô lệch số dòng sẽ nở ra nhiều lượt gọi (chia đôi, rồi dịch từng dòng).
+    Đo thật: 4 lô sinh 189 lượt gọi, nhưng ``cost_logs`` chỉ ghi 4 dòng vì báo
+    theo lô. Hậu quả kép — sổ chi phí hụt gần 50 lần, và bộ giãn nhịp đọc từ
+    bảng đó nên KHÔNG kích hoạt lần nào dù đang liên tục bị từ chối 429.
+
+    Bộ đếm phải thấy đúng số lượt gọi HTTP thật.
+    """
+    for _ in range(3):
+        gia_lap.append(
+            _tra_loi(
+                '["Xin chào"]', {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}
+            )
+        )
+    dem: list = []
+    t = openai_mod.OpenAITranslator()
+    t.on_usage = dem.append
+
+    for _ in range(3):
+        t.translate_batch(["你好"], tone="doi_thuong", glossary={})
+
+    assert len(dem) == 3, "mỗi lượt gọi HTTP phải báo đúng một lần"

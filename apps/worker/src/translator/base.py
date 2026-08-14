@@ -56,6 +56,17 @@ class BaseTranslator(ABC):
         #: khi người dùng chưa chọn.
         self.model = model or get_settings().llm_model
         self.usage = LlmUsage(model=self.model)
+        #: Gọi sau MỖI lượt gọi HTTP, không phải mỗi lô. Tầng ``tasks/`` gắn
+        #: vào để ghi ``cost_logs``. Một lô lệch số dòng nở ra nhiều lượt gọi
+        #: (chia đôi, rồi dịch từng dòng) — đo thật 2026-08-14: 4 lô sinh 189
+        #: lượt gọi. Báo theo lô làm sổ chi phí hụt gần 50 lần, và bộ giãn nhịp
+        #: đọc từ bảng đó nên không kích hoạt lần nào dù liên tục bị từ chối.
+        self.on_usage = None
+
+    def _bao_usage(self) -> None:
+        """Báo cho chỗ gọi biết vừa tốn thêm một lượt. An toàn khi chưa gắn."""
+        if self.on_usage is not None:
+            self.on_usage(self.usage)
 
     @abstractmethod
     def translate_batch(

@@ -105,6 +105,11 @@ def translate_cues(
 
     settings = get_settings()
     translator = get_translator(model)
+    #: Gắn vào TRANSLATOR chứ không báo sau mỗi lô: một lô lệch số dòng nở ra
+    #: nhiều lượt gọi (chia đôi, rồi dịch từng dòng), báo theo lô sẽ đếm hụt
+    #: hàng chục lần — xem ``_translate_with_guard`` và ``BaseTranslator``.
+    if on_usage is not None:
+        translator.on_usage = lambda u: on_usage(replace(u))
     merged_glossary = {**DEFAULT_GLOSSARY, **(glossary or {})}
 
     batches = chunk(cues, settings.llm_batch_size)
@@ -122,8 +127,6 @@ def translate_cues(
             cue.with_text(text.strip() or cue.text)
             for cue, text in zip(batch, translated, strict=True)
         )
-        if on_usage is not None:
-            on_usage(replace(translator.usage))
         if progress_cb and index in marks:
             progress_cb(percent_of(index, total))
 
@@ -134,10 +137,26 @@ def translate_cues(
     return out
 
 
+#: Lô nhỏ hơn mức này thì không chia nữa — chia tiếp chỉ tốn thêm lượt gọi mà
+#: gần như không tăng cơ hội thành công, và mất hết ngữ cảnh của bản dịch.
+LO_NHO_NHAT = 8
+
+
 def _translate_with_guard(
     translator, texts: list[str], tone: str, glossary: dict[str, str]
 ) -> list[str]:
-    """Gọi LLM, kiểm số dòng, retry, cuối cùng mới dịch từng dòng."""
+    """Gọi LLM, kiểm số dòng; lệch thì CHIA ĐÔI lô rồi thử lại.
+
+    Vì sao không rơi thẳng xuống dịch từng dòng như bản đầu: đo thật ngày
+    2026-08-14 trên video 672 câu với lô 100 — model trả 101 dòng cho 100 câu,
+    và cơ chế cũ biến mỗi lô hỏng thành 100 lượt gọi riêng. Bốn lô sinh ra 189
+    lượt thành công cộng 75 lượt bị từ chối, vào một model chỉ cho 15
+    lượt/phút. Với API có hạn mức, dịch từng dòng là phương án ĐẮT NHẤT.
+
+    Chia đôi giữ được lợi thế dịch theo lô (có ngữ cảnh, ít lượt gọi) mà vẫn
+    thu hẹp dần vùng hỏng: 100 -> 2x50 -> 4x25 -> ... Chỉ khi lô đã nhỏ hơn
+    ``LO_NHO_NHAT`` mới dịch từng dòng.
+    """
     for attempt in range(2):
         try:
             result = translator.translate_batch(texts, tone=tone, glossary=glossary)
@@ -154,7 +173,17 @@ def _translate_with_guard(
             got=len(result),
         )
 
-    # Fallback: dịch từng dòng. Chậm và tốn hơn nhưng luôn đúng số lượng.
+    if len(texts) >= LO_NHO_NHAT:
+        giua = len(texts) // 2
+        log.warning("translate.chia_doi_lo", tu=len(texts), thanh=giua)
+        #: Ghép theo đúng thứ tự nửa đầu rồi nửa sau — đảo là phụ đề lệch hết,
+        #: loại lỗi khó thấy nhất vì video vẫn chạy và vẫn có chữ.
+        return _translate_with_guard(translator, texts[:giua], tone, glossary) + (
+            _translate_with_guard(translator, texts[giua:], tone, glossary)
+        )
+
+    #: Hết đường chia — dịch từng dòng. Chậm và tốn, nhưng lúc này lô đã nhỏ
+    #: nên thiệt hại có trần.
     log.warning("translate.fallback_line_by_line", count=len(texts))
     out: list[str] = []
     for text in texts:
