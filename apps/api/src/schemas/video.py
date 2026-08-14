@@ -71,6 +71,17 @@ class VideoUpdate(BaseModel):
     hashtags_vi: list[str] | None = None
 
 
+class TranslateRequest(BaseModel):
+    """Body của ``POST /videos/{id}/translate``.
+
+    ``llm_model`` bỏ trống là hợp lệ — khi đó worker dùng ``LLM_MODEL`` mặc
+    định trong cấu hình. Không kiểm model hợp lệ ở đây mà ở tầng service:
+    việc phân loại model là logic nghiệp vụ, không phải validate cú pháp.
+    """
+
+    llm_model: str | None = None
+
+
 class BulkAction(BaseModel):
     ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
     action: Literal["approve", "delete", "retry", "apply_preset", "assign_channels"]

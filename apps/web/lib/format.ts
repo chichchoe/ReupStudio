@@ -31,6 +31,36 @@ export function platformLabel(key: string): string {
   return PLATFORM_LABEL[key] ?? key;
 }
 
+/**
+ * Một chữ số thập phân, bỏ đuôi ",0" cho gọn. Dấu phẩy vì giao diện tiếng Việt.
+ */
+function oneDecimalVi(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, "").replace(".", ",");
+}
+
+/** Số nguyên kiểu Việt Nam (dấu chấm ngăn nghìn) — dùng cho số lượt gọi, số câu thoại. */
+export function formatCount(n: number): string {
+  return n.toLocaleString("vi-VN");
+}
+
+/**
+ * Rút gọn số token: 2_100_000 → "2,1M". Dải hạn mức rất chật chỗ, in đủ chữ số
+ * làm dòng bị tràn và mắt khó bắt được con số quan trọng.
+ */
+export function formatTokenCount(n: number): string {
+  if (n >= 1_000_000) return `${oneDecimalVi(n / 1_000_000)}M`;
+  if (n >= 1_000) return `${oneDecimalVi(n / 1_000)}K`;
+  return formatCount(n);
+}
+
+/** Tiền USD hiển thị kiểu Việt Nam: 0 → "$0,00". */
+export function formatUsd(amount: number): string {
+  return `$${amount.toLocaleString("vi-VN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 /** Đổi số byte thành chuỗi dễ đọc (MB) — dùng cho danh sách render variant. */
 export function formatFileSize(bytes: number | null | undefined): string {
   if (bytes == null || bytes < 0) return "—";

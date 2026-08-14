@@ -53,6 +53,27 @@ M1_STEPS: tuple[PipelineStep, ...] = (
     PipelineStep.RENDER,
 )
 
+#: Pipeline dừng lại giữa chừng để người dùng CHỌN MODEL AI rồi mới dịch
+#: (chốt 2026-08-14). Dừng đúng sau bước nhận dạng chứ không sớm hơn, vì tới
+#: lúc đó mới biết video có bao nhiêu câu thoại — thông tin quyết định chọn
+#: model nào: 672 câu thì cần model hạn mức cao, 50 câu thì chọn model tốt hơn.
+#:
+#: Nửa đầu chạy tự động ngay sau khi dán link; xong thì video sang trạng thái
+#: ``REVIEW`` và hiện ở tab "Chờ dịch".
+M1_STEPS_TRUOC_DICH: tuple[PipelineStep, ...] = (
+    PipelineStep.DOWNLOAD,
+    PipelineStep.PROBE,
+    PipelineStep.TRANSCRIBE,
+)
+
+#: Nửa sau chỉ chạy khi người dùng bấm Dịch (hoặc khi bật ``auto_translate``
+#: trong ``process_config`` — lối cho chặng M7 luồng tự động).
+M1_STEPS_SAU_DICH: tuple[PipelineStep, ...] = (
+    PipelineStep.TRANSLATE,
+    PipelineStep.FORMAT_SUB,
+    PipelineStep.RENDER,
+)
+
 
 class SourcePlatform(StrEnum):
     """Nền tảng nguồn lấy video về.

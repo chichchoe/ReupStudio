@@ -16,6 +16,7 @@ from ..schemas.video import (
     CreateFromLinksResult,
     JobRunOut,
     SubtitleOut,
+    TranslateRequest,
     VideoDetail,
     VideoOut,
     VideoUpdate,
@@ -80,6 +81,23 @@ def retry(video_id: uuid.UUID, from_step: str | None = None, db: Session = Depen
     db.commit()
     task_id = task_bridge.retry_from(video_id, from_step)
     return TaskAccepted(task_id=task_id, message="Đã đưa vào hàng đợi xử lý lại")
+
+
+@router.post("/{video_id}/translate", response_model=TaskAccepted, status_code=202)
+def translate(video_id: uuid.UUID, body: TranslateRequest, db: Session = Depends(get_db)):
+    """Chạy nửa sau pipeline với model AI người dùng vừa chọn.
+
+    Pipeline dừng ở trạng thái ``review`` sau bước nhận dạng để người dùng
+    chọn model (lúc đó đã biết video có bao nhiêu câu thoại). Endpoint này
+    khởi động lại — luật số 1 CLAUDE.md: dịch chạy hàng phút nên luôn qua
+    Celery, endpoint trả 202 chứ không chờ.
+    """
+    video_service.request_translate(db, video_id, body.llm_model)
+    # Commit TRƯỚC khi gửi task — worker chạy gần như tức thì, chậm một nhịp
+    # là nó đọc phải process_config chưa có model vừa chọn.
+    db.commit()
+    task_id = task_bridge.translate_video(video_id)
+    return TaskAccepted(task_id=task_id, message="Đã đưa vào hàng đợi dịch")
 
 
 @router.post("/{video_id}/approve", response_model=VideoDetail)

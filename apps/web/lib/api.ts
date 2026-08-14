@@ -26,6 +26,42 @@ const BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
 const PREFIX = `${BASE}/api/v1`;
 
+/**
+ * Các kiểu dưới đây TẠM KHAI TAY vì endpoint `/llm/*` và `/videos/{id}/translate`
+ * chưa lên lúc viết phần giao diện này. Sinh lại từ OpenAPI (`npm run types`) và
+ * xoá phần khai tay khi endpoint đã có thật — CLAUDE.md cấm gõ tay interface
+ * trùng backend về lâu dài.
+ */
+export interface LlmModels {
+  /** Model dùng cho bước dịch — chỉ danh sách này được đổ vào dropdown chọn model. */
+  translate: string[];
+  tts: string[];
+}
+
+/**
+ * Số liệu hạn mức LLM. Trần bằng 0 nghĩa là KHÔNG giới hạn (không phải "hết
+ * hạn mức") — khi đó giao diện chỉ hiện số đã dùng, không hiện phần "/trần" và
+ * không bao giờ cảnh báo.
+ *
+ * Tên trường khớp đúng `GET /api/v1/llm/usage` — đã đối chiếu với API chạy thật.
+ * Dùng tiếng Anh cho đồng nhất với mọi endpoint sẵn có của dự án
+ * (`skipped_duplicate`, `duplicate_ids`, `source_platform`...).
+ */
+export interface LlmUsage {
+  requests_last_min: number;
+  requests_last_day: number;
+  tokens_last_day: number;
+  cost_usd_this_month: number;
+  max_requests_per_min: number;
+  max_requests_per_day: number;
+  monthly_budget_usd: number;
+}
+
+/** Response `202` của `POST /videos/{id}/translate` — nhận task_id ngay, không chờ dịch xong. */
+export interface TranslateAccepted {
+  task_id: string;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -149,6 +185,18 @@ export const api = {
     }),
 
   listVariants: (id: string) => request<RenderVariant[]>(`/videos/${id}/variants`),
+
+  // Tab "Chờ dịch": chọn model AI rồi bấm dịch cho video đang ở trạng thái `review`.
+  llmModels: () => request<LlmModels>("/llm/models"),
+
+  llmUsage: () => request<LlmUsage>("/llm/usage"),
+
+  /** Trả `202` ngay — bước dịch chạy qua Celery, tiến trình theo dõi bằng WebSocket. */
+  translateVideo: (id: string, llmModel: string) =>
+    request<TranslateAccepted>(`/videos/${id}/translate`, {
+      method: "POST",
+      body: JSON.stringify({ llm_model: llmModel }),
+    }),
 
   variantFileUrl: (variantId: string) => `${PREFIX}/variants/${variantId}/file`,
 };

@@ -11,7 +11,13 @@ from pathlib import Path
 
 from celery import chain
 from reup_core.db import session_scope
-from reup_core.enums import M1_STEPS, PipelineStep, VideoStatus
+from reup_core.enums import (
+    M1_STEPS,
+    M1_STEPS_SAU_DICH,
+    M1_STEPS_TRUOC_DICH,
+    PipelineStep,
+    VideoStatus,
+)
 from reup_core.logging import get_logger
 from reup_core.models import PlatformLimit, RenderVariant, Subtitle, Video
 from reup_core.paths import audio_path, raw_video, subtitle_path
@@ -148,6 +154,40 @@ def _hook_text(video) -> str | None:
     config = video.process_config or {}
     text = config.get("hook_text")
     return str(text) if text else None
+
+
+def _llm_model(video) -> str | None:
+    """Model AI người dùng chọn cho riêng video này, đọc từ ``process_config``.
+
+    ``None`` nghĩa là chưa chọn — dùng ``LLM_MODEL`` mặc định trong cấu hình.
+    Đúng khuôn ``tone``/``reframe_mode``/``hook_text`` đã có.
+    """
+    config = video.process_config or {}
+    model = config.get("llm_model")
+    return str(model) if model else None
+
+
+def _dung_cho_chon_ai(session, video) -> bool:
+    """Dừng pipeline sau bước nhận dạng, chờ người dùng chọn AI dịch.
+
+    Trả ``True`` nếu ĐÃ dừng (đặt trạng thái ``REVIEW``), ``False`` nếu chạy
+    thẳng. Dừng ở đây chứ không sớm hơn vì tới lúc này mới biết video có bao
+    nhiêu câu thoại — thông tin quyết định chọn model nào.
+
+    ``auto_translate`` trong ``process_config`` bật thì KHÔNG dừng: lối dành
+    cho chặng M7 (luồng tự động quét kênh nguồn rồi chạy một mạch), lúc đó
+    không có ai ngồi bấm nút. Mặc định là DỪNG — chọn AI là đường chính, chạy
+    thẳng là ngoại lệ phải khai báo.
+    """
+    config = video.process_config or {}
+    if config.get("auto_translate"):
+        return False
+
+    video.status = VideoStatus.REVIEW.value
+    video.current_step = None
+    prog.status_changed(str(video.id), VideoStatus.REVIEW.value, None)
+    log.info("pipeline.dung_cho_chon_ai", video_id=str(video.id))
+    return True
 
 
 def _load_platform_limits(session, targets: list[str]) -> dict[str, int]:
@@ -385,7 +425,22 @@ def transcribe_video_task(session, video) -> dict:
 
     if not cues:
         video.flags = {**video.flags, "no_speech": True}
-    return {"cues": len(cues), "model": get_settings().whisper_model}
+
+    #: Chỗ pipeline DỪNG LẠI chờ người dùng chọn AI (xem ``_dung_cho_chon_ai``).
+    #: Đặt ở cuối bước nhận dạng vì tới đây mới biết video có bao nhiêu câu —
+    #: con số quyết định nên chọn model hạn mức cao hay model chất lượng cao.
+    da_dung = _dung_cho_chon_ai(session, video)
+    if not da_dung:
+        #: ``auto_translate`` bật (chặng M7): nối tiếp nửa sau ngay, không chờ
+        #: ai bấm. Gửi task chứ không gọi thẳng — mỗi bước vẫn phải là một task
+        #: riêng để retry được từng bước và ghi ``job_runs`` đầy đủ.
+        translate_video_chain.delay(vid)
+
+    return {
+        "cues": len(cues),
+        "model": get_settings().whisper_model,
+        "cho_chon_ai": da_dung,
+    }
 
 
 @app.task(name="reup.translate_video")
@@ -431,6 +486,7 @@ def translate_video_task(session, video) -> dict:
         progress_cb=lambda p: prog.progress(vid, PipelineStep.TRANSLATE.value, p),
         on_usage=_ghi,
         dem_luot_gan_day=_dem_luot_gan_day,
+        model=_llm_model(video),
     )
     _save_subtitle(session, video, "vi", "llm", vi_cues)
     tong = lan_truoc[0]
@@ -618,9 +674,29 @@ def _build_chain(video_id: str, steps):
 
 @app.task(name="reup.process_video")
 def process_video(video_id: str) -> str:
-    """Chạy toàn bộ pipeline M1 cho một video."""
+    """Chạy NỬA ĐẦU pipeline M1: tải, probe, nhận dạng — rồi dừng.
+
+    Dừng lại để người dùng chọn model AI trước khi dịch (chốt 2026-08-14).
+    Nửa sau chạy khi bấm nút Dịch, qua ``translate_video_chain``. Bật cờ
+    ``auto_translate`` trong ``process_config`` thì bước nhận dạng tự nối tiếp
+    nửa sau — xem ``_dung_cho_chon_ai``.
+    """
     log.info("pipeline.start", video_id=video_id)
-    _build_chain(video_id, M1_STEPS).apply_async()
+    _build_chain(video_id, M1_STEPS_TRUOC_DICH).apply_async()
+    return video_id
+
+
+@app.task(name="reup.translate_video_chain")
+def translate_video_chain(video_id: str) -> str:
+    """Chạy NỬA SAU: dịch, chuẩn hoá phụ đề, render.
+
+    Gọi khi người dùng đã chọn model AI và bấm Dịch. Model đã được API ghi vào
+    ``process_config["llm_model"]`` TRƯỚC khi gửi task này, nên ở đây không cần
+    truyền thêm tham số — mỗi bước tự đọc trạng thái từ DB, đúng nguyên tắc
+    ``si()`` của chuỗi task.
+    """
+    log.info("pipeline.translate_start", video_id=video_id)
+    _build_chain(video_id, M1_STEPS_SAU_DICH).apply_async()
     return video_id
 
 

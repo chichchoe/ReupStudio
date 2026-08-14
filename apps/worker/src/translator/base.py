@@ -49,8 +49,13 @@ class LlmUsage:
 
 
 class BaseTranslator(ABC):
-    def __init__(self) -> None:
-        self.usage = LlmUsage(model=get_settings().llm_model)
+    def __init__(self, model: str | None = None) -> None:
+        #: Model của RIÊNG lượt chạy này. Người dùng chọn model cho từng video
+        #: ở tab "Chờ dịch" (lưu vào ``process_config["llm_model"]``), nên không
+        #: thể đọc thẳng ``settings.llm_model`` ở mọi nơi — đó chỉ là mặc định
+        #: khi người dùng chưa chọn.
+        self.model = model or get_settings().llm_model
+        self.usage = LlmUsage(model=self.model)
 
     @abstractmethod
     def translate_batch(
@@ -63,16 +68,21 @@ class BaseTranslator(ABC):
         """Sinh tiêu đề tiếng Việt hấp dẫn từ nội dung video."""
 
 
-def get_translator() -> BaseTranslator:
+def get_translator(model: str | None = None) -> BaseTranslator:
+    """Tạo translator theo nhà cung cấp đã cấu hình.
+
+    ``model`` là lựa chọn của RIÊNG video đang xử lý (người dùng chọn ở tab
+    "Chờ dịch"). Không truyền thì dùng ``LLM_MODEL`` mặc định.
+    """
     provider = get_settings().llm_provider.lower()
     if provider == "anthropic":
         from .anthropic import AnthropicTranslator
 
-        return AnthropicTranslator()
+        return AnthropicTranslator(model)
     if provider == "openai":
         from .openai import OpenAITranslator
 
-        return OpenAITranslator()
+        return OpenAITranslator(model)
     from .mock import MockTranslator
 
-    return MockTranslator()
+    return MockTranslator(model)

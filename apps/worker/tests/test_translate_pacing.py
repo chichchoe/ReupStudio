@@ -39,7 +39,7 @@ def dong_ho(monkeypatch):
     """Đồng hồ giả — không bài test nào phải chờ thật 60 giây."""
     trang_thai = {"da_ngu": []}
     monkeypatch.setattr(mod, "_sleep", lambda giay: trang_thai["da_ngu"].append(giay))
-    monkeypatch.setattr(mod, "get_translator", lambda: TranslatorGia())
+    monkeypatch.setattr(mod, "get_translator", lambda model=None: TranslatorGia())
     return trang_thai
 
 

@@ -99,7 +99,7 @@ class OpenAITranslator(BaseTranslator):
 
         url = chat_url(settings.llm_base_url)
         payload = {
-            "model": settings.llm_model,
+            "model": self.model,
             "temperature": 0.3,
             "max_tokens": max_tokens,
             "messages": [

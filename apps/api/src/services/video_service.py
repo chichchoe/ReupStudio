@@ -7,6 +7,7 @@ from typing import Any
 
 import sqlalchemy as sa
 from reup_core.enums import PresetKind, VideoStatus
+from reup_core.llm_models import ModelPurpose, phan_loai
 from reup_core.logging import get_logger
 from reup_core.models import JobRun, Subtitle, Video
 from reup_core.source_url import parse_source_url
@@ -171,6 +172,40 @@ def prepare_retry(db: Session, video_id: uuid.UUID) -> Video:
     """
     video = get_video(db, video_id)
     _reset_video_de_retry(video)
+    return video
+
+
+def request_translate(db: Session, video_id: uuid.UUID, llm_model: str | None) -> Video:
+    """Ghi model đã chọn rồi đưa video trở lại hàng đợi để chạy nửa sau pipeline.
+
+    Pipeline dừng ở trạng thái ``review`` sau bước nhận dạng; đây là chỗ khởi
+    động lại. Model ghi vào ``process_config["llm_model"]`` TRƯỚC khi gửi task,
+    vì chuỗi task Celery dùng ``si()`` — mỗi bước tự đọc trạng thái từ DB chứ
+    không nhận tham số truyền tay.
+
+    Đưa về ``QUEUED`` ngay: còn ở ``review`` thì giao diện vẫn hiện video trong
+    tab "Chờ dịch" dù người dùng đã bấm, trông như nút không ăn.
+
+    Router PHẢI ``db.commit()`` trước khi gọi ``task_bridge`` — worker chạy gần
+    như tức thì, chậm một nhịp là nó đọc phải ``process_config`` cũ.
+    """
+    video = get_video(db, video_id)
+
+    if llm_model:
+        muc_dich = phan_loai(llm_model)
+        if muc_dich is not ModelPurpose.TRANSLATE:
+            #: Chặn ngay ở API thay vì để worker hỏng sau khi đã đốt hạn mức.
+            #: Danh sách model của Gemini gồm cả sinh ảnh, sinh video và TTS;
+            #: bản TTS chỉ có 3 lượt/phút, 10 lượt/ngày.
+            raise ApiError(
+                f"Model '{llm_model}' không dùng để dịch được (phân loại: "
+                f"{muc_dich.value}). Chọn model trong danh sách 'translate' của "
+                "GET /api/v1/llm/models."
+            )
+        video.process_config = {**(video.process_config or {}), "llm_model": llm_model}
+
+    video.status = VideoStatus.QUEUED
+    video.error_message = None
     return video
 
 

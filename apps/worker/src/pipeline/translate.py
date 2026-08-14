@@ -87,6 +87,7 @@ def translate_cues(
     progress_cb=None,
     on_usage=None,
     dem_luot_gan_day=None,
+    model: str | None = None,
 ) -> list[Cue]:
     """Dịch cả danh sách cue, gọi ``on_usage`` sau MỖI lô.
 
@@ -103,7 +104,7 @@ def translate_cues(
         return []
 
     settings = get_settings()
-    translator = get_translator()
+    translator = get_translator(model)
     merged_glossary = {**DEFAULT_GLOSSARY, **(glossary or {})}
 
     batches = chunk(cues, settings.llm_batch_size)

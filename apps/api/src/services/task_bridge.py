@@ -17,6 +17,7 @@ _app: Celery | None = None
 PROCESS_VIDEO = "reup.process_video"
 RETRY_FROM_STEP = "reup.retry_from_step"
 RENDER_VARIANTS = "reup.render_variants"
+TRANSLATE_VIDEO_CHAIN = "reup.translate_video_chain"
 
 
 def celery() -> Celery:
@@ -45,4 +46,18 @@ def render_variants(video_id: uuid.UUID) -> str:
     (FFmpeg là việc CPU, không cần GPU).
     """
     result = celery().send_task(RENDER_VARIANTS, args=[str(video_id)], queue="media")
+    return result.id
+
+
+def translate_video(video_id: uuid.UUID) -> str:
+    """Đẩy NỬA SAU pipeline: dịch, chuẩn hoá phụ đề, render.
+
+    Gọi khi người dùng đã chọn model AI và bấm Dịch ở tab "Chờ dịch". Model
+    nằm sẵn trong ``process_config``, task tự đọc từ DB — không truyền qua tham
+    số, đúng nguyên tắc ``si()`` của chuỗi task.
+
+    Queue ``media`` giống ``render_variants``: bước dịch gọi mạng, hai bước sau
+    là FFmpeg — đều là việc CPU, không cần GPU.
+    """
+    result = celery().send_task(TRANSLATE_VIDEO_CHAIN, args=[str(video_id)], queue="media")
     return result.id

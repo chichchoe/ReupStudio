@@ -13,7 +13,16 @@ from reup_core.logging import get_logger, setup_logging
 
 from .config import get_settings
 from .errors import ApiError, api_error_handler
-from .routers import health, platform_limits, presets, render, source_channels, videos, ws
+from .routers import (
+    health,
+    llm,
+    platform_limits,
+    presets,
+    render,
+    source_channels,
+    videos,
+    ws,
+)
 from .ws.manager import WsManager
 
 log = get_logger(__name__)
@@ -54,6 +63,7 @@ app.include_router(presets.router, prefix=API_PREFIX)
 app.include_router(source_channels.router, prefix=API_PREFIX)
 app.include_router(platform_limits.router, prefix=API_PREFIX)
 app.include_router(render.router, prefix=API_PREFIX)
+app.include_router(llm.router, prefix=API_PREFIX)
 app.include_router(ws.router)
 
 

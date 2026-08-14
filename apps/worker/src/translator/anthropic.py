@@ -23,7 +23,7 @@ class AnthropicTranslator(BaseTranslator):
             raise TranslateError("Chưa cấu hình LLM_API_KEY")
 
         payload = {
-            "model": settings.llm_model,
+            "model": self.model,
             "max_tokens": max_tokens,
             "temperature": 0.3,
             "system": system,
