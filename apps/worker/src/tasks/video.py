@@ -395,6 +395,10 @@ def translate_video_task(session, video) -> dict:
     if not zh_cues:
         return {"cues": 0, "skipped": "không có phụ đề nguồn"}
 
+    #: Chặn TRƯỚC khi gọi lượt đầu tiên. Chạm trần ngày hay trần tiền thì retry
+    #: cũng hỏng y hệt — dừng ngay còn hơn đốt thêm hạn mức rồi mới chết.
+    cost.kiem_han_muc(session)
+
     config = video.process_config or {}
 
     #: Chụp usage sau MỖI lô rồi ghi ngay phần chênh vào ``cost_logs``. Ghi

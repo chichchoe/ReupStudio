@@ -8,6 +8,7 @@ Ba điểm bắt buộc (xem docs/03-BACKLOG-CONG-VIEC.md, mục M1-WK-05):
 
 from __future__ import annotations
 
+import time
 from dataclasses import replace
 
 from reup_core.logging import get_logger
@@ -33,8 +34,43 @@ DEFAULT_GLOSSARY: dict[str, str] = {
 }
 
 
+#: Cho test thay bằng đồng hồ giả — không ai muốn bài test chờ thật 60 giây.
+_now = time.monotonic
+_sleep = time.sleep
+
+#: Cửa sổ trần lượt/phút của nhà cung cấp.
+_CUA_SO_GIAY = 60.0
+
+
 def chunk(items: list, size: int) -> list[list]:
     return [items[i : i + size] for i in range(0, len(items), size)]
+
+
+def _cho_cho_vua_nhip(moc_goi: list[float], tran_moi_phut: int) -> None:
+    """Chờ trước khi gọi lượt tiếp theo, nếu 60 giây qua đã dùng hết trần.
+
+    Retry khi bị từ chối chỉ chữa lỗi TẠM THỜI; trần tính theo phút là giới hạn
+    CẤU TRÚC — bắn hết rồi bị chặn thì mỗi lượt bị từ chối vẫn tính vào hạn
+    mức, càng bắn càng lún. Đo thật: video 672 câu chia 27 lượt vào model trần
+    5 lượt/phút mất 3 TIẾNG.
+
+    ``tran_moi_phut <= 0`` nghĩa là không khai trần — KHÔNG tự ý làm chậm khi
+    người dùng chưa yêu cầu.
+    """
+    if tran_moi_phut <= 0:
+        return
+
+    bay_gio = _now()
+    trong_cua_so = [t for t in moc_goi if bay_gio - t < _CUA_SO_GIAY]
+    if len(trong_cua_so) < tran_moi_phut:
+        return
+
+    #: Chờ đúng tới lúc lượt CŨ NHẤT rơi khỏi cửa sổ, không chờ thừa.
+    cu_nhat = min(trong_cua_so)
+    con_lai = _CUA_SO_GIAY - (bay_gio - cu_nhat)
+    if con_lai > 0:
+        log.info("translate.pacing", cho_giay=round(con_lai, 1), tran=tran_moi_phut)
+        _sleep(con_lai)
 
 
 def translate_cues(
@@ -70,7 +106,10 @@ def translate_cues(
     marks = milestones(total) if progress_cb else set()
     out: list[Cue] = []
 
+    moc_goi: list[float] = []
     for index, batch in enumerate(batches, start=1):
+        _cho_cho_vua_nhip(moc_goi, settings.llm_max_requests_per_min)
+        moc_goi.append(_now())
         texts = [c.text for c in batch]
         translated = _translate_with_guard(translator, texts, tone, merged_glossary)
         out.extend(

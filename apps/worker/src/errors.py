@@ -45,6 +45,16 @@ class TranslateError(ReupError):
     pass
 
 
+class LlmQuotaExceededError(ReupError):
+    """Đã chạm trần hạn mức LLM — dừng hẳn, chờ người dùng cho phép.
+
+    KHÁC ``TranslateError``: đây không phải hỏng hóc mà là giới hạn đã biết
+    trước, và retry ngay lập tức chắc chắn cũng hỏng. Trần theo PHÚT thì giãn
+    nhịp lo được (xem ``pipeline/translate.py``); trần theo NGÀY và trần TIỀN
+    thì chờ vô ích — phải dừng và nói rõ còn thiếu bao nhiêu.
+    """
+
+
 class VideoTooLongError(ReupError):
     pass
 

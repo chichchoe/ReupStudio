@@ -15,6 +15,7 @@ from reup_core.logging import get_logger
 from reup_core.models import CostLog
 
 from ..config import get_settings
+from ..errors import LlmQuotaExceededError
 from ..translator.base import LlmUsage
 
 log = get_logger(__name__)
@@ -86,6 +87,36 @@ def tien_thang_nay(session) -> float:
         )
         or 0.0
     )
+
+
+def kiem_han_muc(session) -> None:
+    """Ném ``LlmQuotaExceededError`` nếu đã chạm trần NGÀY hoặc trần TIỀN.
+
+    Gọi TRƯỚC khi bắt đầu dịch. Trần theo phút không kiểm ở đây — giãn nhịp
+    trong ``pipeline/translate.py`` lo được bằng cách chờ; còn trần ngày và
+    trần tiền thì chờ vô ích, phải dừng để người dùng quyết.
+
+    Trần bằng 0 nghĩa là KHÔNG giới hạn: Gemini không công bố hạn mức qua API
+    và mỗi dự án một khác, đoán hộ rồi chặn nhầm còn tệ hơn không chặn.
+    """
+    s = get_settings()
+
+    if s.llm_max_requests_per_day > 0:
+        da_dung = dem_luot(session, trong_giay=86400)
+        if da_dung >= s.llm_max_requests_per_day:
+            raise LlmQuotaExceededError(
+                f"Đã dùng {da_dung}/{s.llm_max_requests_per_day} lượt gọi LLM trong 24 giờ "
+                "qua. Hạn mức theo NGÀY — chờ sang ngày mới, đổi sang model có hạn mức cao "
+                "hơn, hoặc sửa LLM_MAX_REQUESTS_PER_DAY nếu con số này đặt sai."
+            )
+
+    if s.monthly_budget_usd > 0:
+        da_tieu = tien_thang_nay(session)
+        if da_tieu >= s.monthly_budget_usd:
+            raise LlmQuotaExceededError(
+                f"Đã tiêu ${da_tieu} trong tháng, chạm trần ${s.monthly_budget_usd} "
+                "(MONTHLY_BUDGET_USD). Nâng trần hoặc chờ sang tháng mới."
+            )
 
 
 def tom_tat(session) -> dict:
