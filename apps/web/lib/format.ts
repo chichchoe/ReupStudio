@@ -19,6 +19,11 @@ const PLATFORM_LABEL: Record<string, string> = {
   kuaishou: "快手 Kuaishou",
   xiaohongshu: "小红书",
   weibo: "微博",
+  youtube: "YouTube",
+  tiktok: "TikTok",
+  instagram: "Instagram",
+  facebook: "Facebook",
+  twitter: "X",
   other: "Khác",
 };
 

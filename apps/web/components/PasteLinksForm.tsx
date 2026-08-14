@@ -50,10 +50,18 @@ export function PasteLinksForm() {
         rows={6}
         placeholder={`https://v.douyin.com/iRxxxx/
 https://www.bilibili.com/video/BV1xx411c7mD
+https://www.youtube.com/shorts/xxxxxxxxxxx
+https://www.tiktok.com/@user/video/7123456789012345678
 
 Mỗi dòng một link — hỗ trợ link rút gọn và link có tham số share`}
         className="input w-full resize-y font-mono text-[12.5px]"
       />
+
+      <p className="mt-2 text-xs text-muted">
+        Nhận link từ Douyin, Bilibili, Kuaishou, Xiaohongshu, Weibo, YouTube, TikTok, Instagram,
+        Facebook, X — và hầu hết trang video khác. Nguồn lạ vẫn được thử tải; nếu không tải được,
+        video sẽ báo lỗi rõ ràng trong Thư viện.
+      </p>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <label className="text-xs text-muted">Văn phong dịch</label>

@@ -55,13 +55,26 @@ M1_STEPS: tuple[PipelineStep, ...] = (
 
 
 class SourcePlatform(StrEnum):
-    """Nền tảng nguồn (Trung Quốc)."""
+    """Nền tảng nguồn lấy video về.
 
+    Ban đầu chỉ có 5 nền tảng Trung Quốc. Từ khi ô dán link nhận mọi URL
+    http/https (yt-dlp hỗ trợ hơn 1800 site), danh sách này KHÔNG còn là cổng
+    chặn — nó chỉ để nhận đúng ID video phục vụ chống trùng và đặt thư mục.
+    Nguồn không nằm trong danh sách rơi vào ``OTHER`` và vẫn tải bình thường.
+    """
+
+    # --- Trung Quốc ---
     DOUYIN = "douyin"
     BILIBILI = "bilibili"
     KUAISHOU = "kuaishou"
     XIAOHONGSHU = "xiaohongshu"
     WEIBO = "weibo"
+    # --- Quốc tế ---
+    YOUTUBE = "youtube"
+    TIKTOK = "tiktok"
+    INSTAGRAM = "instagram"
+    FACEBOOK = "facebook"
+    TWITTER = "twitter"
     OTHER = "other"
 
 

@@ -27,6 +27,22 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "claude-sonnet-5"
     llm_batch_size: int = 25
+    #: Địa chỉ gốc của API tương thích OpenAI. Gemini, Groq, OpenRouter,
+    #: DeepSeek và Ollama đều nói đúng giao thức ``/chat/completions`` này, nên
+    #: đổi nhà cung cấp chỉ tốn 3 dòng .env (``LLM_BASE_URL`` + ``LLM_MODEL`` +
+    #: ``LLM_API_KEY``), không sửa code, không thêm thư viện. Dùng với
+    #: ``LLM_PROVIDER=openai``.
+    llm_base_url: str = "https://api.openai.com/v1"
+
+    # --- tải video ---
+    #: Đường dẫn file cookie dạng Netscape. Một số nền tảng (Douyin) từ chối
+    #: mọi request không có cookie, kể cả cookie khách chưa đăng nhập. Ưu tiên
+    #: cách này hơn đọc trình duyệt vì nó chạy được cả trong Docker.
+    ytdlp_cookie_file: str = ""
+    #: Tên trình duyệt để yt-dlp tự đọc cookie: chrome | firefox | edge | safari.
+    #: Chỉ dùng được khi worker chạy THẲNG trên máy có trình duyệt đó — trong
+    #: Docker không có trình duyệt nào để đọc.
+    ytdlp_cookies_from_browser: str = ""
 
     # --- nhận dạng giọng nói ---
     whisper_model: str = "large-v3"
@@ -35,8 +51,16 @@ class Settings(BaseSettings):
 
     # --- phụ đề ---
     sub_font: str = "Be Vietnam Pro"
-    sub_font_size: int = 54
-    sub_max_chars_per_line: int = 42
+    #: Cỡ chữ tính bằng PIXEL ở khung chuẩn 1080×1920 (xem
+    #: ``pipeline/subtitle_ass.py::SUB_REFERENCE_HEIGHT``); khung khác quy đổi
+    #: theo tỉ lệ chiều cao. 104px ≈ 5,4% chiều cao — cỡ thông dụng của video
+    #: ngắn. Giá trị cũ 54px chỉ chiếm 2,8%, là cỡ phụ đề phim chiếu rạp, xem
+    #: trên điện thoại quá nhỏ.
+    sub_font_size: int = 104
+    #: Đi kèm cỡ chữ: 104px × 0,5 ≈ 52px/ký tự, khung rộng 1080 trừ lề 2×54
+    #: còn 972px -> khoảng 18–22 ký tự một dòng. Giá trị cũ 42 hợp với cỡ chữ
+    #: cũ; giữ nguyên 42 với chữ to gấp đôi là chắc chắn tràn.
+    sub_max_chars_per_line: int = 22
     sub_max_lines: int = 2
     sub_min_duration: float = 1.2
 

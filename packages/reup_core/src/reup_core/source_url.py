@@ -22,24 +22,57 @@ class ParsedSource:
     provisional: bool = False
 
 
-_PATTERNS: list[tuple[SourcePlatform, re.Pattern[str], bool]] = [
+#: Mỗi mẫu BẮT ĐẦU bằng tên miền và được ghép thêm ``_HOST_BOUNDARY`` ở đầu khi
+#: biên dịch. Không có chốt đó thì ``re.search`` khớp cả chuỗi con:
+#: ``khongphaidouyin.com/video/1`` chứa ``douyin.com/video/1`` và bị nhận nhầm
+#: thành Douyin. Ranh giới hợp lệ chỉ có: đầu chuỗi, sau ``//``, hoặc sau ``.``.
+_HOST_BOUNDARY = r"(?:^|//|\.)"
+
+_RAW_PATTERNS: list[tuple[SourcePlatform, str, bool]] = [
     # Douyin
-    (SourcePlatform.DOUYIN, re.compile(r"douyin\.com/video/(\d+)"), False),
-    (SourcePlatform.DOUYIN, re.compile(r"douyin\.com/note/(\d+)"), False),
-    (SourcePlatform.DOUYIN, re.compile(r"v\.douyin\.com/([A-Za-z0-9_-]+)"), True),
-    (SourcePlatform.DOUYIN, re.compile(r"iesdouyin\.com/share/video/(\d+)"), False),
+    (SourcePlatform.DOUYIN, r"douyin\.com/video/(\d+)", False),
+    (SourcePlatform.DOUYIN, r"douyin\.com/note/(\d+)", False),
+    #: Dạng URL khi bấm vào video trong trang khám phá (`/jingxuan/...`,
+    #: `/discover`, `/user/...`). yt-dlp KHÔNG hiểu dạng này — đo ngày
+    #: 2026-08-14: `ERROR: Unsupported URL`. Bóc ID rồi viết lại về dạng chuẩn,
+    #: xem `_canonical_url`.
+    (SourcePlatform.DOUYIN, r"douyin\.com/[\w/-]*\?(?:.*&)?modal_id=(\d+)", False),
+    (SourcePlatform.DOUYIN, r"v\.douyin\.com/([A-Za-z0-9_-]+)", True),
+    (SourcePlatform.DOUYIN, r"iesdouyin\.com/share/video/(\d+)", False),
     # Bilibili
-    (SourcePlatform.BILIBILI, re.compile(r"bilibili\.com/video/(BV[A-Za-z0-9]+)"), False),
-    (SourcePlatform.BILIBILI, re.compile(r"b23\.tv/([A-Za-z0-9]+)"), True),
+    (SourcePlatform.BILIBILI, r"bilibili\.com/video/(BV[A-Za-z0-9]+)", False),
+    (SourcePlatform.BILIBILI, r"b23\.tv/([A-Za-z0-9]+)", True),
     # Kuaishou
-    (SourcePlatform.KUAISHOU, re.compile(r"kuaishou\.com/short-video/([A-Za-z0-9_-]+)"), False),
-    (SourcePlatform.KUAISHOU, re.compile(r"v\.kuaishou\.com/([A-Za-z0-9]+)"), True),
+    (SourcePlatform.KUAISHOU, r"kuaishou\.com/short-video/([A-Za-z0-9_-]+)", False),
+    (SourcePlatform.KUAISHOU, r"v\.kuaishou\.com/([A-Za-z0-9]+)", True),
     # Xiaohongshu
-    (SourcePlatform.XIAOHONGSHU, re.compile(r"xiaohongshu\.com/explore/([a-f0-9]+)"), False),
-    (SourcePlatform.XIAOHONGSHU, re.compile(r"xhslink\.com/([A-Za-z0-9]+)"), True),
+    (SourcePlatform.XIAOHONGSHU, r"xiaohongshu\.com/explore/([a-f0-9]+)", False),
+    (SourcePlatform.XIAOHONGSHU, r"xhslink\.com/([A-Za-z0-9]+)", True),
     # Weibo
-    (SourcePlatform.WEIBO, re.compile(r"weibo\.com/tv/show/([\w:-]+)"), False),
-    (SourcePlatform.WEIBO, re.compile(r"video\.weibo\.com/show\?fid=([\w:-]+)"), False),
+    (SourcePlatform.WEIBO, r"weibo\.com/tv/show/([\w:-]+)", False),
+    (SourcePlatform.WEIBO, r"video\.weibo\.com/show\?fid=([\w:-]+)", False),
+    # YouTube
+    (SourcePlatform.YOUTUBE, r"youtube\.com/watch\?(?:.*&)?v=([\w-]+)", False),
+    (SourcePlatform.YOUTUBE, r"youtube\.com/shorts/([\w-]+)", False),
+    (SourcePlatform.YOUTUBE, r"youtu\.be/([\w-]+)", False),
+    # TikTok
+    (SourcePlatform.TIKTOK, r"tiktok\.com/@[\w.-]+/video/(\d+)", False),
+    (SourcePlatform.TIKTOK, r"vm\.tiktok\.com/([A-Za-z0-9]+)", True),
+    (SourcePlatform.TIKTOK, r"tiktok\.com/t/([A-Za-z0-9]+)", True),
+    # Instagram
+    (SourcePlatform.INSTAGRAM, r"instagram\.com/(?:reels?|p|tv)/([\w-]+)", False),
+    # Facebook
+    (SourcePlatform.FACEBOOK, r"facebook\.com/reel/(\d+)", False),
+    (SourcePlatform.FACEBOOK, r"facebook\.com/watch/?\?(?:.*&)?v=(\d+)", False),
+    (SourcePlatform.FACEBOOK, r"facebook\.com/[\w.]+/videos/(\d+)", False),
+    (SourcePlatform.FACEBOOK, r"fb\.watch/([\w-]+)", True),
+    # X (Twitter)
+    (SourcePlatform.TWITTER, r"(?:twitter|x)\.com/\w+/status/(\d+)", False),
+]
+
+_PATTERNS: list[tuple[SourcePlatform, re.Pattern[str], bool]] = [
+    (platform, re.compile(_HOST_BOUNDARY + raw), provisional)
+    for platform, raw, provisional in _RAW_PATTERNS
 ]
 
 _DOMAIN_HINTS: dict[str, SourcePlatform] = {
@@ -48,11 +81,60 @@ _DOMAIN_HINTS: dict[str, SourcePlatform] = {
     "kuaishou.com": SourcePlatform.KUAISHOU,
     "xiaohongshu.com": SourcePlatform.XIAOHONGSHU,
     "weibo.com": SourcePlatform.WEIBO,
+    "youtube.com": SourcePlatform.YOUTUBE,
+    "youtu.be": SourcePlatform.YOUTUBE,
+    "tiktok.com": SourcePlatform.TIKTOK,
+    "instagram.com": SourcePlatform.INSTAGRAM,
+    "facebook.com": SourcePlatform.FACEBOOK,
+    "twitter.com": SourcePlatform.TWITTER,
+    "x.com": SourcePlatform.TWITTER,
 }
 
 
+def _host_matches(host: str, domain: str) -> bool:
+    """Khớp trọn nhãn tên miền, không phải khớp đuôi chuỗi.
+
+    ``"netflix.com".endswith("x.com")`` là ``True`` — dùng ``endswith`` trần sẽ
+    gán Netflix thành Twitter. Phải là chính tên miền đó hoặc tên miền con.
+    """
+    return host == domain or host.endswith("." + domain)
+
+
+#: Nền tảng có dạng URL "chuẩn" mà bước tải hiểu được. Khoá là nền tảng, giá
+#: trị là khuôn để dựng lại URL từ ID video.
+_CANONICAL_URL: dict[SourcePlatform, str] = {
+    SourcePlatform.DOUYIN: "https://www.douyin.com/video/{video_id}",
+}
+
+
+def _canonical_url(platform: SourcePlatform, video_id: str, url: str) -> str:
+    """URL để LƯU và để đưa cho bước tải.
+
+    Douyin có nhiều dạng URL cho cùng một video (`/jingxuan/vlog?modal_id=`,
+    `/discover?modal_id=`, `/video/<id>` kèm tham số share). yt-dlp chỉ nhận
+    dạng `/video/<id>` — đo ngày 2026-08-14: các dạng còn lại trả về
+    `ERROR: Unsupported URL`. Quy về một dạng ngay ở cổng vào có thêm cái lợi
+    phụ: hai người dán hai dạng URL của cùng một video sẽ ra cùng một chuỗi,
+    nên chống trùng chặt hơn.
+
+    ID tạm (link rút gọn, chưa biết ID thật) thì GIỮ NGUYÊN url gốc — dựng URL
+    chuẩn từ một ID bịa ra sẽ tạo link chết.
+    """
+    khuon = _CANONICAL_URL.get(platform)
+    if khuon is None or not video_id.isdigit():
+        return url
+    return khuon.format(video_id=video_id)
+
+
 def parse_source_url(url: str) -> ParsedSource | None:
-    """Trả về ``ParsedSource`` hoặc ``None`` nếu URL không nhận diện được."""
+    """Nhận diện nguồn từ URL video.
+
+    Trả về ``None`` **chỉ khi** chuỗi không phải URL http/https. Mọi URL hợp lệ
+    đều được nhận: khớp mẫu thì lấy đúng ID video (cần cho chống trùng), không
+    khớp thì rơi vào ``OTHER`` với ID tạm và để ``YtDlpDownloader`` thử — nó hỗ
+    trợ hơn 1800 site. Đoán "nguồn này không tải được" ngay ở cổng vào chỉ chặn
+    nhầm nguồn hợp lệ; sai hay đúng để bước tải trả lời bằng lỗi thật.
+    """
     url = url.strip()
     if not url or not url.startswith(("http://", "https://")):
         return None
@@ -60,15 +142,23 @@ def parse_source_url(url: str) -> ParsedSource | None:
     for platform, pattern, provisional in _PATTERNS:
         m = pattern.search(url)
         if m:
-            return ParsedSource(platform, m.group(1), url, provisional)
+            video_id = m.group(1)
+            if provisional:
+                #: Chưa biết ID thật (link rút gọn) — không dựng URL chuẩn từ
+                #: một mã rút gọn được, giữ nguyên để yt-dlp tự resolve.
+                return ParsedSource(platform, video_id, url, provisional)
+            return ParsedSource(
+                platform, video_id, _canonical_url(platform, video_id, url), provisional
+            )
 
-    # Không khớp mẫu nào nhưng domain quen thuộc: vẫn nhận, để yt-dlp thử.
+    # Không khớp mẫu nào: vẫn nhận. Domain quen thì giữ đúng nền tảng để thư
+    # mục media và thống kê không lẫn, còn lại xếp vào OTHER.
     host = (urlparse(url).hostname or "").lower()
     for domain, platform in _DOMAIN_HINTS.items():
-        if host.endswith(domain):
+        if _host_matches(host, domain):
             return ParsedSource(platform, _fallback_id(url), url, provisional=True)
 
-    return None
+    return ParsedSource(SourcePlatform.OTHER, _fallback_id(url), url, provisional=True)
 
 
 def _fallback_id(url: str) -> str:

@@ -21,6 +21,35 @@ log = get_logger(__name__)
 _BLOCKED_HINTS = ("403", "429", "forbidden", "rate limit", "blocked", "geo")
 
 
+def _cookie_opts(settings) -> dict[str, Any]:
+    """Tuỳ chọn cookie cho yt-dlp, dựng từ cấu hình.
+
+    Một số nền tảng (Douyin rõ nhất) từ chối mọi request không kèm cookie —
+    thông báo của họ ghi "Fresh cookies (not necessarily logged in) are
+    needed", nghĩa là cookie KHÁCH của một trình duyệt đã ghé trang là đủ,
+    không cần tài khoản.
+
+    File cookie được ưu tiên hơn đọc trình duyệt: trong Docker không có trình
+    duyệt nào để đọc, nên chỉ đường file mới chạy được ở cả hai môi trường.
+    Không cấu hình gì thì KHÔNG thêm tuỳ chọn nào — không tự ý đụng vào trình
+    duyệt của người dùng khi chưa được yêu cầu.
+    """
+    cookie_file = (settings.ytdlp_cookie_file or "").strip()
+    if cookie_file:
+        if not Path(cookie_file).exists():
+            raise DownloadError(f"YTDLP_COOKIE_FILE trỏ tới file không tồn tại: {cookie_file}")
+        log.info("download.cookie", nguon="file")
+        return {"cookiefile": cookie_file}
+
+    browser = (settings.ytdlp_cookies_from_browser or "").strip().lower()
+    if browser:
+        log.info("download.cookie", nguon="browser", browser=browser)
+        #: yt-dlp nhận tuple ``(tên, hồ_sơ, keyring, container)``; chỉ tên là bắt buộc.
+        return {"cookiesfrombrowser": (browser,)}
+
+    return {}
+
+
 class YtDlpDownloader(BaseDownloader):
     """Cấu hình mặc định ưu tiên bản chất lượng cao nhất, mp4 nếu có."""
 
@@ -60,7 +89,8 @@ class YtDlpDownloader(BaseDownloader):
             },
         }
         opts.update(self.extra_opts)
-        _ = settings  # giữ chỗ cho proxy/cookie ở M2
+        #: Áp SAU ``extra_opts`` để cấu hình cookie không bị nền tảng con ghi đè.
+        opts.update(_cookie_opts(settings))
         return opts
 
     def download(self, url: str, dest_dir: Path, *, progress_cb=None) -> DownloadResult:
@@ -104,8 +134,18 @@ class YtDlpDownloader(BaseDownloader):
             height=info.get("height"),
             raw_meta={
                 k: info.get(k)
-                for k in ("id", "title", "uploader", "view_count", "like_count",
-                          "upload_date", "webpage_url", "duration", "width", "height")
+                for k in (
+                    "id",
+                    "title",
+                    "uploader",
+                    "view_count",
+                    "like_count",
+                    "upload_date",
+                    "webpage_url",
+                    "duration",
+                    "width",
+                    "height",
+                )
             },
         )
 
