@@ -2,6 +2,7 @@
  * Client gọi API. KHÔNG gọi fetch trực tiếp trong component — mọi lời gọi đi qua đây.
  */
 
+import type { components } from "./types.gen";
 import type {
   BulkAction,
   BulkResult,
@@ -27,40 +28,24 @@ const BASE =
 const PREFIX = `${BASE}/api/v1`;
 
 /**
- * Các kiểu dưới đây TẠM KHAI TAY vì endpoint `/llm/*` và `/videos/{id}/translate`
- * chưa lên lúc viết phần giao diện này. Sinh lại từ OpenAPI (`npm run types`) và
- * xoá phần khai tay khi endpoint đã có thật — CLAUDE.md cấm gõ tay interface
- * trùng backend về lâu dài.
- */
-export interface LlmModels {
-  /** Model dùng cho bước dịch — chỉ danh sách này được đổ vào dropdown chọn model. */
-  translate: string[];
-  tts: string[];
-}
-
-/**
- * Số liệu hạn mức LLM. Trần bằng 0 nghĩa là KHÔNG giới hạn (không phải "hết
- * hạn mức") — khi đó giao diện chỉ hiện số đã dùng, không hiện phần "/trần" và
- * không bao giờ cảnh báo.
+ * Kiểu của ba endpoint mới SINH TỪ OpenAPI (`npm run types` → `types.gen.ts`),
+ * không gõ tay — luật số 7 CLAUDE.md. Lúc dựng giao diện, endpoint chưa lên nên
+ * phải khai tạm; nay đã có thật thì lấy thẳng từ schema để hai bên không bao
+ * giờ lệch nhau nữa (đã lệch một lần: tên trường tiếng Việt vs tiếng Anh).
  *
- * Tên trường khớp đúng `GET /api/v1/llm/usage` — đã đối chiếu với API chạy thật.
- * Dùng tiếng Anh cho đồng nhất với mọi endpoint sẵn có của dự án
- * (`skipped_duplicate`, `duplicate_ids`, `source_platform`...).
+ * `lib/types.ts` còn lại vẫn là bản gõ tay tạm cho M1 — chuyển nốt sang bản
+ * sinh là việc riêng, không gộp vào đây.
  */
-export interface LlmUsage {
-  requests_last_min: number;
-  requests_last_day: number;
-  tokens_last_day: number;
-  cost_usd_this_month: number;
-  max_requests_per_min: number;
-  max_requests_per_day: number;
-  monthly_budget_usd: number;
-}
+type Schemas = components["schemas"];
 
-/** Response `202` của `POST /videos/{id}/translate` — nhận task_id ngay, không chờ dịch xong. */
-export interface TranslateAccepted {
-  task_id: string;
-}
+/** Trần bằng 0 nghĩa là KHÔNG giới hạn, không phải "đã hết hạn mức". */
+export type LlmUsage = Schemas["LlmUsageOut"];
+
+/** Chỉ nhóm `translate` được đổ vào ô chọn model dịch. */
+export type LlmModels = Schemas["LlmModelsOut"];
+
+/** Response `202` — nhận `task_id` ngay, không chờ dịch xong. */
+export type TranslateAccepted = Schemas["TaskAccepted"];
 
 export class ApiError extends Error {
   constructor(

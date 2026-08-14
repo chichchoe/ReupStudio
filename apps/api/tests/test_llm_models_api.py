@@ -369,6 +369,8 @@ def test_http_tra_ve_hai_nhom_model(http_client, gia_lap, monkeypatch) -> None:
     assert resp.json() == {
         "translate": ["gemini-3.5-flash-lite", "gemini-2.5-pro"],
         "tts": ["gemini-2.5-flash-tts"],
+        #: Cấu hình test không đặt LLM_MODEL nên không có gì để chọn sẵn.
+        "default": "",
     }
 
 
@@ -392,3 +394,31 @@ def test_http_mang_loi_tra_502_khong_phai_500(http_client, gia_lap, monkeypatch)
 
     assert resp.status_code == 502
     assert resp.json()["error"]["code"] == "LLM_UNAVAILABLE"
+
+
+def test_tra_ve_model_mac_dinh_de_giao_dien_chon_san(http_client, gia_lap, monkeypatch) -> None:
+    """Không nói rõ mặc định thì ô chọn lấy option ĐẦU danh sách.
+
+    Nhìn ảnh chụp giao diện thật (2026-08-15): ô chọn hiện `gemini-2.5-flash`
+    — 20 lượt/NGÀY — trong khi cấu hình để `gemini-3.5-flash-lite` với 500
+    lượt/ngày. Ai bấm nhanh dính đúng model tệ nhất về hạn mức mà không biết.
+    """
+    _cau_hinh(monkeypatch, llm_model="gemini-3.5-flash-lite")
+    gia_lap["hang_doi"].append(_ok(ID_THAT))
+
+    ra = http_client.get("/api/v1/llm/models").json()
+
+    assert ra["default"] == "gemini-3.5-flash-lite"
+
+
+def test_mac_dinh_khong_nam_trong_danh_sach_thi_tra_ve_rong(
+    http_client, gia_lap, monkeypatch
+) -> None:
+    """Cấu hình trỏ tới model mà khoá hiện tại không dùng được — thà để giao
+    diện tự chọn option đầu còn hơn chọn sẵn một model gọi là hỏng."""
+    _cau_hinh(monkeypatch, llm_model="model-khong-co-that")
+    gia_lap["hang_doi"].append(_ok(ID_THAT))
+
+    ra = http_client.get("/api/v1/llm/models").json()
+
+    assert ra["default"] == ""

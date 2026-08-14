@@ -44,6 +44,9 @@ export function PendingTranslateTab() {
 
   const videos = useMemo(() => data?.items ?? [], [data]);
   const translateModels = models?.translate ?? [];
+  //: Model cấu hình sẵn để chọn trước trong ô chọn — không có thì rơi về
+  //: model đầu danh sách, mà model đầu thường là bản hạn mức thấp.
+  const defaultModel = models?.default ?? "";
 
   const { translate, pendingIds, translatePending } = useTranslateMutations({
     videosKey,
@@ -122,6 +125,7 @@ export function PendingTranslateTab() {
           key={video.id}
           video={video}
           models={translateModels}
+          defaultModel={defaultModel}
           selected={selected.has(video.id)}
           pending={pendingIds.has(video.id)}
           onToggle={toggle}

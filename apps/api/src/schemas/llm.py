@@ -18,6 +18,15 @@ class LlmModelsOut(BaseModel):
     #: Id đã bỏ tiền tố ``models/``, giữ nguyên thứ tự nhà cung cấp trả về.
     translate: list[str]
     tts: list[str]
+    #: Model cấu hình sẵn (``LLM_MODEL``), để giao diện CHỌN SẴN trong ô chọn.
+    #: Thiếu nó thì ô chọn lấy option đầu danh sách — thấy trên ảnh chụp thật
+    #: ngày 2026-08-15: hiện ``gemini-2.5-flash`` (20 lượt/ngày) trong khi cấu
+    #: hình để ``gemini-3.5-flash-lite`` (500 lượt/ngày). Người bấm nhanh dính
+    #: đúng model tệ nhất về hạn mức mà không biết.
+    #:
+    #: Rỗng khi model cấu hình không nằm trong danh sách khoá hiện tại dùng
+    #: được — thà để giao diện tự chọn còn hơn chọn sẵn một model gọi là hỏng.
+    default: str = ""
 
 
 class LlmUsageOut(BaseModel):

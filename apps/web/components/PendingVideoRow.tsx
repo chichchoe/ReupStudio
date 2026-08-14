@@ -14,6 +14,9 @@ interface Props {
   video: Video;
   /** Danh sách model dịch từ `GET /llm/models`; tab cha tải một lần rồi truyền xuống. */
   models: string[];
+  /** Model cấu hình sẵn (`LLM_MODEL`), chọn sẵn trong ô chọn. Rỗng khi khoá
+   * hiện tại không dùng được nó — khi đó rơi về model đầu danh sách. */
+  defaultModel: string;
   selected: boolean;
   /** true khi yêu cầu dịch của chính video này đang bay — chặn bấm hai lần. */
   pending: boolean;
@@ -29,6 +32,7 @@ interface Props {
 export function PendingVideoRow({
   video,
   models,
+  defaultModel,
   selected,
   pending,
   onToggle,
@@ -42,10 +46,16 @@ export function PendingVideoRow({
   });
   const cueCount = subtitles?.find((s) => s.lang === SOURCE_LANG)?.cues.length ?? null;
 
-  // Chưa chọn gì thì mặc định model đầu danh sách. Tính khi render thay vì đồng
-  // bộ bằng useEffect, vì danh sách model thường về SAU khi dòng đã hiện.
+  // Chưa chọn gì thì lấy model MẶC ĐỊNH backend trả về, không phải model đầu
+  // danh sách. Ảnh chụp giao diện thật (2026-08-15) cho thấy hậu quả của việc
+  // lấy option đầu: ô chọn hiện `gemini-2.5-flash` (20 lượt/NGÀY) trong khi
+  // cấu hình để `gemini-3.5-flash-lite` (500 lượt/ngày) — ai bấm nhanh dính
+  // đúng model tệ nhất về hạn mức mà không biết.
+  //
+  // Tính khi render thay vì đồng bộ bằng useEffect, vì danh sách model thường
+  // về SAU khi dòng đã hiện.
   const [chosen, setChosen] = useState("");
-  const model = chosen || models[0] || "";
+  const model = chosen || defaultModel || models[0] || "";
 
   const title = video.title_vi || video.title_original || video.source_video_id;
 

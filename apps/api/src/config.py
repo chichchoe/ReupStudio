@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     #: Địa chỉ gốc của API tương thích OpenAI (Gemini, Groq, OpenRouter...).
     llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str = ""
+    #: Model mặc định. API chỉ đọc để trả về cho giao diện CHỌN SẴN trong ô
+    #: chọn — việc dịch là của worker. Tên khớp ``apps/worker/src/config.py``
+    #: để hai app đọc chung một dòng trong ``.env``.
+    llm_model: str = ""
     #: Trần hạn mức tự đặt — nhà cung cấp không trả header hạn mức nào nên phải
     #: tự khai và tự đếm. 0 = không giới hạn.
     llm_max_requests_per_min: int = 0

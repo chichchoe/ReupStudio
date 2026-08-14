@@ -57,6 +57,8 @@ class DanhSachModel:
 
     translate: list[str]
     tts: list[str]
+    #: Model cấu hình sẵn (``LLM_MODEL``) nếu khoá hiện tại dùng được nó.
+    default: str = ""
 
 
 #: Cache theo ĐỊA CHỈ nhà cung cấp: đổi ``LLM_BASE_URL`` mà vẫn trả danh sách
@@ -205,9 +207,15 @@ def liet_ke_models() -> DanhSachModel:
         return da_nho[1]
 
     ids = _tai_danh_sach_id(base_url, settings.llm_api_key)
+    dich = [_bo_tien_to(m) for m in loc_theo_muc_dich(ids, ModelPurpose.TRANSLATE)]
+    #: Model cấu hình sẵn, để giao diện chọn sẵn trong ô chọn. Trả rỗng nếu nó
+    #: không nằm trong danh sách khoá hiện tại dùng được — thà để giao diện tự
+    #: chọn còn hơn chọn sẵn một model gọi là hỏng.
+    mac_dinh = _bo_tien_to(settings.llm_model or "")
     ket_qua = DanhSachModel(
-        translate=[_bo_tien_to(m) for m in loc_theo_muc_dich(ids, ModelPurpose.TRANSLATE)],
+        translate=dich,
         tts=[_bo_tien_to(m) for m in loc_theo_muc_dich(ids, ModelPurpose.TTS)],
+        default=mac_dinh if mac_dinh in dich else "",
     )
 
     # Chỉ nhớ kết quả TỐT: lỗi mạng chốc lát mà ghim 5 phút thì người dùng bấm

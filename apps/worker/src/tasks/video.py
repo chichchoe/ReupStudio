@@ -700,17 +700,47 @@ def translate_video_chain(video_id: str) -> str:
     return video_id
 
 
+def _cac_buoc_retry(step, *, tu_dong_dich: bool) -> tuple[PipelineStep, ...]:
+    """Danh sách bước cho lần "xử lý lại", TÔN TRỌNG chỗ dừng chờ chọn AI.
+
+    Phát hiện khi thử tay: sau khi tách chain, hàm này vẫn dựng nguyên sáu bước
+    cũ. Bước nhận dạng vẫn đặt trạng thái ``review``, nhưng chain đã xếp sẵn các
+    task phía sau nên chúng cứ chạy — video đi thẳng tới ``ready`` và không bao
+    giờ xuất hiện ở tab "Chờ dịch". Đặt trạng thái KHÔNG dừng được chain
+    (``pipeline_step`` chỉ bỏ qua khi video ở ``SKIPPED``); muốn dừng thì phải
+    không xếp task vào chain ngay từ đầu.
+
+    Chạy lại từ một bước nằm ở nửa SAU (dịch/chuẩn hoá/render) thì chạy nốt nửa
+    sau — người dùng đã chọn AI rồi, bắt họ quay lại tab chờ là vô lý.
+    """
+    if tu_dong_dich:
+        #: M7 (luồng tự động): giữ nguyên hành vi chạy một mạch.
+        nguon = M1_STEPS
+    else:
+        nguon = M1_STEPS_TRUOC_DICH
+
+    if not step:
+        return nguon
+
+    buoc = step if isinstance(step, PipelineStep) else None
+    if buoc is None:
+        try:
+            buoc = PipelineStep(step)
+        except (ValueError, KeyError):
+            #: Tên bước lạ không được làm hỏng job — chạy lại từ đầu như cũ.
+            return nguon
+
+    if buoc in M1_STEPS_SAU_DICH:
+        return M1_STEPS_SAU_DICH[M1_STEPS_SAU_DICH.index(buoc) :]
+    if buoc in nguon:
+        return nguon[nguon.index(buoc) :]
+    return nguon
+
+
 @app.task(name="reup.retry_from_step")
 def retry_from_step(video_id: str, step: str | None = None) -> str:
     """Chạy lại từ một bước cụ thể (mặc định: từ đầu)."""
-    if step:
-        try:
-            start = M1_STEPS.index(PipelineStep(step))
-        except (ValueError, KeyError):
-            start = 0
-    else:
-        start = 0
-    steps = M1_STEPS[start:]
+    steps = _cac_buoc_retry(step, tu_dong_dich=False)
     log.info("pipeline.retry", video_id=video_id, from_step=steps[0].value)
     _build_chain(video_id, steps).apply_async()
     return video_id
