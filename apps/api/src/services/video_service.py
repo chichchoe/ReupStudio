@@ -80,8 +80,29 @@ def create_from_links(
                 Video.source_video_id == parsed.video_id,
             )
         )
-        if existing is not None:
+        if existing is not None and existing.deleted_at is None:
             duplicates.append(existing)
+            continue
+
+        if existing is not None:
+            #: Dòng đã xoá mềm — HỒI SINH chứ không tạo dòng thứ hai: ràng buộc
+            #: UNIQUE(source_platform, source_video_id) không cho hai dòng cùng
+            #: một video, và giữ dòng cũ thì lịch sử ``job_runs`` còn nguyên.
+            #: Không có nhánh này thì video đã xoá chặn vĩnh viễn việc dán lại
+            #: chính link đó — người dùng kẹt, không còn đường nào thêm lại.
+            existing.deleted_at = None
+            existing.status = VideoStatus.QUEUED
+            existing.current_step = None
+            #: Xoá dấu vết lần hỏng trước, nếu không người dùng dán lại xong
+            #: vẫn thấy lỗi cũ và tưởng chưa sửa được gì.
+            existing.error_message = None
+            existing.source_url = parsed.url
+            existing.process_config = process_config or {}
+            existing.flags = {
+                **(existing.flags or {}),
+                "provisional_id": parsed.provisional,
+            }
+            created.append(existing)
             continue
 
         video = Video(

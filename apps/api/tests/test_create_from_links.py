@@ -66,3 +66,54 @@ def test_video_cu_giu_nguyen_trang_thai_khi_dan_lai(db) -> None:
     video_service.create_from_links(db, [LINK])
 
     assert video_service.get_video(db, created["video_ids"][0]).status == VideoStatus.READY
+
+
+def test_xoa_roi_dan_lai_thi_video_song_lai_sach_se(db) -> None:
+    """Video đã xoá mềm KHÔNG được chặn việc dán lại chính link đó.
+
+    Phát hiện khi dùng thật: dòng Douyin lưu URL sai bị xoá đi để dán lại cho
+    đúng, nhưng lần dán sau báo `skipped_duplicate` trỏ vào chính dòng vừa xoá
+    — người dùng kẹt hẳn, không còn đường nào thêm lại link đó.
+
+    Hồi sinh dòng cũ chứ không tạo dòng thứ hai: ràng buộc
+    UNIQUE(source_platform, source_video_id) không cho hai dòng cùng một video,
+    và giữ lại dòng cũ thì lịch sử job_runs cũng còn nguyên.
+    """
+    created = video_service.create_from_links(db, [LINK])
+    db.commit()
+    cu_id = created["video_ids"][0]
+    video = video_service.get_video(db, cu_id)
+    video.status = VideoStatus.ERROR
+    video.error_message = "download: hỏng từ lần trước"
+    db.commit()
+    video_service.soft_delete(db, cu_id)
+    db.commit()
+
+    result = video_service.create_from_links(db, [LINK])
+    db.commit()
+
+    assert result["created"] == 1
+    assert result["skipped_duplicate"] == 0
+    assert result["video_ids"] == [cu_id]
+
+
+def test_video_song_lai_phai_sach_trang_thai_loi_cu(db) -> None:
+    """Hồi sinh mà giữ nguyên `status=error` và thông báo lỗi cũ thì người dùng
+    tưởng dán lại vẫn hỏng."""
+    created = video_service.create_from_links(db, [LINK])
+    db.commit()
+    cu_id = created["video_ids"][0]
+    video = video_service.get_video(db, cu_id)
+    video.status = VideoStatus.ERROR
+    video.error_message = "download: hỏng từ lần trước"
+    db.commit()
+    video_service.soft_delete(db, cu_id)
+    db.commit()
+
+    video_service.create_from_links(db, [LINK])
+    db.commit()
+
+    song_lai = video_service.get_video(db, cu_id)
+    assert song_lai.status == VideoStatus.QUEUED
+    assert song_lai.error_message is None
+    assert song_lai.deleted_at is None
