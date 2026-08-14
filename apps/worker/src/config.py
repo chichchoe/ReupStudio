@@ -33,6 +33,17 @@ class Settings(BaseSettings):
     #: ``LLM_API_KEY``), không sửa code, không thêm thư viện. Dùng với
     #: ``LLM_PROVIDER=openai``.
     llm_base_url: str = "https://api.openai.com/v1"
+    #: Đơn giá USD cho MỘT TRIỆU token, theo bảng giá nhà cung cấp. Bậc miễn
+    #: phí để 0 — khi đó cột ``cost_logs.cost_usd`` luôn bằng 0 và con số chặn
+    #: ta lại là SỐ LƯỢT, không phải tiền.
+    llm_price_input_per_1m: float = 0.0
+    llm_price_output_per_1m: float = 0.0
+    #: Trần hạn mức tự đặt. Gemini KHÔNG trả header hạn mức nào (đo 2026-08-14)
+    #: nên không hỏi được nhà cung cấp — phải tự khai và tự đếm. Xem hạn mức
+    #: thật của dự án tại aistudio.google.com/rate-limit.
+    #: 0 = không giới hạn.
+    llm_max_requests_per_min: int = 0
+    llm_max_requests_per_day: int = 0
 
     # --- tải video ---
     #: Đường dẫn file cookie dạng Netscape. Một số nền tảng (Douyin) từ chối
@@ -79,6 +90,11 @@ class Settings(BaseSettings):
 
     # --- giới hạn an toàn ---
     max_video_duration_sec: int = 600
+    #: Trần chi tiêu tháng (USD) cho mọi dịch vụ ngoài, cộng từ ``cost_logs``.
+    #: Vượt trần thì DỪNG HẲN việc dịch, chờ người dùng cho phép — chốt ngày
+    #: 2026-08-14, đúng tinh thần M8-BE-04 "hạn mức chi tiêu cứng".
+    #: 0 = không giới hạn.
+    monthly_budget_usd: float = 200.0
     download_timeout_sec: int = 600
     ffmpeg_timeout_sec: int = 1800
 

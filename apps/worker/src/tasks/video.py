@@ -38,6 +38,7 @@ from ..pipeline.shortform.safe_area import SafeArea
 from ..pipeline.subtitle_format import FormatOptions, format_cues
 from ..pipeline.transcribe import transcribe
 from ..pipeline.translate import translate_cues
+from . import cost
 from .base import pipeline_step
 
 log = get_logger(__name__)
@@ -395,14 +396,33 @@ def translate_video_task(session, video) -> dict:
         return {"cues": 0, "skipped": "không có phụ đề nguồn"}
 
     config = video.process_config or {}
+
+    #: Chụp usage sau MỖI lô rồi ghi ngay phần chênh vào ``cost_logs``. Ghi
+    #: ngay thay vì gộp cuối vì hai lẽ: video dài dịch cả tiếng, gộp cuối thì
+    #: suốt thời gian đó không ai biết đã tiêu bao nhiêu; và bộ đếm lượt/phút
+    #: phải thấy được lượt gọi ngay mới chặn kịp khi chạm trần.
+    lan_truoc: list = [None]
+
+    def _ghi(usage) -> None:
+        cost.ghi_usage(session, video.id, usage, lan_truoc[0])
+        lan_truoc[0] = usage
+        session.flush()
+
     vi_cues = translate_cues(
         zh_cues,
         tone=config.get("tone", "doi_thuong"),
         glossary=config.get("glossary"),
         progress_cb=lambda p: prog.progress(vid, PipelineStep.TRANSLATE.value, p),
+        on_usage=_ghi,
     )
     _save_subtitle(session, video, "vi", "llm", vi_cues)
-    return {"cues": len(vi_cues), "provider": get_settings().llm_provider}
+    tong = lan_truoc[0]
+    return {
+        "cues": len(vi_cues),
+        "provider": get_settings().llm_provider,
+        "luot_goi": tong.requests if tong else 0,
+        "token": tong.total_tokens if tong else 0,
+    }
 
 
 @app.task(name="reup.format_subtitles")

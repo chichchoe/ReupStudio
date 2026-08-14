@@ -8,6 +8,8 @@ Ba điểm bắt buộc (xem docs/03-BACKLOG-CONG-VIEC.md, mục M1-WK-05):
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from reup_core.logging import get_logger
 
 from ..config import get_settings
@@ -41,7 +43,19 @@ def translate_cues(
     tone: str = "doi_thuong",
     glossary: dict[str, str] | None = None,
     progress_cb=None,
+    on_usage=None,
 ) -> list[Cue]:
+    """Dịch cả danh sách cue, gọi ``on_usage`` sau MỖI lô.
+
+    ``on_usage`` nhận một ``LlmUsage`` chụp lại lượng đã dùng tính tới lô vừa
+    xong. Hàm này ở tầng ``pipeline/`` nên KHÔNG được chạm DB (luật hai lớp
+    CLAUDE.md) — ghi vào ``cost_logs`` là việc của tầng ``tasks/``, nó tiêm
+    callback vào đây.
+
+    Báo theo từng lô chứ không gộp một lần ở cuối: cần mốc thời gian của từng
+    lượt gọi mới đếm đúng lượt/phút, mà một video dài dịch cả tiếng thì gộp
+    cuối là mất sạch thông tin thời gian.
+    """
     if not cues:
         return []
 
@@ -63,6 +77,8 @@ def translate_cues(
             cue.with_text(text.strip() or cue.text)
             for cue, text in zip(batch, translated, strict=True)
         )
+        if on_usage is not None:
+            on_usage(replace(translator.usage))
         if progress_cb and index in marks:
             progress_cb(percent_of(index, total))
 

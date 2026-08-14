@@ -1,4 +1,5 @@
 from .base import Base, TimestampMixin
+from .cost_log import CostLog
 from .job_run import JobRun
 from .platform_limit import PlatformLimit
 from .preset import Preset
@@ -9,6 +10,7 @@ from .video import Video
 
 __all__ = [
     "Base",
+    "CostLog",
     "JobRun",
     "PlatformLimit",
     "Preset",

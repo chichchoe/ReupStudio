@@ -77,6 +77,21 @@ def _mo_ta_loi(response, status: int, lan_thu: int, url: str) -> str:
 
 
 class OpenAITranslator(BaseTranslator):
+    def _ghi_usage(self, data: dict) -> None:
+        """Cộng dồn lượng đã dùng của lượt gọi vừa xong.
+
+        Nhà cung cấp không trả ``usage`` (một số bản tương thích OpenAI bỏ
+        trống) thì vẫn phải đếm ĐƯỢC SỐ LƯỢT — ở bậc miễn phí, trần lượt/phút
+        mới là thứ chặn ta lại, không phải token.
+        """
+        usage = data.get("usage") or {}
+        self.usage.add(
+            prompt_tokens=int(usage.get("prompt_tokens") or 0),
+            completion_tokens=int(usage.get("completion_tokens") or 0),
+            #: Nguyên văn, KHÔNG cộng lại từ prompt + completion — xem LlmUsage.
+            total_tokens=int(usage.get("total_tokens") or 0),
+        )
+
     def _call(self, system: str, user: str, *, max_tokens: int = 4096) -> str:
         settings = get_settings()
         if not settings.llm_api_key:
@@ -103,13 +118,13 @@ class OpenAITranslator(BaseTranslator):
                 with httpx.Client(timeout=_TIMEOUT_SEC) as client:
                     response = client.post(url, json=payload, headers=headers)
             except httpx.HTTPError as exc:
-                raise TranslateError(
-                    f"Không gọi được LLM ({url}): {che_khoa(str(exc))}"
-                ) from exc
+                raise TranslateError(f"Không gọi được LLM ({url}): {che_khoa(str(exc))}") from exc
 
             status = getattr(response, "status_code", 200)
             if status < 400:
-                return response.json()["choices"][0]["message"]["content"]
+                data = response.json()
+                self._ghi_usage(data)
+                return data["choices"][0]["message"]["content"]
 
             con_thu_duoc = status in _RETRY_STATUS and lan_thu < _MAX_RETRIES
             if not con_thu_duoc:
