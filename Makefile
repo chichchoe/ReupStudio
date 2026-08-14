@@ -2,6 +2,7 @@
 
 help:
 	@echo "make setup     - cài dependency (venv + node_modules)"
+	@echo "make setup-ai  - cài faster-whisper (nặng, cần cho bước nhận dạng)"
 	@echo "make up        - bật postgres + redis"
 	@echo "make api       - chạy FastAPI dev"
 	@echo "make worker    - chạy Celery worker"
@@ -16,6 +17,13 @@ setup:
 	.venv/bin/pip install -e "apps/api[dev]"
 	.venv/bin/pip install -e "apps/worker[dev]"
 	cd apps/web && npm install
+	@echo ""
+	@echo "Bước nhận dạng giọng nói cần thêm: make setup-ai"
+
+# Tách riêng vì nặng (ctranslate2 + weight model). Không có bước này thì
+# transcribe_video sẽ báo TranscribeError ngay khi chạy.
+setup-ai:
+	.venv/bin/pip install -e "apps/worker[ai]"
 
 up:
 	docker compose up -d postgres redis
