@@ -47,6 +47,16 @@ def subtitle_path(video_id: str, lang: str) -> Path:
     return work_dir(video_id) / f"sub.{lang}.srt"
 
 
+def subtitle_ass_path(video_id: str, lang: str) -> Path:
+    """File ASS dùng để BURN vào khung hình.
+
+    Khác ``subtitle_path`` (SRT — định dạng trao đổi, để sửa tay và tải về):
+    file ASS mang sẵn ``PlayRes`` bằng khung đích cùng toàn bộ kiểu chữ tính
+    theo pixel của khung đó. Xem ``pipeline/subtitle_ass.py``.
+    """
+    return work_dir(video_id) / f"sub.{lang}.ass"
+
+
 def proxy_path(video_id: str) -> Path:
     """Bản 540p dùng cho preview trên web — tua nhanh hơn bản gốc."""
     return work_dir(video_id) / "proxy.mp4"

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.ffmpeg.burn import build_force_style
 from src.pipeline.shortform.safe_area import (
     SafeArea,
     fits_in_safe_area,
@@ -62,21 +61,9 @@ def test_chuyen_doi_phan_tram_pixel_khong_mat_mat(width: int, height: int) -> No
     assert abs(width_px - expected_width_px) <= 1
 
 
-def test_build_force_style_khong_truyen_safe_thi_giu_MarginV_120_nhu_cu() -> None:
-    """Khoá tương thích ngược: các chỗ gọi sẵn có (render.py) không đổi hành vi."""
-    style = build_force_style()
-    assert "MarginV=120" in style
-    assert "Alignment=2" in style
-    assert "Bold=1" in style
-
-
-def test_build_force_style_truyen_du_safe_va_chieu_cao_thi_tinh_MarginV_tu_safe_area() -> None:
-    style = build_force_style(TIKTOK, 1920)
-    assert "MarginV=346" in style
-    assert "MarginV=120" not in style
-
-
-def test_build_force_style_chi_truyen_mot_trong_hai_tham_so_thi_van_giu_gia_tri_cu() -> None:
-    """Thiếu một trong hai tham số thì không đủ dữ liệu để tính -> giữ lề cũ."""
-    assert "MarginV=120" in build_force_style(TIKTOK, None)
-    assert "MarginV=120" in build_force_style(None, 1920)
+# Ba test của ``build_force_style`` từng nằm ở đây đã bị xoá cùng chính hàm đó
+# (2026-08-14). Chúng khoá lại đúng thứ sinh ra lỗi: số pixel nhét vào
+# ``force_style`` của filter ``subtitles``, nơi libass hiểu theo khung 384×288
+# mà ffmpeg tự đặt cho SRT — lề 346px hoá ~2307px và phụ đề bay ra ngoài mọi
+# khung 1080×1920. Kiểu chữ nay nằm trong file ASS có ``PlayRes`` bằng khung
+# đích; xem ``test_subtitle_ass.py`` và ``test_burn_filter.py``.

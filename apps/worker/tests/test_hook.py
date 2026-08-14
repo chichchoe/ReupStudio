@@ -84,12 +84,19 @@ def _text_value(filt: str) -> str:
     """Lấy phần giá trị của ``text=...`` ra khỏi chuỗi filter để so khớp,
     không dựa vào việc phải tách đúng dấu ``:`` phân tách option (tự thân dấu
     ``:`` trong text đã bị escape nên không lẫn với dấu phân tách thật của
-    ``:expansion=none`` ngay sau nó)."""
+    ``:expansion=none`` ngay sau nó).
+
+    GỘP các dòng do ``fit_hook_text`` chèn về lại thành một dòng (nó chỉ thay
+    một dấu cách bằng ``\\n``, nên nối lại bằng dấu cách là khôi phục nguyên
+    văn). Các test dùng hàm này kiểm ESCAPE ký tự đặc biệt, không kiểm chỗ
+    xuống dòng — chuyện xuống dòng có bộ test riêng ở ``test_hook_fit.py``."""
     # "drawtext=" tự nó CHỨA chuỗi con "text=" (draw-TEXT=) — phải neo vào
     # "drawtext=text=" ở đầu, không thì regex khớp nhầm vào giữa "drawtext=".
-    match = re.search(r"^drawtext=text=(.*?):expansion=none", filt)
+    # ``re.S``: từ khi ``fit_hook_text`` tự xuống dòng cho câu dài, giá trị
+    # ``text=`` có thể chứa ``\n`` — thiếu cờ này thì ``.`` dừng ở dòng đầu.
+    match = re.search(r"^drawtext=text=(.*?):expansion=none", filt, re.S)
     assert match is not None, f"không tìm thấy text=... trong filter: {filt}"
-    return match.group(1)
+    return " ".join(match.group(1).splitlines())
 
 
 def test_escape_dau_hai_cham() -> None:

@@ -265,20 +265,11 @@ def test_hook_box_dung_lai_ham_task_5_khong_tu_tinh_lai(spy) -> None:
     assert spy["burn_subtitles"][0][3]["hook_filter"] == expected
 
 
-def test_hook_khong_safe_area_thi_bo_qua_khong_nem_loi(spy) -> None:
-    """Thiếu ``safe`` (hiếm, phòng hờ) -> không tính được hộp hook, bỏ qua
-    hook thay vì crash cả tập render."""
-    cues = [_cue(1, 1.0, 2.0)]
-    render_variant(
-        "vid-hook-no-safe",
-        SRC,
-        cues,
-        _plan(),
-        video_width=1080,
-        video_height=1920,
-        hook_text="Hook!",
-    )
-    assert spy["burn_subtitles"][0][3]["hook_filter"] is None
+# Test "thiếu safe area thì bỏ qua hook, không ném lỗi" đã bị xoá (2026-08-14).
+# Nó khoá lại đúng cơ chế đã che lỗi: thiếu vùng an toàn thì bước burn âm thầm
+# rơi về lề cứng, và không ai biết phụ đề đang nằm ngoài khung hình. ``safe``
+# nay là tham số BẮT BUỘC của ``render_variant`` — thiếu nó là lỗi lập trình,
+# không phải tình huống cần phòng hờ. Xem ``test_render_ass_wiring.py``.
 
 
 # --------------------------------------------------------------------------- #

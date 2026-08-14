@@ -17,11 +17,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from reup_core.logging import setup_logging  # noqa: E402
 from reup_core.paths import audio_path  # noqa: E402
 from reup_core.source_url import parse_source_url  # noqa: E402
+
 from src.config import get_settings  # noqa: E402
 from src.ffmpeg.burn import extract_audio  # noqa: E402
 from src.ffmpeg.probe import probe  # noqa: E402
 from src.pipeline.download import download_video  # noqa: E402
 from src.pipeline.render import render_with_subtitles  # noqa: E402
+from src.pipeline.shortform.safe_area import SafeArea  # noqa: E402
 from src.pipeline.subtitle_format import FormatOptions, format_cues  # noqa: E402
 from src.pipeline.transcribe import transcribe  # noqa: E402
 from src.pipeline.translate import translate_cues  # noqa: E402
@@ -84,7 +86,17 @@ def main() -> int:
     print(f"  → {len(vi_cues)} câu → {len(formatted)} khung sau chuẩn hoá")
 
     step("Render (burn phụ đề)", 6, 6)
-    out = render_with_subtitles(fake_video_id, result.path, formatted)
+    #: Script chạy tay không đọc DB nên không có dòng ``platform_limits`` —
+    #: dùng đúng vùng an toàn TikTok đã seed, ghi rõ ở đây để người đọc biết
+    #: con số từ đâu ra thay vì tưởng là mặc định của hàm.
+    out = render_with_subtitles(
+        fake_video_id,
+        result.path,
+        formatted,
+        safe=SafeArea(top=0.06, bottom=0.18, left=0.05, right=0.20),
+        video_width=info.width,
+        video_height=info.height,
+    )
 
     elapsed = time.perf_counter() - started
     print(f"\n✅ Xong sau {elapsed:.0f}s")

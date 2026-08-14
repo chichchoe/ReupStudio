@@ -8,16 +8,9 @@ from pathlib import Path
 from reup_core.logging import get_logger
 from reup_core.paths import tmp_sibling
 
-from ..config import get_settings
-from ..pipeline.shortform.safe_area import SafeArea, margin_v_pixels
 from .runner import run_ffmpeg, run_ffmpeg_progress
 
 log = get_logger(__name__)
-
-#: Lề dưới cũ, dùng trước khi bảng platform_limits tồn tại. CHỈ còn dùng khi
-#: không truyền ``safe``/``video_height`` — giữ để không phá hành vi của các
-#: chỗ gọi sẵn có (backward-compat, xem test_safe_area.py).
-_LEGACY_MARGIN_V_PX = 120
 
 
 def _escape_for_filter(path: Path) -> str:
@@ -32,67 +25,30 @@ def _escape_for_filter(path: Path) -> str:
     return text
 
 
-def build_force_style(
-    safe: SafeArea | None = None, video_height: int | None = None
-) -> str:
-    """Kiểu chữ phụ đề tiếng Việt: chữ vàng, viền đen dày, đặt trên vùng UI.
-
-    Truyền cả ``safe`` (vùng an toàn đọc từ bảng ``platform_limits``) lẫn
-    ``video_height`` thì ``MarginV`` tính từ ``margin_v_pixels`` — không còn
-    số cứng. Thiếu một trong hai thì giữ nguyên lề mặc định cũ, để các chỗ
-    gọi sẵn có (chưa truyền hai tham số này) không đổi hành vi.
-    """
-    s = get_settings()
-    if safe is not None and video_height is not None:
-        margin_v = margin_v_pixels(safe, video_height)
-    else:
-        # Có safe HOẶC video_height (không phải cả hai) nghĩa là chỗ gọi định
-        # dùng vùng an toàn nhưng thiếu dữ liệu (VD: video.height chưa có lúc
-        # render) — khác với chỗ gọi cũ chủ động không truyền gì cả. Log rõ để
-        # không lặng lẽ rơi về lề cứng mà không ai biết.
-        if safe is not None or video_height is not None:
-            log.warning(
-                "burn.margin_v.thieu_du_lieu_dung_le_du_phong",
-                has_safe=safe is not None,
-                has_video_height=video_height is not None,
-                margin_v_du_phong=_LEGACY_MARGIN_V_PX,
-            )
-        margin_v = _LEGACY_MARGIN_V_PX
-    parts = [
-        f"FontName={s.sub_font}",
-        f"FontSize={s.sub_font_size}",
-        "PrimaryColour=&H006BE8FF",  # vàng (BGR)
-        "OutlineColour=&H00000000",
-        "BorderStyle=1",
-        "Outline=3",
-        "Shadow=1",
-        "Alignment=2",  # căn giữa, sát đáy
-        f"MarginV={margin_v}",
-        "Bold=1",
-    ]
-    return ",".join(parts)
-
-
 def burn_subtitles(
     src: Path,
-    srt: Path,
+    subtitle_file: Path,
     dst: Path,
     *,
     timeout: int | None = None,
     progress_cb: Callable[[int], None] | None = None,
     duration_sec: float | None = None,
-    safe: SafeArea | None = None,
-    video_height: int | None = None,
     start: float | None = None,
     hook_filter: str | None = None,
 ) -> Path:
     """Ghi phụ đề vào khung hình.
 
+    ``subtitle_file`` là file **ASS** do ``pipeline/subtitle_ass.py`` sinh ra:
+    kiểu chữ, cỡ chữ và lề nằm SẴN trong file, tính bằng pixel của khung đích.
+    Ở đây KHÔNG còn ``force_style`` — trước đây hàm này burn từ SRT kèm
+    ``force_style``, mà số trong ``force_style`` bị libass hiểu theo khung
+    384×288 do ffmpeg tự đặt cho SRT, không phải pixel thật; hậu quả là lề dưới
+    346px hoá thành ~2307px và phụ đề bay hẳn ra ngoài mọi khung 1080×1920.
+    Đừng đưa ``force_style`` trở lại (xem ``tests/test_burn_filter.py``).
+
     Ghi ra file tạm rồi rename để không bao giờ có file dở dang ở đường dẫn đích.
     Truyền cả ``progress_cb`` lẫn ``duration_sec`` thì bắn tiến trình qua
     ``run_ffmpeg_progress``; thiếu một trong hai thì giữ nguyên hành vi cũ.
-    ``safe``/``video_height`` được chuyển thẳng cho ``build_force_style`` để
-    đặt lề dưới theo vùng an toàn của nền tảng đích (xem module đó).
 
     ``start`` (giây, tuỳ chọn) cắt một ĐOẠN của ``src`` thay vì burn cả video —
     dùng khi render một tập của ``render_variants`` (M4-WK-05). Đoạn dài
@@ -113,8 +69,7 @@ def burn_subtitles(
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
 
-    force_style = build_force_style(safe, video_height)
-    vf = f"subtitles='{_escape_for_filter(srt)}':force_style='{force_style}'"
+    vf = f"subtitles='{_escape_for_filter(subtitle_file)}'"
     if hook_filter:
         vf = f"{vf},{hook_filter}"
     args: list[str] = []

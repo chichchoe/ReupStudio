@@ -30,6 +30,7 @@ from ..pipeline.render import (
     VariantPlan,
     build_proxy,
     plan_variants,
+    render_normalized,
     render_variant,
     render_with_subtitles,
 )
@@ -98,9 +99,7 @@ def _load_safe_area(session, platform: str) -> SafeArea:
             "không thể tính vùng an toàn phụ đề để burn."
         )
     area = limit.safe_area
-    return SafeArea(
-        top=area["top"], bottom=area["bottom"], left=area["left"], right=area["right"]
-    )
+    return SafeArea(top=area["top"], bottom=area["bottom"], left=area["left"], right=area["right"])
 
 
 def _target_platforms(video) -> list[str]:
@@ -156,9 +155,7 @@ def _load_platform_limits(session, targets: list[str]) -> dict[str, int]:
     ``plan_variants`` tự phát hiện thiếu và ném ``PlatformLimitNotFoundError``
     rõ ràng, không xử lý trùng lặp ở đây.
     """
-    rows = session.scalars(
-        select(PlatformLimit).where(PlatformLimit.platform.in_(targets))
-    ).all()
+    rows = session.scalars(select(PlatformLimit).where(PlatformLimit.platform.in_(targets))).all()
     return {row.platform: row.max_duration_sec for row in rows}
 
 
@@ -224,13 +221,10 @@ def _find_duplicate(session, video) -> tuple[Video, str] | None:
     trùng luôn trỏ về bản gốc, không tạo chuỗi trùng-của-trùng.
     """
     settings = get_settings()
-    alive = (
-        select(Video)
-        .where(
-            Video.id != video.id,
-            Video.deleted_at.is_(None),
-            Video.status != VideoStatus.SKIPPED.value,
-        )
+    alive = select(Video).where(
+        Video.id != video.id,
+        Video.deleted_at.is_(None),
+        Video.status != VideoStatus.SKIPPED.value,
     )
 
     if video.md5:
@@ -276,7 +270,11 @@ def _mark_duplicate(video, original: Video, reason: str) -> None:
 # --------------------------------------------------------------------------- #
 
 
-@app.task(name="reup.download_video", bind=True, max_retries=2, default_retry_delay=30)
+#: KHÔNG thêm ``bind=True`` vào đây. Celery sẽ chèn ``self`` vào tham số đầu,
+#: đúng chỗ ``pipeline_step`` đợi ``video_id`` — bước tải sẽ chết 100% và chết
+#: câm. Cần retry thì dùng ``autoretry_for=(DownloadBlockedError,)``, nó không
+#: đụng tới danh sách tham số. ``tests/test_task_contract.py`` khoá luật này.
+@app.task(name="reup.download_video")
 @pipeline_step(PipelineStep.DOWNLOAD)
 def download_video_task(session, video) -> dict:
     vid = str(video.id)
@@ -327,8 +325,10 @@ def download_video_task(session, video) -> dict:
 @pipeline_step(PipelineStep.PROBE)
 def probe_video_task(session, video) -> dict:
     vid = str(video.id)
-    source = Path(video.raw_path) if video.raw_path else raw_video(
-        video.source_platform, video.source_video_id
+    source = (
+        Path(video.raw_path)
+        if video.raw_path
+        else raw_video(video.source_platform, video.source_video_id)
     )
     info = probe(source)
 
@@ -434,22 +434,36 @@ def render_video_task(session, video) -> dict:
     source = Path(video.raw_path)
     vi_cues = _load_subtitle(session, video, "vi")
 
-    if not vi_cues:
-        # Không có lời thoại: giữ nguyên video, chỉ copy sang thư mục out.
-        from shutil import copyfile
-
-        from reup_core.paths import out_video
-
-        dst = out_video(vid)
-        if not dst.exists():
-            copyfile(source, dst)
-        video.out_path = str(dst)
-        video.status = VideoStatus.READY
-        prog.status_changed(vid, VideoStatus.READY.value, None)
-        return {"subtitles": 0, "note": "không có lời thoại, giữ nguyên video"}
-
     platform = _target_platform(video)
     safe = _load_safe_area(session, platform)
+
+    if not vi_cues:
+        #: Không có lời thoại (nhạc nền, vlog câm) — VẪN chuẩn hoá 9:16 và chèn
+        #: hook, chỉ bỏ phần phụ đề. Trước đây nhánh này copy nguyên bản gốc rồi
+        #: báo READY: hệ thống nói "xong" trong khi thứ giao ra đúng bằng thứ
+        #: nhận vào. Chốt ngày 2026-08-14 theo yêu cầu chủ dự án.
+        out = render_normalized(
+            vid,
+            source,
+            safe=safe,
+            video_width=video.width,
+            video_height=video.height,
+            reframe_mode=_reframe_mode(video),
+            hook_text=_hook_text(video),
+            duration_sec=video.duration_sec,
+            progress_cb=lambda p: prog.progress(vid, PipelineStep.RENDER.value, p),
+        )
+        video.out_path = str(out)
+        video.status = VideoStatus.READY
+        video.current_step = None
+        #: Cờ để Thư viện lọc ra và người dùng biết vì sao bản này không có chữ.
+        video.flags = {**(video.flags or {}), "no_speech": True}
+        prog.status_changed(vid, VideoStatus.READY.value, None)
+        return {
+            "subtitles": 0,
+            "out_size": out.stat().st_size,
+            "note": "không có lời thoại — đã chuẩn hoá khung hình, không có phụ đề",
+        }
 
     out = render_with_subtitles(
         vid,
@@ -458,6 +472,7 @@ def render_video_task(session, video) -> dict:
         progress_cb=lambda p: prog.progress(vid, PipelineStep.RENDER.value, p),
         duration_sec=video.duration_sec,
         safe=safe,
+        video_width=video.width,
         video_height=video.height,
     )
     video.out_path = str(out)

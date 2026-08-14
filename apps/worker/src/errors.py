@@ -19,6 +19,16 @@ class UnsupportedSourceError(DownloadError):
     pass
 
 
+class TaskArgumentError(ReupError):
+    """Task pipeline nhận sai thứ ở vị trí ``video_id``.
+
+    Gần như luôn là do khai báo ``@app.task(bind=True)``: Celery chèn ``self``
+    vào **tham số đầu tiên**, đúng chỗ ``pipeline_step`` đang đợi ``video_id``.
+    Lỗi này thay cho ``ValueError: badly formed hexadecimal UUID string`` — câu
+    đó không nói được nguyên nhân, từng làm bước tải chết câm suốt nhiều tháng.
+    """
+
+
 class FFmpegError(ReupError):
     pass
 
@@ -59,6 +69,15 @@ class InvalidReframeModeError(ReupError):
     số 7 CLAUDE.md) — giá trị lạ thường là lỗi đánh máy trong ``process_config``,
     im lặng dùng mặc định sẽ khiến người cấu hình không biết lựa chọn của họ
     chưa hề được áp dụng.
+    """
+
+
+class InvalidFrameSizeError(ReupError):
+    """Chiều rộng/cao khung hình <= 0 khi dựng phụ đề ASS.
+
+    Cỡ chữ và lề phụ đề quy đổi theo chiều cao khung, nên số 0 hoặc số âm sẽ
+    thành ``ZeroDivisionError`` hoặc một file ASS vô nghĩa. Báo lỗi rõ ngay
+    thay vì render ra một video không có phụ đề mà không ai hiểu vì sao.
     """
 
 

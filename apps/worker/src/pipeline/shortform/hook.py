@@ -41,6 +41,20 @@ _HOOK_FONT_SIZE_RATIO = 0.6
 #: không đọc được).
 _HOOK_MIN_FONT_SIZE_PX = 24
 
+#: Số dòng tối đa của hook. Hơn 2 dòng thì không còn là "hook" mà là một đoạn
+#: văn — người xem lướt qua trước khi đọc hết.
+HOOK_MAX_LINES = 2
+
+#: Bề rộng trung bình của một ký tự, tính theo tỉ lệ cỡ chữ. ``drawtext``
+#: không cho hỏi bề rộng chữ trước khi render (``text_w`` chỉ tồn tại lúc
+#: ffmpeg chạy), nên phải ƯỚC LƯỢNG ở đây. 0.5 là số đo thực nghiệm cho font
+#: sans đậm với chữ tiếng Việt; ước hơi dư còn hơn ước thiếu rồi tràn khung.
+_AVG_CHAR_WIDTH_RATIO = 0.5
+
+#: Mỗi lần thu nhỏ giảm 8% cỡ chữ. Nhỏ hơn thì lặp quá nhiều vòng, lớn hơn thì
+#: nhảy cóc qua cỡ vừa đẹp.
+_FONT_SHRINK_STEP = 0.92
+
 #: Trắng trên nền đen mờ — tương phản cao, KHÁC màu phụ đề (phụ đề vàng, xem
 #: ``build_force_style``) để hai lớp chữ không lẫn vào nhau khi ở gần nhau.
 _HOOK_FONT_COLOR = "white"
@@ -70,6 +84,68 @@ def hook_box(safe: SafeArea) -> tuple[float, float, float, float]:
     available_h = max(0.0, 1 - safe.top - safe.bottom)
     h = min(HOOK_BOX_HEIGHT_FRAC, available_h)
     return (x, y, w, h)
+
+
+def _wrap_words(text: str, max_chars: int) -> list[str]:
+    """Chia câu thành các dòng dài tối đa ``max_chars`` ký tự, không cắt giữa từ.
+
+    Từ dài hơn cả dòng vẫn được giữ nguyên trên một dòng riêng — thà một dòng
+    hơi tràn còn hơn mất chữ.
+    """
+    lines: list[str] = []
+    hien_tai = ""
+    for tu in text.split():
+        thu = f"{hien_tai} {tu}".strip()
+        if hien_tai and len(thu) > max_chars:
+            lines.append(hien_tai)
+            hien_tai = tu
+        else:
+            hien_tai = thu
+    if hien_tai:
+        lines.append(hien_tai)
+    return lines
+
+
+def fit_hook_text(
+    text: str,
+    *,
+    box_w_px: int,
+    box_h_px: int,
+    max_lines: int = HOOK_MAX_LINES,
+    min_font_size: int = _HOOK_MIN_FONT_SIZE_PX,
+) -> tuple[str, int]:
+    """Trả về ``(text đã xuống dòng, cỡ chữ vừa khối hook)``.
+
+    ``drawtext`` không tự xuống dòng và không cho hỏi kích thước chữ trước khi
+    render (``text_w``/``text_h`` chỉ tồn tại lúc ffmpeg chạy), nên phải ước
+    lượng ở đây — xem ``_AVG_CHAR_WIDTH_RATIO``. Không có bước này, câu hook
+    dài hơn khối bị cắt cụt cả hai đầu, đúng lỗi quan sát được trên khung hình
+    render thật ngày 2026-08-14.
+
+    Ép theo CẢ HAI chiều:
+
+    - ngang: mỗi dòng ``số ký tự × cỡ chữ × 0,5`` không vượt ``box_w_px``;
+    - dọc: ``số dòng × cỡ chữ`` không vượt ``box_h_px`` — cỡ chữ mặc định
+      (``box_h × 0,6``) là cỡ dành cho MỘT dòng, để nguyên mà xuống hai dòng
+      thì chữ tràn xuống dưới khối và đè vào video.
+
+    Thu nhỏ dần tới khi vừa, nhưng KHÔNG xuống dưới ``min_font_size``: chữ nhỏ
+    tới mức không đọc được cũng vô dụng như chữ bị cắt, mà lại khó phát hiện
+    hơn.
+    """
+    size = max(min_font_size, round(box_h_px * _HOOK_FONT_SIZE_RATIO))
+    cleaned = " ".join(text.split())
+    if not cleaned:
+        return "", size
+
+    while True:
+        max_chars = max(1, int(box_w_px / (size * _AVG_CHAR_WIDTH_RATIO)))
+        lines = _wrap_words(cleaned, max_chars)
+        vua_ngang = len(lines) <= max_lines
+        vua_doc = len(lines) * size <= box_h_px
+        if (vua_ngang and vua_doc) or size <= min_font_size:
+            return "\n".join(lines), size
+        size = max(min_font_size, int(size * _FONT_SHRINK_STEP))
 
 
 def _escape_drawtext_text(text: str) -> str:
@@ -173,7 +249,9 @@ def build_hook_filter(
     box_w_px = round(w * video_width)
     box_h_px = round(h * video_height)
 
-    font_size = max(_HOOK_MIN_FONT_SIZE_PX, round(box_h_px * _HOOK_FONT_SIZE_RATIO))
+    #: Đo và ép chữ vừa khối hook TRƯỚC khi escape — escape sinh thêm dấu
+    #: ``\`` vào chuỗi, đếm ký tự sau đó là đếm nhầm.
+    text, font_size = fit_hook_text(text, box_w_px=box_w_px, box_h_px=box_h_px)
     escaped_text = _escape_drawtext_text(text)
 
     # text_w/text_h là biến ffmpeg tính lúc render (kích thước chữ thật theo

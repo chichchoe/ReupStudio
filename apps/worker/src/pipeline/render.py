@@ -7,15 +7,22 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 from reup_core.logging import get_logger
-from reup_core.paths import out_video, proxy_path, reframed_video, subtitle_path, variant_video
+from reup_core.paths import (
+    out_video,
+    proxy_path,
+    reframed_video,
+    subtitle_ass_path,
+    variant_video,
+)
 
 from ..errors import InvalidReframeModeError, PlatformLimitNotFoundError
 from ..ffmpeg.burn import burn_subtitles, make_proxy, trim_video
-from .cues import Cue, write_srt
+from .cues import Cue
 from .shortform.hook import build_hook_filter, hook_box, trim_slow_intro
 from .shortform.reframe import DEFAULT_OUT_HEIGHT, DEFAULT_OUT_WIDTH, reframe_blur, reframe_crop
 from .shortform.safe_area import SafeArea
 from .shortform.split import silence_cut_points, split_by_duration
+from .subtitle_ass import build_ass_style, write_ass
 
 log = get_logger(__name__)
 
@@ -32,16 +39,27 @@ def render_with_subtitles(
     target: str = "master",
     progress_cb: Callable[[int], None] | None = None,
     duration_sec: float | None = None,
-    safe: SafeArea | None = None,
-    video_height: int | None = None,
+    safe: SafeArea,
+    video_width: int | None,
+    video_height: int | None,
 ) -> Path:
-    """Ghi SRT rồi burn vào video, trả về đường dẫn file kết quả.
+    """Ghi phụ đề ra file ASS rồi burn vào video, trả về đường dẫn kết quả.
 
-    ``safe``/``video_height`` (tuỳ chọn) được chuyển thẳng cho
-    ``burn_subtitles`` để đặt lề dưới phụ đề theo vùng an toàn của nền tảng
-    đích — không truyền thì giữ lề mặc định cũ.
+    ``safe`` (vùng an toàn của nền tảng đích, đọc từ ``platform_limits``) cùng
+    ``video_width``/``video_height`` quyết định lề và cỡ chữ — tất cả tính bằng
+    pixel của khung, khớp với ``PlayRes`` ghi trong chính file ASS.
+
+    Thiếu kích thước khung thì ném ``InvalidFrameSizeError`` chứ KHÔNG render
+    tiếp bằng số mặc định: hỏng kiểu đó cho ra video trông bình thường nhưng
+    mất sạch phụ đề, loại hỏng khó phát hiện nhất.
     """
-    srt = write_srt(cues, subtitle_path(video_id, "vi"))
+    ass = write_ass(
+        cues,
+        subtitle_ass_path(video_id, "vi"),
+        width=video_width,
+        height=video_height,
+        style=build_ass_style(safe, video_width, video_height),
+    )
     dst = out_video(video_id, target)
 
     if dst.exists() and dst.stat().st_size > 0:
@@ -50,12 +68,10 @@ def render_with_subtitles(
 
     burn_subtitles(
         source,
-        srt,
+        ass,
         dst,
         progress_cb=progress_cb,
         duration_sec=duration_sec,
-        safe=safe,
-        video_height=video_height,
     )
     log.info("render.done", path=str(dst), size=dst.stat().st_size)
     return dst
@@ -173,6 +189,109 @@ def _cues_for_segment(cues: list[Cue], start: float, end: float) -> list[Cue]:
     return segment
 
 
+def _reframe_if_horizontal(
+    video_id: str,
+    source: Path,
+    video_width: int | None,
+    video_height: int | None,
+    reframe_mode: str,
+) -> tuple[Path, int | None, int | None]:
+    """Đổi khung ngang -> dọc nếu cần. Trả ``(nguồn để render, rộng, cao)``.
+
+    Nguồn đã dọc thì giữ nguyên — scale đi scale lại chỉ làm giảm chất lượng.
+    Thiếu kích thước (hiếm, ``probe`` luôn chạy trước) thì coi như không đổi
+    khung, không ném lỗi.
+
+    File trung gian đặt tên theo ``video_id`` + ``reframe_mode``, KHÔNG theo
+    nền tảng hay tập: đổi khung không phụ thuộc hai thứ đó, nên chỉ tốn công
+    đổi MỘT LẦN cho cả video rồi mọi lần gọi sau dùng lại.
+    """
+    is_horizontal = (
+        video_width is not None and video_height is not None and video_width > video_height
+    )
+    if not is_horizontal:
+        return source, video_width, video_height
+
+    if reframe_mode not in _VALID_REFRAME_MODES:
+        raise InvalidReframeModeError(
+            f"reframe_mode '{reframe_mode}' không hợp lệ — chỉ nhận {sorted(_VALID_REFRAME_MODES)}."
+        )
+    reframed = reframed_video(video_id, reframe_mode)
+    if reframed.exists() and reframed.stat().st_size > 0:
+        log.info("render.reframe_skip_existing", path=str(reframed))
+    else:
+        reframe_fn = reframe_blur if reframe_mode == "blur" else reframe_crop
+        reframe_fn(source, reframed)
+        log.info("render.reframe_done", mode=reframe_mode, path=str(reframed))
+    return reframed, DEFAULT_OUT_WIDTH, DEFAULT_OUT_HEIGHT
+
+
+def render_normalized(
+    video_id: str,
+    source: Path,
+    *,
+    safe: SafeArea,
+    video_width: int | None,
+    video_height: int | None,
+    target: str = "master",
+    reframe_mode: str = "blur",
+    hook_text: str | None = None,
+    duration_sec: float | None = None,
+    progress_cb: Callable[[int], None] | None = None,
+) -> Path:
+    """Chuẩn hoá video KHÔNG có phụ đề: đổi khung 9:16, chèn hook.
+
+    Dùng cho video không có lời thoại (nhạc nền, vlog câm) hoặc video mà bước
+    nhận dạng không nghe ra gì. Trước đây trường hợp này ``copyfile`` nguyên
+    bản gốc sang thư mục ``out/`` rồi báo READY — hệ thống nói "xong" trong khi
+    thứ giao ra đúng bằng thứ nhận vào. Chốt ngày 2026-08-14: vẫn chuẩn hoá,
+    chỉ bỏ phần phụ đề.
+
+    Không có hook thì chỉ CẮT (``trim_video``, ``-c copy``) chứ không encode
+    lại: không có chữ nào để vẽ lên hình thì encode lại chỉ tốn thời gian và
+    mất chất lượng.
+    """
+    dst = out_video(video_id, target)
+    if dst.exists() and dst.stat().st_size > 0:
+        log.info("render_normalized.skip_existing", path=str(dst))
+        return dst
+
+    render_source, out_width, out_height = _reframe_if_horizontal(
+        video_id, source, video_width, video_height, reframe_mode
+    )
+
+    hook_filter: str | None = None
+    if hook_text and out_width is not None and out_height is not None:
+        hook_filter = build_hook_filter(hook_text, hook_box(safe), out_width, out_height)
+    elif hook_text:
+        log.warning("render_normalized.hook_skip_thieu_kich_thuoc", video_id=video_id)
+
+    if hook_filter is None:
+        trim_video(render_source, dst, duration_sec=duration_sec)
+    else:
+        #: ASS rỗng: không có cue nào để vẽ, nhưng ``burn_subtitles`` là chỗ
+        #: duy nhất biết ghép ``hook_filter`` vào lệnh ffmpeg — đi qua đây để
+        #: không nhân đôi logic dựng lệnh.
+        ass = write_ass(
+            [],
+            subtitle_ass_path(video_id, f"vi.{target}"),
+            width=out_width,
+            height=out_height,
+            style=build_ass_style(safe, out_width, out_height),
+        )
+        burn_subtitles(
+            render_source,
+            ass,
+            dst,
+            progress_cb=progress_cb,
+            duration_sec=duration_sec,
+            hook_filter=hook_filter,
+        )
+
+    log.info("render_normalized.done", path=str(dst), size=dst.stat().st_size)
+    return dst
+
+
 def render_variant(
     video_id: str,
     source: Path,
@@ -180,7 +299,11 @@ def render_variant(
     plan: VariantPlan,
     *,
     progress_cb: Callable[[int], None] | None = None,
-    safe: SafeArea | None = None,
+    #: BẮT BUỘC. Trước đây tham số này có mặc định ``None`` và bước burn âm
+    #: thầm rơi về lề cứng 120 — chính cơ chế đó che lỗi phụ đề bay ra ngoài
+    #: khung suốt nhiều tháng. Không có vùng an toàn thì không đặt được lề,
+    #: và render ra video mất phụ đề còn tệ hơn dừng lại.
+    safe: SafeArea,
     video_width: int | None = None,
     video_height: int | None = None,
     reframe_mode: str = "blur",
@@ -225,26 +348,9 @@ def render_variant(
         return dst
 
     # --- Bước 1: reframe ngang -> dọc TRƯỚC (xem lý do thứ tự ở docstring) ---
-    render_source = source
-    out_width, out_height = video_width, video_height
-    is_horizontal = (
-        video_width is not None and video_height is not None and video_width > video_height
+    render_source, out_width, out_height = _reframe_if_horizontal(
+        video_id, source, video_width, video_height, reframe_mode
     )
-    if is_horizontal:
-        if reframe_mode not in _VALID_REFRAME_MODES:
-            raise InvalidReframeModeError(
-                f"reframe_mode '{reframe_mode}' không hợp lệ — chỉ nhận "
-                f"{sorted(_VALID_REFRAME_MODES)}."
-            )
-        reframed = reframed_video(video_id, reframe_mode)
-        if reframed.exists() and reframed.stat().st_size > 0:
-            log.info("render_variant.reframe_skip_existing", path=str(reframed))
-        else:
-            reframe_fn = reframe_blur if reframe_mode == "blur" else reframe_crop
-            reframe_fn(source, reframed)
-            log.info("render_variant.reframe_done", mode=reframe_mode, path=str(reframed))
-        render_source = reframed
-        out_width, out_height = DEFAULT_OUT_WIDTH, DEFAULT_OUT_HEIGHT
 
     # --- Bước 2: hook + cắt mở đầu ì ạch, chỉ áp cho TẬP ĐẦU (M4-WK-03) ---
     segment_cues = _cues_for_segment(cues, plan.start, plan.end)
@@ -272,18 +378,22 @@ def render_variant(
         log.info("render_variant.trim_only", path=str(dst), size=dst.stat().st_size)
         return dst
 
-    srt = write_srt(
+    #: Kích thước dùng để dựng ASS là khung SAU reframe (``out_width``/
+    #: ``out_height``), không phải khung nguồn — burn chạy trên video đã đổi
+    #: khung, lề tính theo khung nguồn sẽ lệch đúng bằng tỉ lệ scale.
+    ass = write_ass(
         segment_cues,
-        subtitle_path(video_id, f"vi.{plan.target_platform}.p{plan.part_index}"),
+        subtitle_ass_path(video_id, f"vi.{plan.target_platform}.p{plan.part_index}"),
+        width=out_width,
+        height=out_height,
+        style=build_ass_style(safe, out_width, out_height),
     )
     burn_subtitles(
         render_source,
-        srt,
+        ass,
         dst,
         progress_cb=progress_cb,
         duration_sec=duration,
-        safe=safe,
-        video_height=out_height,
         start=start,
         hook_filter=hook_filter,
     )
