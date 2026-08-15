@@ -57,13 +57,29 @@ def test_mask_rong_hon_khung_chu_o_ca_bon_phia() -> None:
 
 
 def test_noi_bien_khong_tran_ra_ngoai_khung() -> None:
-    """Toạ độ âm hoặc quá 1 làm hỏng phép quy đổi sang pixel ở bước vá."""
-    (m,) = dung_mask([_vung(x=0.0, y=0.0, w=1.0, h=1.0)], TS)
+    """Toạ độ âm hoặc quá 1 làm hỏng phép quy đổi sang pixel ở bước vá.
+
+    Gọi thẳng ``noi_bien`` chứ không qua ``dung_mask``: một vùng phủ trọn khung
+    hình bị chốt diện tích ở cuối ``dung_mask`` loại bỏ — đúng như mong muốn —
+    nên đi đường đó thì không kiểm được phép kẹp toạ độ.
+    """
+    from src.pipeline.masking.timeline import noi_bien
+
+    m = noi_bien(_vung(x=0.0, y=0.0, w=1.0, h=1.0), TS)
 
     assert m.x == 0.0
     assert m.y == 0.0
     assert m.x + m.w == pytest.approx(1.0)
     assert m.y + m.h == pytest.approx(1.0)
+
+
+def test_vung_phu_gan_tron_khung_bi_BO_o_chot_cuoi() -> None:
+    """Chốt cuối: mask quá lớn bị bỏ hẳn, không bị cắt nhỏ.
+
+    Cắt nhỏ sẽ xoá một phần tuỳ tiện của vùng đó. Bỏ hẳn thì chữ còn nguyên —
+    người dùng thấy ngay và sửa tay được.
+    """
+    assert dung_mask([_vung(x=0.0, y=0.0, w=1.0, h=1.0)], TS) == []
 
 
 def test_chu_cao_hon_thi_noi_bien_nhieu_hon() -> None:
@@ -259,3 +275,30 @@ def test_toa_do_luon_phan_tram_0_1() -> None:
     for m in dung_mask([_vung(), _vung(y=0.02, h=0.04)], TS):
         for gia_tri in (m.x, m.y, m.w, m.h):
             assert 0.0 <= gia_tri <= 1.0
+
+
+def test_gop_KHONG_duoc_no_day_chuyen_thanh_mask_nuot_ca_khung() -> None:
+    """Ca hỏng thật, phát hiện khi chạy trên video rednote đầy đủ (2026-08-15).
+
+    Mask cuối cùng ghi vào DB là 96% × 89% khung hình, phủ suốt 123 giây — máy
+    định xoá gần trọn video. Trần chống phình chỉ so khung GỘP với hai khung
+    vừa gộp, nên mỗi bước đều lọt: A+B hơi to, (A+B)+C hơi to hơn, cứ thế lớn
+    dần cho tới khi nuốt cả khung.
+
+    Phụ đề và watermark luôn NHỎ. Một mask chiếm phần lớn khung hình không bao
+    giờ đúng, bất kể nó lớn lên theo đường nào — nên phải chặn bằng trần TUYỆT
+    ĐỐI, không phải trần tương đối.
+    """
+    #: Sáu dải chữ rải khắp khung, chồng thời gian, mỗi cặp kề nhau chồng chỗ
+    #: một chút — đúng hình dạng dẫn tới vụ nổ dây chuyền.
+    vung = [
+        _vung(x=0.05, y=0.02 + i * 0.14, w=0.9, h=0.13, bat_dau=0.0, ket_thuc=120.0)
+        for i in range(6)
+    ]
+
+    ra = dung_mask(vung, TS)
+
+    for m in ra:
+        assert m.w * m.h <= TS.dien_tich_toi_da, (
+            f"mask nuốt {m.w * m.h:.0%} khung hình — chắc chắn xoá nhầm cả hình"
+        )

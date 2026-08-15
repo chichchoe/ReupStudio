@@ -102,13 +102,23 @@ export type WsEvent =
 // Hằng số và nhãn hiển thị — thuộc giao diện, không thuộc API
 // --------------------------------------------------------------------------
 
-/** Các bước chạy trong chuỗi M1, theo đúng thứ tự hiển thị trên thanh tiến trình. */
+/**
+ * Các bước chạy trong chuỗi xử lý, theo đúng thứ tự hiển thị trên thanh tiến
+ * trình. Phải khớp `M1_STEPS` ở `reup_core/enums.py` — thiếu bước nào thì thanh
+ * tiến trình đứng im trong lúc bước đó chạy, và người dùng tưởng máy treo.
+ *
+ * `detect` và `inpaint` (xoá chữ cứng) chạy hàng chục phút trên video dài, nên
+ * bỏ sót chúng ở đây là bỏ sót đúng quãng chờ lâu nhất.
+ */
 export const M1_STEPS: PipelineStep[] = [
   "download",
   "probe",
   "transcribe",
   "translate",
   "format_sub",
+  "detect",
+  "inpaint",
+  "tts",
   "render",
 ];
 

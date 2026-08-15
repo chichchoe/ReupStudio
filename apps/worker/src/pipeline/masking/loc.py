@@ -46,6 +46,18 @@ class NguongLoc:
     #: Hai box coi là cùng một vệt khi phần giao vượt mức này.
     iou_cung_vet: float = 0.45
 
+    #: Chiều cao khung bao của một vệt không được vượt quá ngần này lần chiều
+    #: cao box ĐẦU TIÊN của vệt đó.
+    #:
+    #: Vệt gom theo box gần nhất nên một dải phụ đề trôi dần theo thời gian sẽ
+    #: nối thành MỘT vệt có khung bao rất cao — đo trên video rednote: dải cao
+    #: 6% khung nở thành 32% và phủ suốt 2 phút. Mask như vậy vá cả phần hình
+    #: vốn sạch nằm giữa hai câu.
+    #:
+    #: Chỉ siết chiều cao, không siết bề rộng: câu dài ngắn khác nhau nên bề
+    #: rộng nở ra là chuyện bình thường.
+    cao_toi_da_cua_vet: float = 1.8
+
     #: CỔNG CHẶN, không phải điểm: vệt xuất hiện dưới ngần này khung thì loại
     #: thẳng. Phụ đề hay watermark muốn đọc được thì phải tồn tại ít nhất nửa
     #: giây, tức ít nhất 2 mẫu ở nhịp 2 khung/giây. Chữ chỉ thoáng qua một khung
@@ -146,9 +158,19 @@ def gom_thanh_vet(boxes: list[TextBox], nguong: NguongLoc) -> list[VetChu]:
             #: chậm sẽ trôi xa dần khỏi điểm xuất phát nhưng luôn gần khung
             #: trước nó, và ta muốn nó vẫn được nối thành một vệt để thấy rõ là
             #: nó đang di chuyển.
-            if nhom[-1].giao_nhau(box) >= nguong.iou_cung_vet:
-                nhom.append(box)
-                break
+            if nhom[-1].giao_nhau(box) < nguong.iou_cung_vet:
+                continue
+
+            #: Nhưng phải chặn vệt nở dọc mãi — xem ``cao_toi_da_cua_vet``.
+            #: Vượt trần thì TÁCH vệt mới thay vì nối tiếp: hai câu ở hai độ cao
+            #: khác nhau đúng là hai mask khác nhau.
+            tren = min(b.y for b in [*nhom, box])
+            duoi = max(b.y + b.h for b in [*nhom, box])
+            if (duoi - tren) > nhom[0].h * nguong.cao_toi_da_cua_vet:
+                continue
+
+            nhom.append(box)
+            break
         else:
             vet.append([box])
 

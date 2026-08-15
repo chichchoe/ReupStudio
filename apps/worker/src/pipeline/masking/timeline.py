@@ -22,7 +22,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from reup_core.logging import get_logger
+
 from .kieu import VungCanXoa
+
+log = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -53,6 +57,43 @@ class ThamSoTimeline:
     #: tổng diện tích hai mask nhân hệ số này. Chặn trường hợp hai dải mỏng bắt
     #: chéo nhau tạo ra một khung vuông to nuốt cả vùng hình vốn sạch.
     tran_phinh_khi_gop: float = 1.8
+
+    #: Trần phình CHIỀU CAO khi nối một vùng với chính nó qua thời gian, so với
+    #: chiều cao lúc vệt mới bắt đầu.
+    #:
+    #: Chỉ siết chiều cao, không siết diện tích: câu phụ đề dài ngắn khác nhau
+    #: nên BỀ RỘNG nở ra là chuyện bình thường và phải cho phép. Thứ nở bệnh
+    #: hoạn là chiều cao — đo trên video rednote khi chưa siết: dải phụ đề cao
+    #: 6% khung nở thành 40% và phủ suốt 2 phút, vá cả những khung vốn sạch
+    #: giữa hai câu.
+    tran_phinh_chieu_cao: float = 1.6
+
+    #: Hai mask chỉ được GỘP khi phần chồng thời gian chiếm ít nhất chừng này
+    #: của CẢ HAI khoảng sống.
+    #:
+    #: Bước gộp sinh ra để xử ba dòng tuyên bố xếp chồng ở đỉnh khung — chúng
+    #: hiện cùng lúc, tắt cùng lúc. Điều kiện "chồng thời gian" lỏng lẻo lại
+    #: gộp luôn hai dải phụ đề thuộc hai lúc khác nhau chỉ vì chúng chạm nhau
+    #: một chút, và cứ thế nở tới trần tuyệt đối: đo trên video rednote ra mask
+    #: 34% khung phủ 92 giây.
+    chong_thoi_gian_toi_thieu: float = 0.8
+
+    #: TRẦN TUYỆT ĐỐI cho diện tích một mask, tính theo tỉ lệ khung hình.
+    #:
+    #: Chạy trên video rednote đầy đủ (2026-08-15) cho ra một mask 96% × 89%
+    #: khung hình phủ suốt 123 giây — máy định xoá gần trọn video. Trần tương
+    #: đối ở trên không chặn được: nó chỉ so khung gộp với hai khung vừa gộp,
+    #: nên mỗi bước đều lọt, A+B hơi to rồi (A+B)+C hơi to hơn, cứ thế lớn dần.
+    #:
+    #: Phụ đề và watermark LUÔN nhỏ. Một mask chiếm phần lớn khung hình không
+    #: bao giờ đúng, bất kể nó lớn lên theo đường nào.
+    #:
+    #: Quét bốn mức trên video rednote (0,35 / 0,20 / 0,15 / 0,10) cho chi phí
+    #: 88,7 / 80,9 / 85,0 / 83,0 — siết chặt hơn 0,20 không lợi thêm, vì mask to
+    #: bị bỏ thì các mask nhỏ trước đó bị nó nuốt lại nổi lên. Chọn 0,20: rẻ
+    #: nhất trong bốn mức, và "một phần năm khung hình" là mức mà mắt người
+    #: cũng thấy ngay là quá lớn cho một dòng phụ đề.
+    dien_tich_toi_da: float = 0.20
 
 
 @dataclass(frozen=True)
@@ -145,23 +186,52 @@ def noi_khoang_ho(masks: list[MaskRegion], tham_so: ThamSoTimeline) -> list[Mask
     thì phụ đề dưới đáy và khối tuyên bố trên đỉnh sẽ dính vào nhau thành một
     mask khổng lồ nuốt trọn khung hình.
     """
-    ra: list[MaskRegion] = []
+    #: Giữ kèm CHIỀU CAO của mask khởi đầu mỗi vệt. Neo trần vào khung hiện tại
+    #: là vô dụng: khung đó tự lớn lên sau mỗi lần nối, nên "không quá 1,6 lần
+    #: khung hiện tại" vẫn cho phép nở mãi. Đo trên video rednote khi neo sai
+    #: như vậy: mask vẫn ra 32% khung phủ suốt 2 phút.
+    ra: list[tuple[MaskRegion, float]] = []
 
     for mask in sorted(masks, key=lambda m: m.bat_dau):
-        for chi_so, da_co in enumerate(ra):
+        for chi_so, (da_co, cao_goc) in enumerate(ra):
             cung_cho = da_co.giao_nhau(mask) >= tham_so.iou_cung_cho
             ho = mask.bat_dau - da_co.ket_thuc
-            if cung_cho and ho <= tham_so.ho_toi_da:
-                ra[chi_so] = _gop(da_co, mask)
-                break
+            if not (cung_cho and ho <= tham_so.ho_toi_da):
+                continue
+
+            gop = _gop(da_co, mask)
+            #: Cùng một dải phụ đề nhưng câu một dòng và câu hai dòng có chiều
+            #: cao khác nhau; nối vô điều kiện qua cả video sẽ nở dần thành một
+            #: dải cao phủ suốt video, và dải như vậy vá cả những khung vốn sạch
+            #: giữa hai câu.
+            #:
+            #: Thà giữ nhiều mask nhỏ, mỗi cái chỉ sống đúng lúc chữ hiện: vừa
+            #: đúng hơn vừa rẻ hơn, vì phần lớn khung không còn mask nào.
+            if gop.h > cao_goc * tham_so.tran_phinh_chieu_cao:
+                continue
+
+            ra[chi_so] = (gop, cao_goc)
+            break
         else:
-            ra.append(mask)
+            ra.append((mask, mask.h))
 
-    return ra
+    return [m for m, _ in ra]
 
 
-def _chong_thoi_gian(a: MaskRegion, b: MaskRegion) -> bool:
-    return a.bat_dau <= b.ket_thuc and b.bat_dau <= a.ket_thuc
+def _ti_le_chong_thoi_gian(a: MaskRegion, b: MaskRegion) -> float:
+    """Phần chồng thời gian, tính theo khoảng NGẮN hơn trong hai khoảng.
+
+    Chia cho khoảng ngắn hơn chứ không cho khoảng dài hơn: một mask 2 giây nằm
+    trọn trong một mask 100 giây thì chúng KHÔNG phải cùng một thứ, và chia cho
+    100 giây sẽ ra tỉ lệ 2% — đúng, còn chia cho 2 giây ra 100% — sai.
+    """
+    chung = min(a.ket_thuc, b.ket_thuc) - max(a.bat_dau, b.bat_dau)
+    if chung <= 0:
+        return 0.0
+    dai_a = a.ket_thuc - a.bat_dau
+    dai_b = b.ket_thuc - b.bat_dau
+    dai_nhat = max(dai_a, dai_b)
+    return chung / dai_nhat if dai_nhat > 0 else 0.0
 
 
 def _chong_khong_gian(a: MaskRegion, b: MaskRegion) -> bool:
@@ -192,11 +262,17 @@ def gop_chong_nhau(masks: list[MaskRegion], tham_so: ThamSoTimeline) -> list[Mas
         for i in range(len(ra)):
             for j in range(i + 1, len(ra)):
                 a, b = ra[i], ra[j]
-                if not (_chong_thoi_gian(a, b) and _chong_khong_gian(a, b)):
+                cung_luc = _ti_le_chong_thoi_gian(a, b) >= tham_so.chong_thoi_gian_toi_thieu
+                if not (cung_luc and _chong_khong_gian(a, b)):
                     continue
 
                 gop = _gop(a, b)
-                if gop.w * gop.h > (a.w * a.h + b.w * b.h) * tham_so.tran_phinh_khi_gop:
+                dien_tich = gop.w * gop.h
+                #: Hai trần, và trần TUYỆT ĐỐI mới là cái chặn được nổ dây
+                #: chuyền — xem ``dien_tich_toi_da``.
+                if dien_tich > tham_so.dien_tich_toi_da:
+                    continue
+                if dien_tich > (a.w * a.h + b.w * b.h) * tham_so.tran_phinh_khi_gop:
                     continue
 
                 ra = [m for k, m in enumerate(ra) if k not in (i, j)] + [gop]
@@ -226,4 +302,19 @@ def dung_mask(vung: list[VungCanXoa], tham_so: ThamSoTimeline | None = None) -> 
     da_noi_ho = noi_khoang_ho(da_noi_bien, tham_so)
     da_gop = gop_chong_nhau(da_noi_ho, tham_so)
 
-    return sorted(da_gop, key=lambda m: (m.bat_dau, m.y))
+    #: Chốt cuối: mask quá lớn bị BỎ, không phải bị cắt nhỏ. Cắt nhỏ sẽ xoá một
+    #: phần tuỳ tiện của vùng đó. Bỏ hẳn thì chữ còn nguyên — người dùng thấy
+    #: ngay và sửa tay được, đúng nguyên tắc "phân vân thì không xoá".
+    ra: list[MaskRegion] = []
+    for m in da_gop:
+        if m.w * m.h > tham_so.dien_tich_toi_da:
+            log.warning(
+                "mask.bo_vi_qua_lon",
+                dien_tich=round(m.w * m.h, 3),
+                tran=tham_so.dien_tich_toi_da,
+                y=round(m.y, 3),
+            )
+            continue
+        ra.append(m)
+
+    return sorted(ra, key=lambda m: (m.bat_dau, m.y))
