@@ -65,32 +65,47 @@ def render_with_subtitles(
     safe: SafeArea,
     video_width: int | None,
     video_height: int | None,
+    reframe_mode: str = "blur",
 ) -> Path:
-    """Ghi phụ đề ra file ASS rồi burn vào video, trả về đường dẫn kết quả.
+    """Đổi khung sang dọc 9:16 rồi burn phụ đề, trả về đường dẫn kết quả.
 
     ``safe`` (vùng an toàn của nền tảng đích, đọc từ ``platform_limits``) cùng
-    ``video_width``/``video_height`` quyết định lề và cỡ chữ — tất cả tính bằng
-    pixel của khung, khớp với ``PlayRes`` ghi trong chính file ASS.
+    kích thước khung quyết định lề và cỡ chữ — tất cả tính bằng pixel của khung,
+    khớp với ``PlayRes`` ghi trong chính file ASS.
+
+    Kích thước dùng để dựng ASS là khung SAU khi đổi, KHÔNG phải khung nguồn.
+    Dựng theo khung nguồn thì lề và cỡ chữ tính trên 320×240 rồi đem vẽ lên
+    1080×1920 — chữ bé như hạt gạo nằm lệch một góc, mà video vẫn chạy nên
+    không ai biết.
+
+    Bước đổi khung thêm ngày 2026-08-15. Trước đó chỉ nhánh KHÔNG lời thoại
+    (``render_normalized``) đổi khung, nên mọi video thật — video nào chẳng có
+    người nói — đều ra đúng khung nguồn, trái với "video dọc 9:16 là mặc định"
+    ghi trong CLAUDE.md.
 
     Thiếu kích thước khung thì ném ``InvalidFrameSizeError`` chứ KHÔNG render
     tiếp bằng số mặc định: hỏng kiểu đó cho ra video trông bình thường nhưng
     mất sạch phụ đề, loại hỏng khó phát hiện nhất.
     """
+    render_source, out_width, out_height = _reframe_if_horizontal(
+        video_id, source, video_width, video_height, reframe_mode
+    )
+
     ass = write_ass(
         cues,
         subtitle_ass_path(video_id, "vi"),
-        width=video_width,
-        height=video_height,
-        style=build_ass_style(safe, video_width, video_height),
+        width=out_width,
+        height=out_height,
+        style=build_ass_style(safe, out_width, out_height),
     )
     dst = out_video(video_id, target)
 
-    if ban_cu_con_dung(dst, ass, source):
+    if ban_cu_con_dung(dst, ass, render_source):
         log.info("render.skip_existing", path=str(dst))
         return dst
 
     burn_subtitles(
-        source,
+        render_source,
         ass,
         dst,
         progress_cb=progress_cb,

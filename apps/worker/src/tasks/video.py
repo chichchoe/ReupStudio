@@ -567,6 +567,7 @@ def render_video_task(session, video) -> dict:
         safe=safe,
         video_width=video.width,
         video_height=video.height,
+        reframe_mode=_reframe_mode(video),
     )
     video.out_path = str(out)
     video.status = VideoStatus.READY
