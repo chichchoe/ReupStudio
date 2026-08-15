@@ -5,6 +5,8 @@ description = "Model, enum và tiện ích dùng chung giữa api và worker"
 requires-python = ">=3.11"
 dependencies = [
     "sqlalchemy>=2.0.30",
+    # Mã hoá bí mật trước khi lưu DB (luật số 6 CLAUDE.md).
+    "cryptography>=42",
     "psycopg[binary]>=3.2",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",

@@ -520,6 +520,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Doc Cau Hinh
+         * @description Toàn bộ cấu hình, nhóm theo chủ đề. Bí mật luôn bị che.
+         */
+        get: operations["doc_cau_hinh_api_v1_settings_get"];
+        /**
+         * Sua Cau Hinh
+         * @description Lưu cấu hình.
+         *
+         *     Ô bí mật để TRỐNG nghĩa là "giữ nguyên cái đang có", không phải "xoá đi" —
+         *     giao diện không bao giờ nhận được giá trị thật nên nó luôn gửi lên chuỗi
+         *     rỗng ở những ô người dùng không sửa.
+         *
+         *     Ba biến bootstrap bị từ chối thẳng: ghi ``DATABASE_URL`` vào DB rồi đè lên
+         *     biến đang dùng để tới DB thì lần khởi động sau không vào nổi database.
+         */
+        put: operations["sua_cau_hinh_api_v1_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/sinh-khoa-ma-hoa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sinh Khoa Ma Hoa
+         * @description Sinh một khoá Fernet để người dùng dán vào ``.env``.
+         *
+         *     KHÔNG tự ghi vào ``.env``: ghi hộ thì lần sau đổi khoá sẽ âm thầm làm mọi
+         *     bí mật đang lưu không giải mã được nữa. Đây là thao tác một lần, và người
+         *     dùng phải biết mình vừa đặt cái gì ở đâu.
+         */
+        post: operations["sinh_khoa_ma_hoa_api_v1_settings_sinh_khoa_ma_hoa_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -579,6 +634,13 @@ export interface components {
             id: string;
             /** Reason */
             reason: string;
+        };
+        /** CauHinhOut */
+        CauHinhOut: {
+            /** Nhom */
+            nhom: components["schemas"]["NhomCauHinhOut"][];
+            /** Khoa Bootstrap */
+            khoa_bootstrap: string[];
         };
         /** CreateFromLinks */
         CreateFromLinks: {
@@ -648,6 +710,13 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** KhoaMoiOut */
+        KhoaMoiOut: {
+            /** Khoa */
+            khoa: string;
+            /** Huong Dan */
+            huong_dan: string;
+        };
         /**
          * LicenseStatus
          * @description Tình trạng quyền sử dụng của kênh nguồn.
@@ -713,6 +782,26 @@ export interface components {
              * @description 0 = KHÔNG giới hạn (chưa khai trần), không phải cấm gọi.
              */
             monthly_budget_usd: number;
+        };
+        /** MucCauHinhOut */
+        MucCauHinhOut: {
+            /** Key */
+            key: string;
+            /** Mo Ta */
+            mo_ta: string;
+            /** Value */
+            value: string;
+            /** Is Secret */
+            is_secret: boolean;
+            /** Da Dat */
+            da_dat: boolean;
+        };
+        /** NhomCauHinhOut */
+        NhomCauHinhOut: {
+            /** Ten */
+            ten: string;
+            /** Muc */
+            muc: components["schemas"]["MucCauHinhOut"][];
         };
         /** Page[VideoOut] */
         Page_VideoOut_: {
@@ -1055,6 +1144,18 @@ export interface components {
          * @enum {string}
          */
         SourcePlatform: "douyin" | "bilibili" | "kuaishou" | "xiaohongshu" | "weibo" | "youtube" | "tiktok" | "instagram" | "facebook" | "twitter" | "other";
+        /**
+         * SuaCauHinhIn
+         * @description Chỉ gửi những khoá thật sự đổi.
+         *
+         *     Ô bí mật để trống = giữ nguyên, không phải xoá.
+         */
+        SuaCauHinhIn: {
+            /** Gia Tri */
+            gia_tri?: {
+                [key: string]: string;
+            };
+        };
         /** SubtitleCue */
         SubtitleCue: {
             /** I */
@@ -2239,6 +2340,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LlmUsageOut"];
+                };
+            };
+        };
+    };
+    doc_cau_hinh_api_v1_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CauHinhOut"];
+                };
+            };
+        };
+    };
+    sua_cau_hinh_api_v1_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuaCauHinhIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CauHinhOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sinh_khoa_ma_hoa_api_v1_settings_sinh_khoa_ma_hoa_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KhoaMoiOut"];
                 };
             };
         };

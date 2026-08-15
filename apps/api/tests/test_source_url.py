@@ -73,9 +73,7 @@ def test_link_douyin_dang_modal_id_nhan_dien_duoc() -> None:
     trả về ``ERROR: Unsupported URL``, trong khi ``/video/<id>`` thì nhận. Nên
     phải bóc ID ra chứ không đưa nguyên URL xuống bước tải.
     """
-    parsed = parse_source_url(
-        "https://www.douyin.com/jingxuan/vlog?modal_id=7665256127663312179"
-    )
+    parsed = parse_source_url("https://www.douyin.com/jingxuan/vlog?modal_id=7665256127663312179")
     assert parsed is not None
     assert parsed.platform is SourcePlatform.DOUYIN
     assert parsed.video_id == "7665256127663312179"
@@ -84,9 +82,7 @@ def test_link_douyin_dang_modal_id_nhan_dien_duoc() -> None:
 
 def test_link_modal_id_duoc_viet_lai_ve_dang_chuan() -> None:
     """URL lưu vào DB (và đưa cho yt-dlp) phải là dạng yt-dlp hiểu được."""
-    parsed = parse_source_url(
-        "https://www.douyin.com/jingxuan/vlog?modal_id=7665256127663312179"
-    )
+    parsed = parse_source_url("https://www.douyin.com/jingxuan/vlog?modal_id=7665256127663312179")
     assert parsed is not None
     assert parsed.url == "https://www.douyin.com/video/7665256127663312179"
 

@@ -25,6 +25,15 @@ export function Topbar() {
         ReupStudio
       </Link>
 
+      <nav className="flex items-center gap-3 text-[12.5px]">
+        <Link href="/library" className="text-muted hover:text-fg">
+          Thư viện
+        </Link>
+        <Link href="/settings" className="text-muted hover:text-fg">
+          Cấu hình
+        </Link>
+      </nav>
+
       <div className="ml-auto flex items-center gap-3 text-xs text-muted">
         <Badge ok={apiOk} label={apiOk ? "API sẵn sàng" : "API chưa kết nối"} />
         <Badge ok={connected} label={connected ? "Realtime bật" : "Realtime tắt"} />

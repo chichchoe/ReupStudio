@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-
 from functools import lru_cache
 
 from pydantic import field_validator
@@ -20,6 +19,9 @@ class Settings(BaseSettings):
     )
 
     database_url: str = "postgresql+psycopg://reup:reup@localhost:5432/reup"
+    #: Khoá giải mã bí mật trong bảng ``app_settings``. Bí mật DUY NHẤT còn phải
+    #: nằm trong ``.env`` — xem ``reup_core/settings_store.py``.
+    settings_key: str = ""
     redis_url: str = "redis://localhost:6379/0"
     media_root: str = "./media"
     log_level: str = "INFO"
@@ -118,15 +120,72 @@ class Settings(BaseSettings):
         return v
 
 
-@lru_cache
+#: Đã đọc cấu hình từ DB chưa. Đọc lại mỗi lần gọi sẽ thành một truy vấn DB cho
+#: MỖI lời gọi ``get_settings()``, mà hàm đó được gọi ở khắp nơi.
+_da_nap = False
+
+
+def _nap_tu_db() -> None:
+    """Đổ cấu hình từ bảng ``app_settings`` vào biến môi trường.
+
+    Chạy TRƯỚC khi dựng ``Settings()``: pydantic đọc từ biến môi trường, nên
+    đổ vào đây là mọi chỗ dùng phía sau chạy nguyên như cũ, không phải sửa
+    một dòng nào.
+
+    DB không tới được thì BỎ QUA im lặng và rơi về ``.env``: lúc chạy migration
+    lần đầu bảng còn chưa tồn tại, mà cả ứng dụng không được chết vì chuyện đó.
+    """
+    global _da_nap
+    if _da_nap:
+        return
+    #: Cửa thoát cho test. Không có nó thì mọi test dựa vào giá trị MẶC ĐỊNH sẽ
+    #: đọc phải database của người đang chạy — test xanh hay đỏ tuỳ máy, và đó
+    #: là loại test tệ nhất vì nó không nói lên điều gì.
+    if os.getenv("REUP_BO_QUA_CAU_HINH_DB"):
+        _da_nap = True
+        return
+    #: Đặt cờ TRƯỚC khi làm gì: ``Settings()`` dưới đây có thể gọi lại
+    #: ``get_settings()`` gián tiếp, và không có cờ thì thành đệ quy vô hạn.
+    _da_nap = True
+
+    try:
+        #: Vòng luẩn quẩn phải gỡ: hàm này cần DATABASE_URL để tới DB, nhưng
+        #: DATABASE_URL nằm trong ``.env`` mà chỉ pydantic mới đọc được, và
+        #: pydantic thì chạy SAU hàm này. Dựng một ``Settings`` sơ bộ chỉ từ
+        #: ``.env`` để lấy hai biến bootstrap, rồi mới đọc DB.
+        so_bo = Settings()
+        os.environ.setdefault("DATABASE_URL", so_bo.database_url)
+        if so_bo.settings_key:
+            os.environ.setdefault("SETTINGS_KEY", so_bo.settings_key)
+
+        from reup_core.db import session_scope
+        from reup_core.settings_store import nap_vao_moi_truong
+
+        with session_scope() as db:
+            nap_vao_moi_truong(db)
+    except Exception:
+        pass
+
+
+def lam_moi_cau_hinh() -> None:
+    """Buộc đọc lại cấu hình từ DB ở lần ``get_settings()`` kế tiếp.
+
+    Gọi sau khi người dùng bấm Lưu trên trang cấu hình — không có nó thì thay
+    đổi chỉ có tác dụng sau khi khởi động lại tiến trình.
+    """
+    global _da_nap
+    _da_nap = False
+    get_settings.cache_clear()
+
+
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    _nap_tu_db()
     s = Settings()
     #: Đẩy MEDIA_ROOT vào biến môi trường để ``reup_core.paths`` nhìn thấy.
     #:
     #: ``paths.py`` đọc bằng ``os.getenv``, còn thiết lập này nạp từ ``.env``
     #: qua pydantic — hai đường khác nhau, nên nếu không nối lại thì giá trị
-    #: khai trong ``.env`` KHÔNG có tác dụng gì. Đo được hậu quả ngày
-    #: 2026-08-16: worker ghi file giọng vào ``apps/worker/media``, API tìm ở
-    #: ``apps/api/media`` rồi trả 404, không bên nào báo gì sai.
+    #: khai trong ``.env`` KHÔNG có tác dụng gì.
     os.environ.setdefault("MEDIA_ROOT", s.media_root)
     return s

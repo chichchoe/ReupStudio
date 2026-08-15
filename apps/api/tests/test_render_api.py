@@ -192,7 +192,7 @@ def test_render_nen_tang_khong_thuoc_enum_tra_422_khong_day_task(ctx) -> None:
 
 
 def test_render_nen_tang_hop_le_nhung_chua_co_platform_limits_tra_422(ctx) -> None:
-    """"instagram" hợp lệ trong enum Platform nhưng chưa được seed vào
+    """ "instagram" hợp lệ trong enum Platform nhưng chưa được seed vào
     platform_limits (xem ``_SEEDED_PLATFORMS``) -> phải bị chặn ở service,
     KHÔNG lọt xuống worker rồi mới hỏng.
     """

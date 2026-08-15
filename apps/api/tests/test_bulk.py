@@ -98,9 +98,7 @@ def test_apply_preset_khong_ton_tai_nem_notfound(db) -> None:
     db.commit()
 
     with pytest.raises(NotFound):
-        video_service.bulk_action(
-            db, [video.id], "apply_preset", {"preset_id": str(uuid.uuid4())}
-        )
+        video_service.bulk_action(db, [video.id], "apply_preset", {"preset_id": str(uuid.uuid4())})
 
 
 def test_assign_channels_ghi_dung_target_channel_ids(db) -> None:
@@ -127,9 +125,7 @@ def test_id_khong_ton_tai_va_video_da_xoa_mem_roi_vao_skipped(db) -> None:
     db.commit()
     id_khong_ton_tai = uuid.uuid4()
 
-    result = video_service.bulk_action(
-        db, [con_song.id, da_xoa.id, id_khong_ton_tai], "approve"
-    )
+    result = video_service.bulk_action(db, [con_song.id, da_xoa.id, id_khong_ton_tai], "approve")
     db.commit()
 
     assert result["affected"] == 1

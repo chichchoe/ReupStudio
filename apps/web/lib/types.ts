@@ -48,6 +48,9 @@ export type BulkSkip = S["BulkSkip"];
 export type LlmModels = S["LlmModelsOut"];
 export type LlmUsage = S["LlmUsageOut"];
 export type TtsOptions = S["TtsOptionsOut"];
+export type CauHinh = S["CauHinhOut"];
+export type NhomCauHinh = S["NhomCauHinhOut"];
+export type MucCauHinh = S["MucCauHinhOut"];
 export type GiongDoc = S["GiongDocOut"];
 
 /**

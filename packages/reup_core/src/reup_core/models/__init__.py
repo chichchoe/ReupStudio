@@ -1,3 +1,4 @@
+from .app_setting import AppSetting
 from .base import Base, TimestampMixin
 from .cost_log import CostLog
 from .job_run import JobRun
@@ -10,6 +11,7 @@ from .subtitle import Subtitle
 from .video import Video
 
 __all__ = [
+    "AppSetting",
     "Base",
     "CostLog",
     "JobRun",

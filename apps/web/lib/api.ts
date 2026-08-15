@@ -21,6 +21,7 @@ import type {
   SourceChannelUpdate,
   Subtitle,
   Video,
+  CauHinh,
   TtsOptions,
   TuyChonDich,
 } from "./types";
@@ -203,6 +204,26 @@ export const api = {
   /** Duyệt bản dịch và giọng đọc — cho chạy tiếp chặng xoá chữ cứng và render. */
   approveDub: (id: string) =>
     request<TranslateAccepted>(`/videos/${id}/approve-dub`, { method: "POST" }),
+
+  /** Cấu hình ứng dụng. Bí mật LUÔN về dạng che — không bao giờ có giá trị thật. */
+  cauHinh: () => request<CauHinh>("/settings"),
+
+  /**
+   * Lưu cấu hình. Chỉ gửi những khoá thật sự đổi.
+   *
+   * Ô bí mật để trống nghĩa là GIỮ NGUYÊN, không phải xoá — giao diện không
+   * bao giờ nhận được giá trị thật nên nó không thể gửi lại cái đang có.
+   */
+  luuCauHinh: (giaTri: Record<string, string>) =>
+    request<CauHinh>("/settings", {
+      method: "PUT",
+      body: JSON.stringify({ gia_tri: giaTri }),
+    }),
+
+  sinhKhoaMaHoa: () =>
+    request<{ khoa: string; huong_dan: string }>("/settings/sinh-khoa-ma-hoa", {
+      method: "POST",
+    }),
 
   /** URL dải tiếng Việt để nghe thử trong thẻ `<audio>`. */
   voiceTrackUrl: (id: string) => `${PREFIX}/videos/${id}/voice-track`,

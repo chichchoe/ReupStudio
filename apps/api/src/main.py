@@ -23,6 +23,7 @@ from .routers import (
     videos,
     ws,
 )
+from .routers import settings as settings_router
 from .ws.manager import WsManager
 
 log = get_logger(__name__)
@@ -64,6 +65,7 @@ app.include_router(source_channels.router, prefix=API_PREFIX)
 app.include_router(platform_limits.router, prefix=API_PREFIX)
 app.include_router(render.router, prefix=API_PREFIX)
 app.include_router(llm.router, prefix=API_PREFIX)
+app.include_router(settings_router.router, prefix=API_PREFIX)
 app.include_router(ws.router)
 
 
