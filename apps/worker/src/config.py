@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 from functools import lru_cache
 
 from pydantic import field_validator
@@ -118,4 +120,13 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    #: Đẩy MEDIA_ROOT vào biến môi trường để ``reup_core.paths`` nhìn thấy.
+    #:
+    #: ``paths.py`` đọc bằng ``os.getenv``, còn thiết lập này nạp từ ``.env``
+    #: qua pydantic — hai đường khác nhau, nên nếu không nối lại thì giá trị
+    #: khai trong ``.env`` KHÔNG có tác dụng gì. Đo được hậu quả ngày
+    #: 2026-08-16: worker ghi file giọng vào ``apps/worker/media``, API tìm ở
+    #: ``apps/api/media`` rồi trả 404, không bên nào báo gì sai.
+    os.environ.setdefault("MEDIA_ROOT", s.media_root)
+    return s

@@ -23,6 +23,9 @@ out/
 # env & secrets
 .env
 .env.local
+# Mọi bản sao lưu .env — chúng chứa khoá thật y như bản gốc.
+.env.*
+!.env.example
 *.key
 
 # model weights (KHÔNG dùng "models/" ở đây — pattern đó khớp nhầm luôn cả

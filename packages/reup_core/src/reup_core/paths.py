@@ -12,8 +12,38 @@ from pathlib import Path
 _ENV_KEY = "MEDIA_ROOT"
 
 
+def _goc_repo() -> Path:
+    """Thư mục gốc repo, tìm bằng dấu mốc chứ không bằng số cấp thư mục.
+
+    Đếm cấp (``parents[4]``) sẽ sai ngay khi gói được cài vào site-packages.
+    """
+    here = Path(__file__).resolve()
+    for cha in here.parents:
+        if (cha / "CLAUDE.md").exists() or (cha / ".git").exists():
+            return cha
+    #: Không tìm thấy mốc (gói đã cài rời khỏi repo) — rơi về thư mục hiện tại,
+    #: đúng như hành vi cũ.
+    return Path.cwd()
+
+
 def media_root() -> Path:
-    return Path(os.getenv(_ENV_KEY, "./media")).resolve()
+    """Thư mục gốc chứa file media.
+
+    Đường dẫn TƯƠNG ĐỐI được tính từ GỐC REPO, không phải từ thư mục đang đứng.
+
+    Vì sao — quan sát ngày 2026-08-16: ``.env`` đặt ``MEDIA_ROOT=./media``, mà
+    API chạy từ ``apps/api`` còn worker chạy từ ``apps/worker``. Hai tiến trình
+    nhìn vào hai thư mục khác nhau: worker ghi file giọng thành công, API tìm
+    không thấy và trả 404, không bên nào báo gì sai.
+
+    Lỗi này nằm im từ đầu dự án và chỉ lộ ra khi có endpoint đầu tiên bên API tự
+    dựng đường dẫn media — trước đó mọi endpoint đều đọc đường dẫn TUYỆT ĐỐI đã
+    lưu sẵn trong DB.
+    """
+    khai_bao = Path(os.getenv(_ENV_KEY, "./media"))
+    if khai_bao.is_absolute():
+        return khai_bao.resolve()
+    return (_goc_repo() / khai_bao).resolve()
 
 
 def _ensure(p: Path) -> Path:
