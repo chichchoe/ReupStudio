@@ -166,3 +166,59 @@ def test_vung_qua_nho_thi_khong_thu_nho_them() -> None:
     thu_nho_va_phong_lai(cat, mat_na, 0.5, lambda c, m: goi.append(c.shape) or c)
 
     assert goi[0] == cat.shape
+
+
+# --------------------------------------------------------------------------- #
+# Bộ nhớ khung không đổi
+# --------------------------------------------------------------------------- #
+
+
+def _bo_nho():
+    from src.pipeline.masking.vaa import BoNhoVa
+
+    return BoNhoVa()
+
+
+def _anh(gia_tri: int = 100, cao: int = 64, rong: int = 128):
+    import numpy as np
+
+    return np.full((cao, rong, 3), gia_tri, dtype=np.uint8)
+
+
+def test_khung_y_het_thi_dung_lai_ket_qua_cu() -> None:
+    """Đo trên video Douyin (phim vẽ): 97% lượt vá có nền không đổi so với
+    khung trước. Gọi lại model cho từng khung đó là ném đi 97% thời gian."""
+    bo_nho = _bo_nho()
+    bo_nho.luu(0, _anh(100), _anh(200))
+
+    assert bo_nho.lay(0, _anh(100)) is not None
+
+
+def test_khung_doi_han_thi_khong_dung_lai() -> None:
+    """Dùng lại miếng vá cũ khi nền đã đổi sẽ để lại một mảng hình của quá khứ
+    đứng im giữa cảnh đang chạy — hỏng nặng hơn là không xoá."""
+    bo_nho = _bo_nho()
+    bo_nho.luu(0, _anh(100), _anh(200))
+
+    assert bo_nho.lay(0, _anh(180)) is None
+
+
+def test_moi_mask_co_bo_nho_rieng() -> None:
+    """Hai mask khác nhau vá ra hai miếng khác nhau. Dùng chung một ô nhớ thì
+    miếng vá của mask này đắp sang chỗ của mask kia."""
+    bo_nho = _bo_nho()
+    bo_nho.luu(0, _anh(100), _anh(200))
+
+    assert bo_nho.lay(1, _anh(100)) is None
+
+
+def test_doi_kich_thuoc_thi_khong_dung_lai() -> None:
+    """Mask nới rộng ra giữa chừng — miếng vá cũ không còn khớp ô mới."""
+    bo_nho = _bo_nho()
+    bo_nho.luu(0, _anh(100, cao=64), _anh(200, cao=64))
+
+    assert bo_nho.lay(0, _anh(100, cao=96)) is None
+
+
+def test_chua_luu_gi_thi_tra_ve_rong() -> None:
+    assert _bo_nho().lay(0, _anh(100)) is None

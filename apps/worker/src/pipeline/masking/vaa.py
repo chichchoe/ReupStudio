@@ -32,8 +32,19 @@ from .timeline import MaskRegion
 
 log = get_logger(__name__)
 
-#: Số pixel nới thêm mỗi phía khi cắt vùng đưa vào LaMa. Xem docstring module.
-BIEN_CAT_PX = 48
+#: Số pixel nới thêm mỗi phía khi cắt vùng đưa vào LaMa — phần nền để model
+#: nhìn mà dựng lại. Đo trên mask 629×97 thật (2026-08-15):
+#:
+#:     48px   720×192   0,246 s
+#:     32px   694×160   0,135 s
+#:     20px   670×136   0,124 s
+#:     12px   654×120   0,116 s
+#:
+#: Bốn mức cho ảnh nhìn giống hệt nhau, nhưng 48px CHẬM GẤP ĐÔI 20px: vùng chữ
+#: là dải mỏng nằm ngang, cộng biên vào chiều cao 97px thì 48px mỗi phía làm
+#: phình diện tích gấp đôi. Chọn 24px — vẫn ở vùng rẻ, còn dư biên so với mức
+#: 12px đã đo là đủ, phòng khi nền phức tạp hơn cái áo trắng đã thử.
+BIEN_CAT_PX = 24
 
 #: Thu nhỏ vùng cắt trước khi vá rồi phóng lại. Đo trên vùng 720×192 thật
 #: (2026-08-15):
@@ -50,7 +61,59 @@ TI_LE_VA = 0.75
 #: đọc, mà chỗ tiết kiệm được chỉ vài mili giây.
 CANH_TOI_THIEU_DE_THU_NHO = 96
 
+#: Hai vùng cắt coi là "không đổi" khi chênh lệch trung bình dưới ngần này mức
+#: xám (0–255). Đặt chặt: dùng lại miếng vá cũ khi nền ĐÃ đổi sẽ để lại một
+#: mảng hình của quá khứ đứng im giữa cảnh đang chạy — hỏng nặng hơn không xoá.
+NGUONG_KHONG_DOI = 1.5
+
 _lama: Any = None
+
+
+class BoNhoVa:
+    """Nhớ miếng vá gần nhất của TỪNG mask để khỏi gọi model lại khi nền đứng yên.
+
+    Vì sao đáng làm — đo trên hai video thật (2026-08-15), đếm số lượt vá có
+    vùng cắt gần như y hệt khung trước:
+
+        video Douyin, phim vẽ      144/149   97%
+        video rednote, quay tay     12/401    3%
+
+    Nội dung phim vẽ đứng yên gần như suốt, và đó đúng là loại video dài nhất
+    của dự án. Không có bộ nhớ này thì video một tiếng phải gọi model khoảng
+    90.000 lần cho những khung y hệt nhau.
+
+    Mỗi mask một ô nhớ riêng: dùng chung thì miếng vá của mask này đắp sang chỗ
+    của mask kia.
+    """
+
+    def __init__(self, nguong: float = NGUONG_KHONG_DOI) -> None:
+        self._nguong = nguong
+        self._o: dict[int, tuple[Any, Any]] = {}
+        self.so_lan_dung_lai = 0
+        self.so_lan_va = 0
+
+    def lay(self, khoa: int, cat: Any) -> Any | None:
+        """Miếng vá cũ nếu vùng cắt gần như không đổi, ngược lại ``None``."""
+        import numpy as np
+
+        da_co = self._o.get(khoa)
+        if da_co is None:
+            return None
+
+        cat_cu, ket_qua = da_co
+        if cat_cu.shape != cat.shape:
+            return None
+
+        lech = np.abs(cat.astype(np.int16) - cat_cu.astype(np.int16)).mean()
+        if lech >= self._nguong:
+            return None
+
+        self.so_lan_dung_lai += 1
+        return ket_qua
+
+    def luu(self, khoa: int, cat: Any, ket_qua: Any) -> None:
+        self._o[khoa] = (cat.copy(), ket_qua.copy())
+        self.so_lan_va += 1
 
 
 def mask_dang_hien(masks: list[MaskRegion], thoi_diem: float) -> list[MaskRegion]:
@@ -162,11 +225,15 @@ def va_khung(
     dung_lama: bool = True,
     bien: int = BIEN_CAT_PX,
     ti_le: float = TI_LE_VA,
+    bo_nho: BoNhoVa | None = None,
 ) -> Any:
     """Vá mọi mask đang hiện trên MỘT khung hình, trả về ảnh đã vá.
 
     Không có mask nào đang hiện thì trả về đúng ảnh vào — không sao chép, không
     chạm model. Phần lớn khung của một video rơi vào nhánh này.
+
+    Truyền ``bo_nho`` (giữ nguyên một đối tượng qua cả video) để bỏ qua những
+    khung có nền không đổi — xem ``BoNhoVa``, đo được 97% trên phim vẽ.
     """
     dang_hien = mask_dang_hien(masks, thoi_diem)
     if not dang_hien:
@@ -178,6 +245,10 @@ def va_khung(
     ra = anh.copy()
 
     for mask in dang_hien:
+        #: Khoá theo vị trí trong danh sách GỐC, không theo thứ tự trong
+        #: ``dang_hien``: số mask đang hiện đổi theo từng khung, đánh số lại mỗi
+        #: khung sẽ khiến ô nhớ của mask này gán nhầm cho mask khác.
+        khoa = masks.index(mask)
         x1, y1, x2, y2 = hop_pixel(mask, rong, cao, bien=bien)
         cat = ra[y1:y2, x1:x2]
 
@@ -193,15 +264,19 @@ def va_khung(
         if not mat_na.any():
             continue
 
-        cach_va = _va_bang_lama if dung_lama else _va_bang_cv2
-        try:
-            va = thu_nho_va_phong_lai(cat, mat_na, ti_le, cach_va)
-        except Exception as exc:
-            #: Rơi về cv2 thay vì làm hỏng cả job. Nhoè còn hơn để nguyên chữ
-            #: Trung, nhưng PHẢI ghi log — im lặng thì không ai biết chất lượng
-            #: đã tụt.
-            log.warning("lama.that_bai_dung_cv2", error=str(exc), thoi_diem=thoi_diem)
-            va = thu_nho_va_phong_lai(cat, mat_na, ti_le, _va_bang_cv2)
+        va = bo_nho.lay(khoa, cat) if bo_nho is not None else None
+        if va is None:
+            cach_va = _va_bang_lama if dung_lama else _va_bang_cv2
+            try:
+                va = thu_nho_va_phong_lai(cat, mat_na, ti_le, cach_va)
+            except Exception as exc:
+                #: Rơi về cv2 thay vì làm hỏng cả job. Nhoè còn hơn để nguyên
+                #: chữ Trung, nhưng PHẢI ghi log — im lặng thì không ai biết
+                #: chất lượng đã tụt.
+                log.warning("lama.that_bai_dung_cv2", error=str(exc), thoi_diem=thoi_diem)
+                va = thu_nho_va_phong_lai(cat, mat_na, ti_le, _va_bang_cv2)
+            if bo_nho is not None:
+                bo_nho.luu(khoa, cat, va)
 
         ra[y1:y2, x1:x2] = va[: y2 - y1, : x2 - x1]
 
