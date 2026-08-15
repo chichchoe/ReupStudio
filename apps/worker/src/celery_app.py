@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from celery import Celery
+from celery.signals import worker_process_init
 from reup_core.logging import setup_logging
 
 from .config import get_settings
@@ -46,6 +47,29 @@ app.conf.update(
         "reup.retry_from_step": {"queue": "download"},
     },
 )
+
+
+@worker_process_init.connect
+def _bo_ket_noi_db_thua_ke(**_: object) -> None:
+    """Tiến trình con vừa fork phải BỎ kết nối DB thừa kế của tiến trình cha.
+
+    ``get_settings()`` ở đầu file này đọc cấu hình từ database, nên engine đã
+    được dựng và pool đã giữ sẵn một kết nối NGAY TRONG TIẾN TRÌNH CHA. Celery
+    prefork nhân bản tiến trình đó: mọi con cùng thừa kế một socket, tức cùng
+    một phiên PostgreSQL.
+
+    Hậu quả đã gặp ngày 16.08.2026: psycopg3 tự chuyển câu lệnh sang dạng
+    prepared sau vài lần chạy và đặt tên ``_pg3_0``, ``_pg3_1``… Hai tiến trình
+    con đếm riêng nên cùng đòi tạo ``_pg3_0`` trên cùng một phiên, và bước
+    ``format_sub`` chết với ``DuplicatePreparedStatement``.
+
+    ``close=False`` là bắt buộc: con chỉ ĐƯỢC BUÔNG socket, không được đóng —
+    đóng là giật mất kết nối mà cha và các con khác vẫn đang trỏ vào.
+    """
+    from reup_core.db import get_engine
+
+    get_engine().dispose(close=False)
+
 
 # Đăng ký task
 app.autodiscover_tasks(["src.tasks"], force=True)

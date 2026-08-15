@@ -182,8 +182,12 @@ def _nap_tu_db() -> None:
 
         with session_scope() as db:
             nap_vao_moi_truong(db)
-    except Exception:
-        pass
+    except Exception as exc:
+        #: Không tới được DB thì vẫn chạy tiếp bằng ``.env`` — nhưng PHẢI kêu.
+        #: Nuốt im lặng ở đây từng giấu mất một lỗi kết nối suốt nhiều giờ.
+        import logging
+
+        logging.getLogger(__name__).warning("cau_hinh.doc_db_that_bai", exc_info=exc)
 
 
 def lam_moi_cau_hinh() -> None:
