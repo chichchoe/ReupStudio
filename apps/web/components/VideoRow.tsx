@@ -55,7 +55,6 @@ export function VideoRow({
   //: Ba trạng thái, ba chữ khác nhau: chưa mở · đang chạy · mở rồi mà đang
   //: dừng. "Xem tiếp" quan trọng nhất — nó nói cho biết bấm vào sẽ chạy tiếp
   //: chứ không phải xem lại từ đầu.
-  const dangChay = dangXem && dangPhat;
   const nhanXem = !dangXem ? "▶ Xem thử" : dangPhat ? "⏸ Dừng" : "▶ Xem tiếp";
 
   return (
@@ -80,27 +79,14 @@ export function VideoRow({
         {selected ? "✓" : ""}
       </button>
 
-      {/* Bấm vào ảnh đại diện để xem — chưa render xong thì không có gì để xem,
-          và một nút bấm được nhưng không làm gì còn tệ hơn không có nút. */}
-      <button
-        type="button"
-        disabled={!xemDuoc}
-        onClick={() => onXemThu(video.id)}
-        aria-label={xemDuoc ? nhanXem : "Chưa render xong"}
-        className={clsx(
-          "group relative flex h-[52px] w-[38px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#2E3646] to-[#171B24] text-[13px]",
-          xemDuoc && "hover:brightness-125",
-        )}
-      >
-        {xemDuoc ? (
-          <span className="text-white/90 group-hover:text-white">{dangChay ? "⏸" : "▶"}</span>
-        ) : (
-          "🎬"
-        )}
-        <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[9px]">
+      {/* Ô ảnh đại diện chỉ để chỗ và ghi thời lượng — không có icon, không bấm
+          được. Chỗ phát là nút "▶ Xem thử" bên phải; hai nút cùng làm một việc
+          trên một dòng chỉ khiến phải đoán xem chúng khác nhau chỗ nào. */}
+      <div className="relative flex h-[52px] w-[38px] shrink-0 items-end justify-end rounded-lg bg-gradient-to-br from-[#2E3646] to-[#171B24]">
+        <span className="m-0.5 rounded bg-black/75 px-1 text-[9px]">
           {formatDuration(video.duration_sec)}
         </span>
-      </button>
+      </div>
 
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-medium">{title}</div>
