@@ -45,15 +45,58 @@ _HOOK_MIN_FONT_SIZE_PX = 24
 #: văn — người xem lướt qua trước khi đọc hết.
 HOOK_MAX_LINES = 2
 
-#: Bề rộng trung bình của một ký tự, tính theo tỉ lệ cỡ chữ. ``drawtext``
-#: không cho hỏi bề rộng chữ trước khi render (``text_w`` chỉ tồn tại lúc
-#: ffmpeg chạy), nên phải ƯỚC LƯỢNG ở đây. 0.5 là số đo thực nghiệm cho font
-#: sans đậm với chữ tiếng Việt; ước hơi dư còn hơn ước thiếu rồi tràn khung.
-_AVG_CHAR_WIDTH_RATIO = 0.5
+#: Bề rộng từng ký tự theo tỉ lệ cỡ chữ, gom thành nhóm bội số 0,05.
+#:
+#: ``drawtext`` không cho hỏi bề rộng chữ trước khi render (``text_w`` chỉ tồn
+#: tại lúc ffmpeg chạy), nên phải ước lượng ở tầng Python. Bản trước dùng MỘT
+#: con số phẳng 0,5 cho mọi ký tự — coi "W" bằng "i" trong khi chúng chênh nhau
+#: hơn ba lần.
+#:
+#: Bảng này ĐO thật (2026-08-15) trên Verdana / Arial / Arial Bold / Helvetica —
+#: bốn font sans mà fontconfig hay trả về cho ``Sans``, lấy giá trị LỚN NHẤT của
+#: mỗi ký tự rồi làm tròn LÊN: ước dư thì chữ hơi nhỏ, ước thiếu thì hook bị cắt
+#: cụt hai đầu.
+#:
+#: Vì sao đáng làm: câu mẫu 47 ký tự rộng 24,6 lần cỡ chữ khi viết thường nhưng
+#: 29,2 lần khi viết HOA. Ước phẳng cho ra 23,5 — thiếu 5% với chữ thường, thiếu
+#: 24% với chữ HOA. Hook ngắn thì hay viết HOA.
+_NHOM_BE_RONG: dict[float, str] = {
+    0.30: "'ilìíỉị",
+    0.35: " fj",
+    0.40: "!,.t",
+    0.45: "()-/:;I[\\]r|ÌÍĨĩỈỊ",
+    0.50: '"',
+    0.55: "z",
+    0.60: "Jaceksvxyàáâãèéêýăạảấầẩẫậắằẳẵặẹẻẽếềểễệỳỵỷỹ",
+    0.65: "$*0123456789?FLT_`bdghnopqu{}òóôõùúđũọỏốồổỗộụủ",
+    0.70: "EPSVXYZÈÉÊÝẸẺẼẾỀỂỄỆỲỴỶỸ",
+    0.75: "&ABCHKNRUÀÁÂÃÙÚĂŨơưẠẢẤẦẨẪẬẮẰẲẴẶớờởỡợỤỦứừửữự",
+    0.80: "DGOQÒÓÔÕĐỌỎỐỒỔỖỘ",
+    0.85: "#+<=>M^w~",
+    0.90: "ƠƯỚỜỞỠỢỨỪỬỮỰ",
+    1.00: "Wm",
+    1.05: "@",
+    1.10: "%",
+}
+
+#: Ký tự không có trong bảng tính là ô ĐẦY. Nguồn của dự án là video Trung
+#: Quốc: bản dịch sót vài ký tự Hán là chuyện có thật, mà chữ Hán đúng là rộng
+#: bằng một ô đầy. Đoán hẹp cho ký tự lạ là đoán về phía tràn khung.
+_BE_RONG_MAC_DINH = 1.0
+
+_BE_RONG_KY_TU: dict[str, float] = {
+    ky_tu: ti_le for ti_le, day in _NHOM_BE_RONG.items() for ky_tu in day
+}
 
 #: Mỗi lần thu nhỏ giảm 8% cỡ chữ. Nhỏ hơn thì lặp quá nhiều vòng, lớn hơn thì
 #: nhảy cóc qua cỡ vừa đẹp.
 _FONT_SHRINK_STEP = 0.92
+
+#: Chấp nhận chữ nhỏ hơn tới 10% để hook gọn vào ÍT DÒNG hơn. Một dòng đọc
+#: nhanh hơn hai dòng, mà chênh lệch cỡ chữ ở mức này mắt gần như không thấy —
+#: "Xem hết nhé" vừa một dòng ở cỡ 115 thì đừng bẻ làm hai dòng chỉ để được
+#: cỡ 125.
+_UU_TIEN_IT_DONG = 0.9
 
 #: Trắng trên nền đen mờ — tương phản cao, KHÁC màu phụ đề (phụ đề vàng, xem
 #: ``build_force_style``) để hai lớp chữ không lẫn vào nhau khi ở gần nhau.
@@ -86,8 +129,19 @@ def hook_box(safe: SafeArea) -> tuple[float, float, float, float]:
     return (x, y, w, h)
 
 
-def _wrap_words(text: str, max_chars: int) -> list[str]:
-    """Chia câu thành các dòng dài tối đa ``max_chars`` ký tự, không cắt giữa từ.
+def be_rong_chu(text: str, font_size: int) -> float:
+    """Bề rộng ước lượng của một dòng chữ, tính bằng pixel.
+
+    Cộng bề rộng từng ký tự theo ``_BE_RONG_KY_TU``. Đây là ƯỚC LƯỢNG, không
+    phải số đo từ chính font mà ffmpeg sẽ dùng — font đó do fontconfig chọn lúc
+    render nên khác nhau giữa máy dev và Docker. Bảng lấy giá trị lớn nhất của
+    bốn font sans phổ biến nên sai số nghiêng về phía an toàn.
+    """
+    return sum(_BE_RONG_KY_TU.get(ky_tu, _BE_RONG_MAC_DINH) for ky_tu in text) * font_size
+
+
+def _ngat_dong(text: str, max_width_px: float, font_size: int) -> list[str]:
+    """Chia câu thành các dòng không rộng quá ``max_width_px``, không cắt giữa từ.
 
     Từ dài hơn cả dòng vẫn được giữ nguyên trên một dòng riêng — thà một dòng
     hơi tràn còn hơn mất chữ.
@@ -96,7 +150,7 @@ def _wrap_words(text: str, max_chars: int) -> list[str]:
     hien_tai = ""
     for tu in text.split():
         thu = f"{hien_tai} {tu}".strip()
-        if hien_tai and len(thu) > max_chars:
+        if hien_tai and be_rong_chu(thu, font_size) > max_width_px:
             lines.append(hien_tai)
             hien_tai = tu
         else:
@@ -118,13 +172,13 @@ def fit_hook_text(
 
     ``drawtext`` không tự xuống dòng và không cho hỏi kích thước chữ trước khi
     render (``text_w``/``text_h`` chỉ tồn tại lúc ffmpeg chạy), nên phải ước
-    lượng ở đây — xem ``_AVG_CHAR_WIDTH_RATIO``. Không có bước này, câu hook
-    dài hơn khối bị cắt cụt cả hai đầu, đúng lỗi quan sát được trên khung hình
-    render thật ngày 2026-08-14.
+    lượng ở đây — xem ``be_rong_chu``. Không có bước này, câu hook dài hơn khối
+    bị cắt cụt cả hai đầu, đúng lỗi quan sát được trên khung hình render thật
+    ngày 2026-08-14.
 
     Ép theo CẢ HAI chiều:
 
-    - ngang: mỗi dòng ``số ký tự × cỡ chữ × 0,5`` không vượt ``box_w_px``;
+    - ngang: bề rộng ĐO THEO TỪNG KÝ TỰ của mỗi dòng không vượt ``box_w_px``;
     - dọc: ``số dòng × cỡ chữ`` không vượt ``box_h_px`` — cỡ chữ mặc định
       (``box_h × 0,6``) là cỡ dành cho MỘT dòng, để nguyên mà xuống hai dòng
       thì chữ tràn xuống dưới khối và đè vào video.
@@ -133,19 +187,42 @@ def fit_hook_text(
     tới mức không đọc được cũng vô dụng như chữ bị cắt, mà lại khó phát hiện
     hơn.
     """
-    size = max(min_font_size, round(box_h_px * _HOOK_FONT_SIZE_RATIO))
+    co_dau = max(min_font_size, round(box_h_px * _HOOK_FONT_SIZE_RATIO))
     cleaned = " ".join(text.split())
     if not cleaned:
-        return "", size
+        return "", co_dau
 
-    while True:
-        max_chars = max(1, int(box_w_px / (size * _AVG_CHAR_WIDTH_RATIO)))
-        lines = _wrap_words(cleaned, max_chars)
-        vua_ngang = len(lines) <= max_lines
-        vua_doc = len(lines) * size <= box_h_px
-        if (vua_ngang and vua_doc) or size <= min_font_size:
-            return "\n".join(lines), size
-        size = max(min_font_size, int(size * _FONT_SHRINK_STEP))
+    #: Thử lần lượt 1 dòng, 2 dòng… và với mỗi số dòng tìm cỡ chữ LỚN NHẤT còn
+    #: vừa khối. Vòng thu nhỏ đơn thuần dừng ngay lúc "vừa" nên hay chốt ở hai
+    #: dòng dù câu hoàn toàn vừa một dòng chỉ nhỏ hơn vài pixel.
+    phuong_an: list[tuple[int, list[str]]] = []
+    for so_dong in range(1, max_lines + 1):
+        co = co_dau
+        while True:
+            dong = _ngat_dong(cleaned, box_w_px, co)
+            #: Không chỉ đếm dòng: một TỪ dài hơn cả dòng không ngắt được, nên
+            #: vẫn phải kiểm bề rộng thật của từng dòng.
+            vua = (
+                len(dong) <= so_dong
+                and all(be_rong_chu(d, co) <= box_w_px for d in dong)
+                and len(dong) * co <= box_h_px
+            )
+            if vua:
+                phuong_an.append((co, dong))
+                break
+            if co <= min_font_size:
+                break
+            co = max(min_font_size, int(co * _FONT_SHRINK_STEP))
+
+    if not phuong_an:
+        #: Không cách nào vừa — thà chữ hơi tràn ở cỡ sàn còn hơn mất chữ.
+        return "\n".join(_ngat_dong(cleaned, box_w_px, min_font_size)), min_font_size
+
+    to_nhat = max(co for co, _ in phuong_an)
+    for co, dong in phuong_an:  # đã theo thứ tự số dòng tăng dần
+        if co >= to_nhat * _UU_TIEN_IT_DONG:
+            return "\n".join(dong), co
+    raise AssertionError("không thể tới đây: phương án cỡ lớn nhất luôn thoả điều kiện")
 
 
 def _escape_drawtext_text(text: str) -> str:

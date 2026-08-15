@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from src.pipeline.shortform.hook import (
     HOOK_MAX_LINES,
+    be_rong_chu,
     build_hook_filter,
     fit_hook_text,
     hook_box,
@@ -49,11 +50,43 @@ def test_cau_dai_duoc_xuong_dong_thay_vi_tran_ra_ngoai() -> None:
 
 
 def test_chu_luon_vua_be_ngang_khoi_hook() -> None:
-    """Ràng buộc chính. Ước lượng bề rộng: mỗi ký tự ~0,5 cỡ chữ."""
+    """Ràng buộc chính, đo bằng bề rộng thật của từng ký tự."""
     for cau in ("Xem hết nhé", "Thử hook 3 giây đầu", CAU_DAI):
         text, size = fit_hook_text(cau, box_w_px=BOX_W, box_h_px=BOX_H)
         for dong in _dong(text):
-            assert len(dong) * size * 0.5 <= BOX_W
+            assert be_rong_chu(dong, size) <= BOX_W
+
+
+def test_hook_viet_HOA_khong_tran_khoi() -> None:
+    """Hook ngắn hay được viết HOA, mà chữ hoa rộng hơn hẳn chữ thường.
+
+    Đo trên font sans thật (Verdana/Arial/Helvetica, 2026-08-15): câu mẫu 47 ký
+    tự rộng 24,6 lần cỡ chữ khi viết thường nhưng 29,2 lần khi viết HOA. Ước
+    phẳng "mỗi ký tự bằng 0,5 cỡ chữ" cho ra 23,5 — thiếu 5% với chữ thường và
+    thiếu 24% với chữ HOA. Thiếu 24% nghĩa là hook bị cắt cụt hai đầu, đúng lỗi
+    đã quan sát được trên khung hình render.
+    """
+    for cau in ("BA NĂM SAU CÔ ẤY QUAY LẠI", "ĐỪNG LƯỚT QUA VIDEO NÀY", "WWW MMM ƠỚỜ"):
+        text, size = fit_hook_text(cau, box_w_px=BOX_W, box_h_px=BOX_H)
+        for dong in _dong(text):
+            assert be_rong_chu(dong, size) <= BOX_W, f"{cau!r} tràn: {dong!r}"
+
+
+def test_chuoi_chu_rong_duoc_co_chu_nho_hon_chuoi_chu_hep() -> None:
+    """Phép ước phẳng coi 'W' bằng 'i'. Chúng chênh nhau hơn ba lần."""
+    _, co_hep = fit_hook_text("iiiii iiiii iiiii", box_w_px=BOX_W, box_h_px=BOX_H)
+    _, co_rong = fit_hook_text("WWWWW WWWWW WWWWW", box_w_px=BOX_W, box_h_px=BOX_H)
+
+    assert co_rong < co_hep
+
+
+def test_ky_tu_ngoai_bang_tinh_be_rong_day_du() -> None:
+    """Chữ Hán còn sót trong hook phải tính là ô đầy, không phải chữ hẹp.
+
+    Nguồn của dự án là video Trung Quốc; bản dịch sót vài ký tự Hán là chuyện
+    có thật. Đoán hẹp cho ký tự lạ là đoán về phía tràn khung.
+    """
+    assert be_rong_chu("这洞洞鞋", 100) >= be_rong_chu("iiii", 100) * 3
 
 
 def test_chu_luon_vua_chieu_cao_khoi_hook() -> None:
