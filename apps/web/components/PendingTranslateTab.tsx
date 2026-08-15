@@ -41,6 +41,12 @@ export function PendingTranslateTab() {
     queryKey: ["llm-models"],
     queryFn: api.llmModels,
   });
+  const { data: ttsOptions = [] } = useQuery({
+    queryKey: ["tts-options"],
+    queryFn: api.ttsOptions,
+    //: Danh sách giọng gần như không đổi — không cần hỏi lại mỗi lần đổi tab.
+    staleTime: 10 * 60 * 1000,
+  });
 
   const videos = useMemo(() => data?.items ?? [], [data]);
   const translateModels = models?.translate ?? [];
@@ -128,8 +134,9 @@ export function PendingTranslateTab() {
           defaultModel={defaultModel}
           selected={selected.has(video.id)}
           pending={pendingIds.has(video.id)}
+          ttsOptions={ttsOptions}
           onToggle={toggle}
-          onTranslate={(id, model) => translate([id], model)}
+          onTranslate={(id, tuyChon) => translate([id], tuyChon)}
         />
       ))}
 
@@ -137,7 +144,17 @@ export function PendingTranslateTab() {
         selectedCount={selected.size}
         pending={bulkPending || translatePending}
         translateModels={translateModels}
-        onTranslate={(model) => translate([...selected], model)}
+        onTranslate={(model) =>
+          //: Chọn hàng loạt thì dùng mặc định AN TOÀN: vẫn xoá chữ cứng (đó là
+          //: lý do chính dùng công cụ này) và giọng miễn phí không tính lượt.
+          //: Muốn khác thì bấm Dịch ở từng dòng.
+          translate([...selected], {
+            llmModel: model,
+            xoaChuCung: true,
+            ttsProvider: "edge",
+            giongDoc: "vi-VN-HoaiMyNeural",
+          })
+        }
         onApprove={() => bulk([...selected], "approve")}
         onRetry={() => bulk([...selected], "retry")}
         onDelete={() => bulk([...selected], "delete")}

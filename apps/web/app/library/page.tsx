@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { BulkSkipNotice } from "@/components/BulkSkipNotice";
+import { DuyetBanDichTab } from "@/components/DuyetBanDichTab";
 import { PendingTranslateTab } from "@/components/PendingTranslateTab";
 import { StatusChips } from "@/components/StatusChips";
 import { VideoRow } from "@/components/VideoRow";
@@ -17,17 +18,24 @@ import { useReupSocket } from "@/lib/ws";
 /** Chờ 300ms sau lần gõ cuối mới bắn request tìm kiếm — tránh gọi API mỗi phím. */
 const SEARCH_DEBOUNCE_MS = 300;
 
-type Tab = "all" | "pending";
+type Tab = "all" | "pending" | "duyet";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "all", label: "Toàn bộ video" },
   { value: "pending", label: "Chờ dịch" },
+  //: Chỗ dừng thứ HAI của pipeline: đọc lại bản dịch và nghe thử giọng trước
+  //: khi chạy bước xoá chữ cứng — bước nặng nhất, không nên chạy rồi mới biết
+  //: bản dịch hỏng.
+  { value: "duyet", label: "Chờ duyệt" },
 ];
 
 function LibraryInner() {
   const params = useSearchParams();
   const router = useRouter();
-  const tab: Tab = params.get("tab") === "pending" ? "pending" : "all";
+  const tab: Tab = ((): Tab => {
+    const t = params.get("tab");
+    return t === "pending" || t === "duyet" ? t : "all";
+  })();
   const [status, setStatus] = useState<string>(params.get("status") ?? "all");
   const [queryInput, setQueryInput] = useState(params.get("q") ?? "");
   const [query, setQuery] = useState(params.get("q") ?? "");
@@ -144,7 +152,9 @@ function LibraryInner() {
         ))}
       </div>
 
-      {tab === "pending" ? (
+      {tab === "duyet" ? (
+        <DuyetBanDichTab />
+      ) : tab === "pending" ? (
         <PendingTranslateTab />
       ) : (
         <>

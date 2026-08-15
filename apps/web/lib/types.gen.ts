@@ -72,6 +72,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/videos/tts-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tts Options
+         * @description Các giọng đọc chọn được, kèm ĐÁNH ĐỔI của từng nhà cung cấp.
+         *
+         *     Khai TRƯỚC ``/{video_id}``: FastAPI khớp route theo THỨ TỰ đăng ký, nên đặt
+         *     sau thì ``/{video_id}`` nuốt mất và trả về lỗi "tts-options không phải UUID".
+         *
+         *     Giấu phần đánh đổi đi thì người dùng chọn Gemini cho video 672 câu rồi hết
+         *     hạn mức giữa chừng — mỗi câu là một lượt gọi.
+         *
+         *     OpenRouter không có mặt: nó định tuyến model ngôn ngữ, không sinh audio.
+         */
+        get: operations["tts_options_api_v1_videos_tts_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/videos/{video_id}": {
         parameters: {
             query?: never;
@@ -161,6 +189,49 @@ export interface paths {
         put?: never;
         /** Bulk */
         post: operations["bulk_api_v1_videos_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/videos/{video_id}/approve-dub": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Dub
+         * @description Duyệt bản dịch và giọng đọc, cho chạy tiếp chặng cuối.
+         *
+         *     Chặng cuối là phần nặng nhất (xoá chữ cứng rồi render). Commit TRƯỚC khi
+         *     gửi task — worker chạy gần như tức thì.
+         */
+        post: operations["approve_dub_api_v1_videos__video_id__approve_dub_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/videos/{video_id}/voice-track": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Voice Track File
+         * @description Dải tiếng Việt đã khớp thời gian, để nghe thử TRƯỚC khi ghép vào video.
+         */
+        get: operations["voice_track_file_api_v1_videos__video_id__voice_track_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -535,6 +606,18 @@ export interface components {
             video_ids?: string[];
             /** Duplicate Ids */
             duplicate_ids?: string[];
+        };
+        /**
+         * GiongDocOut
+         * @description Một giọng đọc chọn được trên giao diện.
+         */
+        GiongDocOut: {
+            /** Ma */
+            ma: string;
+            /** Ten */
+            ten: string;
+            /** Gioi Tinh */
+            gioi_tinh: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1015,6 +1098,38 @@ export interface components {
         TranslateRequest: {
             /** Llm Model */
             llm_model?: string | null;
+            /**
+             * Xoa Chu Cung
+             * @default true
+             */
+            xoa_chu_cung: boolean;
+            /**
+             * Tts Provider
+             * @default edge
+             * @enum {string}
+             */
+            tts_provider: "edge" | "gemini";
+            /** Giong Doc */
+            giong_doc?: string | null;
+            /** Tts Model */
+            tts_model?: string | null;
+        };
+        /**
+         * TtsOptionsOut
+         * @description Các lựa chọn giọng đọc, nhóm theo nhà cung cấp.
+         *
+         *     ``ghi_chu`` nói rõ đánh đổi để người dùng chọn đúng — giấu nó đi thì họ
+         *     chọn Gemini cho video 672 câu rồi hết hạn mức giữa chừng.
+         */
+        TtsOptionsOut: {
+            /** Provider */
+            provider: string;
+            /** Ghi Chu */
+            ghi_chu: string;
+            /** Models */
+            models?: string[];
+            /** Giong */
+            giong?: components["schemas"]["GiongDocOut"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -1271,6 +1386,26 @@ export interface operations {
             };
         };
     };
+    tts_options_api_v1_videos_tts_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TtsOptionsOut"][];
+                };
+            };
+        };
+    };
     get_video_api_v1_videos__video_id__get: {
         parameters: {
             query?: never;
@@ -1485,6 +1620,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BulkResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_dub_api_v1_videos__video_id__approve_dub_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    voice_track_file_api_v1_videos__video_id__voice_track_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

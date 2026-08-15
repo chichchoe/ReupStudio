@@ -21,6 +21,8 @@ import type {
   SourceChannelUpdate,
   Subtitle,
   Video,
+  TtsOptions,
+  TuyChonDich,
 } from "./types";
 
 const BASE =
@@ -176,12 +178,34 @@ export const api = {
 
   llmUsage: () => request<LlmUsage>("/llm/usage"),
 
-  /** Trả `202` ngay — bước dịch chạy qua Celery, tiến trình theo dõi bằng WebSocket. */
-  translateVideo: (id: string, llmModel: string) =>
+  /** Giọng đọc chọn được, nhóm theo nhà cung cấp, kèm đánh đổi hạn mức. */
+  ttsOptions: () => request<TtsOptions[]>("/videos/tts-options"),
+
+  /**
+   * Trả `202` ngay — bước dịch chạy qua Celery, tiến trình theo dõi bằng WebSocket.
+   *
+   * `xoaChuCung` và giọng đọc gửi kèm ngay tại đây chứ không qua một lời gọi
+   * riêng: worker nhận task gần như tức thì, tách làm hai lời gọi thì nó có thể
+   * đọc phải cấu hình cũ.
+   */
+  translateVideo: (id: string, tuyChon: TuyChonDich) =>
     request<TranslateAccepted>(`/videos/${id}/translate`, {
       method: "POST",
-      body: JSON.stringify({ llm_model: llmModel }),
+      body: JSON.stringify({
+        llm_model: tuyChon.llmModel,
+        xoa_chu_cung: tuyChon.xoaChuCung,
+        tts_provider: tuyChon.ttsProvider,
+        giong_doc: tuyChon.giongDoc,
+        tts_model: tuyChon.ttsModel ?? null,
+      }),
     }),
+
+  /** Duyệt bản dịch và giọng đọc — cho chạy tiếp chặng xoá chữ cứng và render. */
+  approveDub: (id: string) =>
+    request<TranslateAccepted>(`/videos/${id}/approve-dub`, { method: "POST" }),
+
+  /** URL dải tiếng Việt để nghe thử trong thẻ `<audio>`. */
+  voiceTrackUrl: (id: string) => `${PREFIX}/videos/${id}/voice-track`,
 
   variantFileUrl: (variantId: string) => `${PREFIX}/variants/${variantId}/file`,
 };

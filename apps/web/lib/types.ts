@@ -47,6 +47,21 @@ export type RenderVariant = S["RenderVariantOut"];
 export type BulkSkip = S["BulkSkip"];
 export type LlmModels = S["LlmModelsOut"];
 export type LlmUsage = S["LlmUsageOut"];
+export type TtsOptions = S["TtsOptionsOut"];
+export type GiongDoc = S["GiongDocOut"];
+
+/**
+ * Các lựa chọn gửi kèm khi bấm Dịch. Gom thành một object thay vì bốn tham số
+ * rời: thứ tự bốn tham số cùng kiểu string rất dễ truyền nhầm chỗ.
+ */
+export interface TuyChonDich {
+  llmModel: string;
+  /** Bỏ tích khi video không có chữ cứng — bước này nặng nhất pipeline. */
+  xoaChuCung: boolean;
+  ttsProvider: string;
+  giongDoc: string;
+  ttsModel?: string;
+}
 
 /** Response `202` của các endpoint chạy nền — chỉ trả `task_id`, không chờ. */
 export type RenderAccepted = S["TaskAccepted"];

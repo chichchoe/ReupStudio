@@ -2,7 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
-import type { Page as ApiPage, Video } from "@/lib/types";
+import type { Page as ApiPage, TuyChonDich, Video } from "@/lib/types";
 
 /** Video gửi dịch không thành — LUÔN kèm lý do, không được nuốt lỗi im lặng. */
 export interface TranslateFailure {
@@ -31,10 +31,12 @@ export function useTranslateMutations({ videosKey, onDone }: Options) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: async ({ ids, model }: { ids: string[]; model: string }) => {
+    mutationFn: async ({ ids, tuyChon }: { ids: string[]; tuyChon: TuyChonDich }) => {
       // allSettled chứ không Promise.all: một video lỗi (chạm trần hạn mức,
       // model không hợp lệ) không được chặn những video còn lại trong lô.
-      const results = await Promise.allSettled(ids.map((id) => api.translateVideo(id, model)));
+      const results = await Promise.allSettled(
+        ids.map((id) => api.translateVideo(id, tuyChon)),
+      );
       return results.flatMap<TranslateFailure>((result, index) =>
         result.status === "rejected"
           ? [
@@ -78,7 +80,7 @@ export function useTranslateMutations({ videosKey, onDone }: Options) {
   });
 
   return {
-    translate: (ids: string[], model: string) => mutation.mutate({ ids, model }),
+    translate: (ids: string[], tuyChon: TuyChonDich) => mutation.mutate({ ids, tuyChon }),
     /** Id các video đang có yêu cầu dịch bay dở — dùng để khoá nút ở từng dòng. */
     pendingIds: new Set(mutation.isPending ? mutation.variables?.ids ?? [] : []),
     translatePending: mutation.isPending,
