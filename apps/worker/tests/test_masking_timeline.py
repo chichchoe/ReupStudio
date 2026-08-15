@@ -309,3 +309,47 @@ def test_gop_KHONG_duoc_no_day_chuyen_thanh_mask_nuot_ca_khung() -> None:
         assert m.w * m.h <= TS.dien_tich_toi_da, (
             f"mask nuốt {m.w * m.h:.0%} khung hình — chắc chắn xoá nhầm cả hình"
         )
+
+
+# --------------------------------------------------------------------------- #
+# Mask không được sống lâu hơn bằng chứng
+# --------------------------------------------------------------------------- #
+
+
+def test_mask_khong_song_lau_hon_bang_chung_thay_duoc() -> None:
+    """Ca hỏng thật, video Douyin 14 phút (2026-08-15).
+
+    Một vệt chỉ 6 khung bằng chứng — tức 3 giây ở nhịp 2 khung/giây — lại sinh
+    ra mask sống 839 giây, đúng bằng cả video. Nhìn khung hình ở giây 300 thì
+    chỗ đó KHÔNG có chữ nào, máy vẫn vá.
+
+    Nguyên nhân: phép nối so khoảng hở với ``ket_thuc`` đã bị kéo dài sau mỗi
+    lần nối, nên cửa sổ cứ trượt về phía trước và nuốt mọi lần chữ xuất hiện ở
+    vùng lân cận trong suốt video.
+
+    Hậu quả đo được: 113 mask chồng nhau phủ 71% khung hình, video 14 phút chạy
+    hơn 4 tiếng.
+    """
+    #: Bốn lần chữ xuất hiện, mỗi lần 1 giây, cách nhau đúng 1 giây — đủ gần để
+    #: phép nối cũ chuỗi hết lại thành một mask dài 60 giây.
+    vung = [_vung(y=0.72, h=0.05, bat_dau=t, ket_thuc=t + 1.0) for t in (0.0, 2.0, 4.0, 6.0)]
+    #: Rồi một lần nữa ở tận cuối video.
+    vung.append(_vung(y=0.72, h=0.05, bat_dau=60.0, ket_thuc=61.0))
+
+    ra = dung_mask(vung, TS)
+
+    tong_song = sum(m.ket_thuc - m.bat_dau for m in ra)
+    assert tong_song < 20.0, (
+        f"mask sống tổng {tong_song:.0f}s trong khi chỉ thấy chữ 5 lần x 1 giây"
+    )
+
+
+def test_chu_hien_lien_tuc_thi_van_duoc_noi_thanh_mot() -> None:
+    """Không được siết tới mức phá luôn ca đúng: chữ hiện liên tục thì mask
+    phải liền một dải, nếu không nó nhấp nháy."""
+    vung = [_vung(y=0.72, h=0.05, bat_dau=t / 2, ket_thuc=t / 2 + 0.5) for t in range(20)]
+
+    ra = dung_mask(vung, TS)
+
+    assert len(ra) == 1
+    assert ra[0].ket_thuc - ra[0].bat_dau >= 9.0

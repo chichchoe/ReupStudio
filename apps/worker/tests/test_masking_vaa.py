@@ -222,3 +222,64 @@ def test_doi_kich_thuoc_thi_khong_dung_lai() -> None:
 
 def test_chua_luu_gi_thi_tra_ve_rong() -> None:
     assert _bo_nho().lay(0, _anh(100)) is None
+
+
+# --------------------------------------------------------------------------- #
+# Gom mask thành cụm để bớt số lượt gọi model
+# --------------------------------------------------------------------------- #
+
+
+def _m(y: float, h: float = 0.05, x: float = 0.1, w: float = 0.8):
+    return MaskRegion(x=x, y=y, w=w, h=h, bat_dau=0.0, ket_thuc=9.0, diem=3.0, ly_do=())
+
+
+def test_mask_chong_nhau_gom_thanh_MOT_cum() -> None:
+    """Ca hỏng thật, video Douyin 14 phút (2026-08-15): 89 vùng chồng chéo trong
+    một cửa sổ 2 phút, nên mỗi khung gọi model gần chục lượt cho cùng một chỗ.
+
+    Mỗi lượt gọi tốn ~0,05 giây tổn hao cố định, chưa kể phần pixel bị vá đi vá
+    lại. Video 14 phút chạy hơn 4 tiếng.
+    """
+    from src.pipeline.masking.vaa import gom_cum
+
+    cum = gom_cum([_m(0.50), _m(0.53), _m(0.56)])
+
+    assert len(cum) == 1
+    assert len(cum[0]) == 3
+
+
+def test_mask_roi_nhau_giu_thanh_cum_rieng() -> None:
+    """Dải tuyên bố ở đỉnh và dải phụ đề ở giữa phải vá riêng: gộp lại thành
+    một vùng cắt sẽ nuốt luôn khoảng hình sạch ở giữa."""
+    from src.pipeline.masking.vaa import gom_cum
+
+    cum = gom_cum([_m(0.02), _m(0.70)])
+
+    assert len(cum) == 2
+
+
+def test_gom_cum_khong_lam_mat_mask_nao() -> None:
+    """Mất một mask nghĩa là sót một vùng chữ mà không ai biết."""
+    from src.pipeline.masking.vaa import gom_cum
+
+    masks = [_m(0.02), _m(0.05), _m(0.50), _m(0.70), _m(0.72)]
+    cum = gom_cum(masks)
+
+    assert sum(len(c) for c in cum) == len(masks)
+
+
+def test_gom_cum_day_chuyen_qua_mask_o_giua() -> None:
+    """A chạm B, B chạm C thì cả ba là một cụm, dù A không chạm C — vá A và C
+    riêng vẫn để lại đường nối ngay giữa vùng B."""
+    from src.pipeline.masking.vaa import gom_cum
+
+    #: A ở 50-55%, C ở 70-75%, B ở 52-72% nối hai đầu lại.
+    cum = gom_cum([_m(0.50), _m(0.70), _m(0.52, h=0.20)])
+
+    assert len(cum) == 1
+
+
+def test_khong_co_mask_nao_thi_khong_co_cum() -> None:
+    from src.pipeline.masking.vaa import gom_cum
+
+    assert gom_cum([]) == []

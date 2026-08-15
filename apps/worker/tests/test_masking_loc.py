@@ -23,6 +23,20 @@ from src.pipeline.masking.loc import NguongLoc, cham_diem, gom_thanh_vet, loc_vu
 
 NGUONG = NguongLoc()
 
+#: Các câu thoại KHÁC HẲN nhau. Bản cũ dùng "这是什么0".."这是什么7" — chúng giống
+#: nhau 87% nên bộ đếm câu (vốn bỏ qua nhiễu OCR) tính đúng là MỘT câu. Phụ đề
+#: thật thì mỗi câu một nội dung.
+_CAU_KHAC_NHAU = [
+    "我没看错吧",
+    "现在这洞洞鞋",
+    "都400多一双了吗",
+    "这还是我理解的洞洞鞋吗",
+    "不都塑料做的吗",
+    "这和十几块一双的有啥区别",
+    "你先逛一圈看看再说",
+    "离谱啊真的离谱",
+]
+
 
 def _vet_dung_yen(
     text: str = "这是什么",
@@ -40,7 +54,7 @@ def _vet_dung_yen(
             y=y,
             w=0.64,
             h=0.05,
-            text=f"{text}{i}" if doi_chu else text,
+            text=_CAU_KHAC_NHAU[i % len(_CAU_KHAC_NHAU)] if doi_chu else text,
             confidence=tin_cay,
         )
         for i in range(so_khung)
@@ -215,3 +229,61 @@ def test_diem_bang_dung_nguong_thi_KHONG_xoa() -> None:
     diem = cham_diem(vet, NGUONG).diem
 
     assert loc_vung_can_xoa(_vet_dung_yen(doi_chu=True), NguongLoc(diem_can_xoa=diem)) == []
+
+
+# --------------------------------------------------------------------------- #
+# Nhiễu OCR không được tính là "đổi chữ"
+# --------------------------------------------------------------------------- #
+
+
+def test_ocr_doc_lech_vai_ky_tu_KHONG_tinh_la_doi_chu() -> None:
+    """Ca hỏng thật, video Douyin 14 phút (2026-08-15).
+
+    Hai đứa trẻ ngồi yên, áo in chữ ``TIME TRIES ALL``. OCR đọc ra
+    ``TIMETRIESALL`` / ``TMETRIESALL`` / ``TIME TRIESALL`` / ``IETRIESALL`` —
+    cùng một dòng chữ, mỗi khung một kiểu.
+
+    Tín hiệu "đổi chữ tại chỗ" sinh ra để nhận diện PHỤ ĐỀ (đổi câu liên tục
+    trong cùng một khung). Đếm cả nhiễu OCR thì logo áo tĩnh được cộng đủ điểm
+    để vượt ngưỡng: đo được điểm nhảy từ ~1,4 lên ~2,9.
+
+    Hậu quả: 113 mask phủ 71% khung hình, video 14 phút chạy hơn 4 tiếng, và
+    hình bị xoá mất chữ trên áo trẻ con.
+    """
+    doc_lech = [
+        TextBox(time=i * 0.5, x=0.42, y=0.50, w=0.16, h=0.04, text=t, confidence=0.85)
+        for i, t in enumerate(
+            ["TIMETRIESALL", "TMETRIESALL", "TIME TRIESALL", "IETRIESALL", "TIETRIESALL"]
+        )
+    ]
+
+    (vet,) = gom_thanh_vet(doc_lech, NGUONG)
+    diem = cham_diem(vet, NGUONG)
+
+    assert not any("đổi chữ" in r for r in diem.ly_do), diem.ly_do
+
+
+def test_logo_ao_bi_ocr_doc_lech_thi_GIU() -> None:
+    """Kết quả cuối của ca trên: không được xoá chữ trên áo trẻ con."""
+    doc_lech = [
+        TextBox(time=i * 0.5, x=0.42, y=0.50, w=0.16, h=0.04, text=t, confidence=0.85)
+        for i, t in enumerate(
+            ["TIMETRIESALL", "TMETRIESALL", "TIME TRIESALL", "IETRIESALL", "TIETRIESALL"]
+        )
+    ]
+
+    assert loc_vung_can_xoa(doc_lech, NGUONG) == []
+
+
+def test_phu_de_doi_cau_THAT_van_duoc_tinh_la_doi_chu() -> None:
+    """Không được siết tới mức phá tín hiệu: hai câu thoại khác hẳn nhau thì
+    vẫn phải tính là đổi chữ, nếu không phụ đề mất tín hiệu mạnh nhất."""
+    khac_han = [
+        TextBox(time=i * 0.5, x=0.18, y=0.68, w=0.64, h=0.05, text=t, confidence=0.88)
+        for i, t in enumerate(["我没看错吧", "现在这洞洞鞋", "都400多一双了吗", "这还是我理解的"])
+    ]
+
+    (vet,) = gom_thanh_vet(khac_han, NGUONG)
+    diem = cham_diem(vet, NGUONG)
+
+    assert any("đổi chữ" in r for r in diem.ly_do), diem.ly_do

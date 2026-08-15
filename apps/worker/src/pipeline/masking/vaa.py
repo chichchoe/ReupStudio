@@ -66,9 +66,20 @@ TI_LE_VA = 0.75
 CANH_TOI_THIEU_DE_THU_NHO = 96
 
 #: Hai vùng cắt coi là "không đổi" khi chênh lệch trung bình dưới ngần này mức
-#: xám (0–255). Đặt chặt: dùng lại miếng vá cũ khi nền ĐÃ đổi sẽ để lại một
-#: mảng hình của quá khứ đứng im giữa cảnh đang chạy — hỏng nặng hơn không xoá.
-NGUONG_KHONG_DOI = 1.5
+#: xám (0–255). Dùng lại miếng vá cũ khi nền ĐÃ đổi sẽ để lại một mảng hình của
+#: quá khứ đứng im giữa cảnh đang chạy — hỏng nặng hơn là không xoá.
+#:
+#: Quét bốn mức trên video Douyin 14 phút (2026-08-15):
+#:
+#:     1,5   dùng lại 16%   7,6x thời lượng
+#:     3,0   dùng lại 30%   6,4x
+#:     5,0   dùng lại 52%   4,2x   nhưng có chỗ lệch tới 213 mức xám
+#:     8,0   dùng lại 69%   2,7x   lệch tới 230
+#:
+#: Ảnh ở cả bốn mức nhìn như nhau và lệch TRUNG BÌNH đều dưới 0,5 mức xám,
+#: nhưng chỗ lệch LỚN NHẤT ở mức 5,0 trở lên là 213 — tức có một mảng nhỏ sai
+#: hẳn. Đúng loại hỏng khó thấy nhất, nên dừng ở 3,0.
+NGUONG_KHONG_DOI = 3.0
 
 _lama: Any = None
 
@@ -128,6 +139,15 @@ def mask_dang_hien(masks: list[MaskRegion], thoi_diem: float) -> list[MaskRegion
     chữ.
     """
     return [m for m in masks if m.bat_dau <= thoi_diem <= m.ket_thuc]
+
+
+def hop_pixel_bao(
+    bao: tuple[float, float, float, float], rong: int, cao: int, *, bien: int = BIEN_CAT_PX
+) -> tuple[int, int, int, int]:
+    """Như ``hop_pixel`` nhưng nhận thẳng khung bao ``(x, y, w, h)`` phần trăm."""
+    x, y, w, h = bao
+    gia = MaskRegion(x=x, y=y, w=w, h=h, bat_dau=0.0, ket_thuc=0.0, diem=0.0, ly_do=())
+    return hop_pixel(gia, rong, cao, bien=bien)
 
 
 def hop_pixel(
@@ -221,6 +241,52 @@ def thu_nho_va_phong_lai(cat: Any, mat_na: Any, ti_le: float, va: Any) -> Any:
     return cv2.resize(ket_qua, (rong, cao), interpolation=cv2.INTER_LANCZOS4)
 
 
+def gom_cum(masks: list[MaskRegion]) -> list[list[MaskRegion]]:
+    """Gom các mask CHẠM NHAU thành cụm, mỗi cụm sẽ vá bằng MỘT lượt gọi model.
+
+    Vì sao cần — đo trên video Douyin 14 phút (2026-08-15): bộ lọc trả về 89
+    vùng chồng chéo trong một cửa sổ 2 phút, tất cả nằm trong hai dải (chữ
+    tuyên bố ở đỉnh và phụ đề ở giữa). Vá từng vùng một nghĩa là mỗi khung gọi
+    model gần chục lượt cho gần như cùng một chỗ.
+
+    Mỗi lượt gọi tốn ~0,05 giây tổn hao cố định, chưa kể phần pixel chồng nhau
+    bị vá đi vá lại. Video 14 phút chạy hơn 4 tiếng.
+
+    Gom theo DÂY CHUYỀN: A chạm B, B chạm C thì cả ba một cụm dù A không chạm
+    C. Vá A và C riêng vẫn để lại đường nối ngay giữa vùng B, vì LaMa dựng lại
+    nền theo từng vùng độc lập.
+    """
+    con_lai = list(masks)
+    cum: list[list[MaskRegion]] = []
+
+    while con_lai:
+        nhom = [con_lai.pop(0)]
+        doi = True
+        while doi:
+            doi = False
+            for m in list(con_lai):
+                if any(_cham_nhau(m, n) for n in nhom):
+                    nhom.append(m)
+                    con_lai.remove(m)
+                    doi = True
+        cum.append(nhom)
+
+    return cum
+
+
+def _cham_nhau(a: MaskRegion, b: MaskRegion) -> bool:
+    return a.x < b.x + b.w and b.x < a.x + a.w and a.y < b.y + b.h and b.y < a.y + a.h
+
+
+def _bao_cum(nhom: list[MaskRegion]) -> tuple[float, float, float, float]:
+    """Khung bao trọn một cụm, theo phần trăm 0–1."""
+    trai = min(m.x for m in nhom)
+    tren = min(m.y for m in nhom)
+    phai = max(m.x + m.w for m in nhom)
+    duoi = max(m.y + m.h for m in nhom)
+    return (trai, tren, phai - trai, duoi - tren)
+
+
 def va_khung(
     anh: Any,
     masks: list[MaskRegion],
@@ -248,25 +314,28 @@ def va_khung(
     cao, rong = anh.shape[:2]
     ra = anh.copy()
 
-    for mask in dang_hien:
-        #: Khoá theo vị trí trong danh sách GỐC, không theo thứ tự trong
-        #: ``dang_hien``: số mask đang hiện đổi theo từng khung, đánh số lại mỗi
-        #: khung sẽ khiến ô nhớ của mask này gán nhầm cho mask khác.
-        khoa = masks.index(mask)
-        x1, y1, x2, y2 = hop_pixel(mask, rong, cao, bien=bien)
+    for nhom in gom_cum(dang_hien):
+        #: MỘT lượt gọi model cho cả cụm — xem ``gom_cum``. Vùng cắt là khung
+        #: bao của cụm, còn mặt nạ tô ĐÚNG từng mask trong cụm, nên phần hình
+        #: sạch nằm giữa các mask vẫn được giữ nguyên.
+        x1, y1, x2, y2 = hop_pixel_bao(_bao_cum(nhom), rong, cao, bien=bien)
         cat = ra[y1:y2, x1:x2]
 
-        #: Mặt nạ chỉ tô phần MASK, không tô phần biên vừa nới — biên là ngữ
-        #: cảnh để model nhìn, tô luôn vào thì lại xoá mất chính ngữ cảnh đó.
         mat_na = np.zeros(cat.shape[:2], dtype=np.uint8)
-        mx1 = max(0, int(mask.x * rong) - x1)
-        my1 = max(0, int(mask.y * cao) - y1)
-        mx2 = min(cat.shape[1], int((mask.x + mask.w) * rong) - x1)
-        my2 = min(cat.shape[0], int((mask.y + mask.h) * cao) - y1)
-        mat_na[my1:my2, mx1:mx2] = 255
+        for mask in nhom:
+            mx1 = max(0, int(mask.x * rong) - x1)
+            my1 = max(0, int(mask.y * cao) - y1)
+            mx2 = min(cat.shape[1], int((mask.x + mask.w) * rong) - x1)
+            my2 = min(cat.shape[0], int((mask.y + mask.h) * cao) - y1)
+            mat_na[my1:my2, mx1:mx2] = 255
 
         if not mat_na.any():
             continue
+
+        #: Khoá bộ nhớ theo mask ĐẦU danh sách gốc trong cụm: số mask đang hiện
+        #: đổi theo từng khung, đánh số lại mỗi khung sẽ khiến ô nhớ của cụm này
+        #: gán nhầm cho cụm khác.
+        khoa = min(masks.index(m) for m in nhom)
 
         va = bo_nho.lay(khoa, cat) if bo_nho is not None else None
         if va is None:
@@ -282,7 +351,10 @@ def va_khung(
             if bo_nho is not None:
                 bo_nho.luu(khoa, cat, va)
 
-        ra[y1:y2, x1:x2] = va[: y2 - y1, : x2 - x1]
+        #: Chỉ đắp lại phần TRONG mặt nạ. Đắp cả vùng cắt sẽ ghi đè luôn phần
+        #: hình sạch giữa các mask bằng bản model tự dựng ra.
+        vung_va = mat_na > 0
+        cat[vung_va] = va[: y2 - y1, : x2 - x1][vung_va]
 
     return ra
 
