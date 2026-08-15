@@ -37,7 +37,7 @@ from ..config import get_settings
 from ..errors import PlatformLimitNotFoundError, VideoTooLongError
 from ..ffmpeg.burn import extract_audio
 from ..ffmpeg.dub import dung_dai_tieng, tron_tieng_vao_video
-from ..ffmpeg.probe import probe
+from ..ffmpeg.probe import do_dai_am_thanh, probe
 from ..milestones import milestones, percent_of
 from ..pipeline.cues import Cue, cues_from_dicts, cues_to_dicts
 from ..pipeline.dedup import fingerprint, is_similar_phash
@@ -555,17 +555,6 @@ def _bat_long_tieng(video) -> bool:
     return bool(config.get("long_tieng", True))
 
 
-def _do_dai_am(f: Path) -> float:
-    """Độ dài file âm thanh, tính bằng giây. Trả 0 khi file hỏng hoặc rỗng."""
-    if not f.exists() or f.stat().st_size == 0:
-        return 0.0
-    try:
-        return float(probe(f).duration_sec or 0.0)
-    except Exception as exc:
-        log.warning("tts.khong_do_duoc_do_dai", file=str(f), error=str(exc))
-        return 0.0
-
-
 def _nguon_de_render(video) -> Path:
     """Bản đã xoá chữ cứng nếu có, ngược lại bản gốc.
 
@@ -696,7 +685,7 @@ def tts_video_task(session, video) -> dict:
 
     #: Đo độ dài THẬT của từng file thay vì ước theo số chữ: tốc độ đọc của
     #: edge-tts đổi theo dấu câu và chữ số, ước sai thì cả lịch phát lệch theo.
-    do_dai = [_do_dai_am(files[i]) if i in files else 0.0 for i in range(len(vi_cues))]
+    do_dai = [do_dai_am_thanh(files[i]) if i in files else 0.0 for i in range(len(vi_cues))]
     lich = lap_lich_long_tieng(vi_cues, do_dai)
 
     tong_giay = video.duration_sec or (max(c.end for c in vi_cues) + 2.0)

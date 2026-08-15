@@ -31,6 +31,17 @@ GIONG_VIET = [
 
 GIONG_MAC_DINH = "vi-VN-HoaiMyNeural"
 
+#: Số lần thử lại mỗi câu. CLAUDE.md bắt buộc với mọi lời gọi API bên ngoài:
+#: "Luôn có timeout, retry với backoff, giới hạn số lần".
+#:
+#: Đo được vì sao cần: edge-tts trả "No audio was received" cho một câu rồi
+#: câu ngay sau đó lại chạy bình thường — lỗi chập chờn, không phải lỗi nội
+#: dung. Không thử lại thì câu đó mất giọng vĩnh viễn mà video vẫn "xong".
+SO_LAN_THU = 3
+
+#: Chờ bao lâu trước lần thử lại đầu tiên; mỗi lần sau nhân đôi.
+CHO_BAN_DAU_GIAY = 1.0
+
 
 class EdgeTTS:
     ten = "edge"
@@ -100,10 +111,14 @@ class EdgeTTS:
             async with khoa:
                 try:
                     if sach:
-                        await edge_tts.Communicate(sach, giong).save(str(dst))
-                        ket_qua[chi_so] = dst
+                        await _doc_co_thu_lai(sach, dst, giong, chi_so)
+                        #: File 0 byte TÍNH LÀ HỎNG. edge-tts đôi khi trả về
+                        #: "thành công" nhưng không ghi gì — nhận nó là thành
+                        #: công thì câu đó mất giọng mà không ai biết.
+                        if dst.exists() and dst.stat().st_size > 0:
+                            ket_qua[chi_so] = dst
                 except Exception as exc:
-                    log.warning("tts.cau_hong", chi_so=chi_so, error=str(exc))
+                    log.warning("tts.cau_hong_han", chi_so=chi_so, error=str(exc))
                 finally:
                     xong += 1
                     if progress_cb and cac_cau:
@@ -116,3 +131,33 @@ class EdgeTTS:
         asyncio.run(_chay())
         log.info("tts.xong", tong=len(cac_cau), thanh_cong=len(ket_qua))
         return ket_qua
+
+
+async def _doc_co_thu_lai(text: str, dst: Path, giong: str, chi_so: int) -> None:
+    """Đọc một câu, thử lại có giãn nhịp khi hỏng.
+
+    Coi file rỗng là hỏng và thử lại: edge-tts có lúc không ném lỗi mà cũng
+    không ghi ra gì.
+    """
+    import asyncio
+
+    import edge_tts
+
+    cho = CHO_BAN_DAU_GIAY
+    loi_cuoi: Exception | None = None
+
+    for lan in range(SO_LAN_THU):
+        try:
+            await edge_tts.Communicate(text, giong).save(str(dst))
+            if dst.exists() and dst.stat().st_size > 0:
+                return
+            loi_cuoi = ReupError("edge-tts không ghi ra byte nào")
+        except Exception as exc:
+            loi_cuoi = exc
+
+        if lan < SO_LAN_THU - 1:
+            log.info("tts.thu_lai", chi_so=chi_so, lan=lan + 1, error=str(loi_cuoi)[:80])
+            await asyncio.sleep(cho)
+            cho *= 2
+
+    raise ReupError(f"đọc hỏng sau {SO_LAN_THU} lần: {loi_cuoi}")
