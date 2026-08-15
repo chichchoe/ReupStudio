@@ -8,13 +8,12 @@ import { BulkActionBar } from "@/components/BulkActionBar";
 import { ChannelsTab } from "@/components/ChannelsTab";
 import { BulkSkipNotice } from "@/components/BulkSkipNotice";
 import { DuyetBanDichTab } from "@/components/DuyetBanDichTab";
+import { KhungXem } from "@/components/KhungXem";
 import { PasteLinksForm } from "@/components/PasteLinksForm";
 import { PendingTranslateTab } from "@/components/PendingTranslateTab";
-import { StatusChips } from "@/components/StatusChips";
 import { VideoRow } from "@/components/VideoRow";
-import { XemThuVideo } from "@/components/XemThuVideo";
 import { api } from "@/lib/api";
-import type { BulkResult, Video } from "@/lib/types";
+import { STATUS_LABEL, type BulkResult, type VideoStatus } from "@/lib/types";
 import { useLibraryMutations } from "@/lib/useLibraryMutations";
 import { useReupSocket } from "@/lib/ws";
 
@@ -112,9 +111,18 @@ function LibraryInner() {
     },
   });
 
-  //: Video đang mở khối xem thử. Giữ cả object chứ không chỉ id — khối xem cần
-  //: tên, kích thước, thời lượng, mà tìm lại trong danh sách thì thừa việc.
-  const [dangXem, setDangXem] = useState<Video | null>(null);
+  //: Chỉ giữ ID chứ không giữ cả object: object lấy ra từ danh sách mỗi lần
+  //: render, nên khung xem tự cập nhật khi video chạy xong mà không phải đồng
+  //: bộ tay.
+  const [idDangXem, setIdDangXem] = useState<string | null>(null);
+  const dangXem = videos.find((v) => v.id === idDangXem) ?? null;
+
+  // Tự chọn video đầu tiên: mở trang ra là xem được luôn. Cũng chạy khi video
+  // đang xem bị xoá hoặc rơi khỏi bộ lọc — nếu không thì khung bên phải trống
+  // mà danh sách vẫn đầy, trông như hỏng.
+  useEffect(() => {
+    if (videos.length > 0 && !dangXem) setIdDangXem(videos[0].id);
+  }, [videos, dangXem]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -200,7 +208,19 @@ function LibraryInner() {
         <PendingTranslateTab />
       ) : (
         <>
-          <StatusChips status={status} counts={counts} onChange={setStatus} />
+          {/* Dải chip lọc trạng thái đã bỏ: lúc mới dùng thì gần hết là số 0,
+              và cột phải giờ mới là chỗ mắt nhìn. Bộ lọc từ thẻ ở trang Tổng
+              quan (`?status=ready`) vẫn chạy — hiện thành một thẻ gỡ được, chứ
+              không im lặng lọc mà không nói gì. */}
+          {status !== "all" && (
+            <button
+              className="chip chip-active mb-3"
+              onClick={() => setStatus("all")}
+              title="Bỏ lọc"
+            >
+              Đang lọc: {STATUS_LABEL[status as VideoStatus] ?? status} ✕
+            </button>
+          )}
 
           {bulkNotice && (
             <BulkSkipNotice result={bulkNotice} onDismiss={() => setBulkNotice(null)} />
@@ -214,18 +234,33 @@ function LibraryInner() {
             </div>
           )}
 
-          {videos.map((video) => (
-            <VideoRow
-              key={video.id}
-              video={video}
-              progress={progress[video.id]}
-              selected={selected.has(video.id)}
-              onToggle={toggle}
-              onRetry={retry}
-              onDelete={remove}
-              onXemThu={setDangXem}
-            />
-          ))}
+          {/* Danh sách bên trái, khung xem bên phải. Cột phải rộng cố định vì
+              nó chứa video dọc 9:16 — để co giãn thì mỗi lần cửa sổ đổi bề
+              rộng, khung phát lại nhảy kích thước. */}
+          {videos.length > 0 && (
+            <div className="grid grid-cols-[minmax(0,1fr)_380px] items-start gap-4">
+              <div>
+                {videos.map((video) => (
+                  <VideoRow
+                    key={video.id}
+                    video={video}
+                    progress={progress[video.id]}
+                    selected={selected.has(video.id)}
+                    dangXem={video.id === idDangXem}
+                    onToggle={toggle}
+                    onChon={setIdDangXem}
+                  />
+                ))}
+              </div>
+
+              <KhungXem
+                video={dangXem}
+                progress={dangXem ? progress[dangXem.id] : undefined}
+                onRetry={retry}
+                onDelete={remove}
+              />
+            </div>
+          )}
 
           <BulkActionBar
             selectedCount={selected.size}
@@ -239,7 +274,6 @@ function LibraryInner() {
           />
         </>
       )}
-      {dangXem && <XemThuVideo video={dangXem} onDong={() => setDangXem(null)} />}
     </div>
   );
 }
