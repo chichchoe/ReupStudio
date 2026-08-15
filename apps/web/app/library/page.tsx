@@ -5,20 +5,23 @@ import clsx from "clsx";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { BulkActionBar } from "@/components/BulkActionBar";
+import { ChannelsTab } from "@/components/ChannelsTab";
 import { BulkSkipNotice } from "@/components/BulkSkipNotice";
 import { DuyetBanDichTab } from "@/components/DuyetBanDichTab";
+import { PasteLinksForm } from "@/components/PasteLinksForm";
 import { PendingTranslateTab } from "@/components/PendingTranslateTab";
 import { StatusChips } from "@/components/StatusChips";
 import { VideoRow } from "@/components/VideoRow";
+import { XemThuVideo } from "@/components/XemThuVideo";
 import { api } from "@/lib/api";
-import type { BulkResult } from "@/lib/types";
+import type { BulkResult, Video } from "@/lib/types";
 import { useLibraryMutations } from "@/lib/useLibraryMutations";
 import { useReupSocket } from "@/lib/ws";
 
 /** Chờ 300ms sau lần gõ cuối mới bắn request tìm kiếm — tránh gọi API mỗi phím. */
 const SEARCH_DEBOUNCE_MS = 300;
 
-type Tab = "all" | "pending" | "duyet";
+type Tab = "all" | "pending" | "duyet" | "kenh";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "all", label: "Toàn bộ video" },
@@ -27,6 +30,9 @@ const TABS: { value: Tab; label: string }[] = [
   //: khi chạy bước xoá chữ cứng — bước nặng nhất, không nên chạy rồi mới biết
   //: bản dịch hỏng.
   { value: "duyet", label: "Chờ duyệt" },
+  //: Trang "Nguồn Trung Quốc" cũ có tab này. Gộp vào đây để chỗ thêm video và
+  //: chỗ xem kết quả nằm cùng một nơi.
+  { value: "kenh", label: "Kênh theo dõi" },
 ];
 
 function LibraryInner() {
@@ -34,7 +40,7 @@ function LibraryInner() {
   const router = useRouter();
   const tab: Tab = ((): Tab => {
     const t = params.get("tab");
-    return t === "pending" || t === "duyet" ? t : "all";
+    return t === "pending" || t === "duyet" || t === "kenh" ? t : "all";
   })();
   const [status, setStatus] = useState<string>(params.get("status") ?? "all");
   const [queryInput, setQueryInput] = useState(params.get("q") ?? "");
@@ -106,6 +112,10 @@ function LibraryInner() {
     },
   });
 
+  //: Video đang mở khối xem thử. Giữ cả object chứ không chỉ id — khối xem cần
+  //: tên, kích thước, thời lượng, mà tìm lại trong danh sách thì thừa việc.
+  const [dangXem, setDangXem] = useState<Video | null>(null);
+
   const toggle = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -119,13 +129,17 @@ function LibraryInner() {
     <div>
       <header className="flex items-start justify-between gap-4 mb-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold">Thư viện</h1>
-          <p className="text-[13px] text-muted mt-0.5">
+          <h1 className="text-xl font-semibold">Video</h1>
+          <p className="mt-0.5 text-[13px] text-muted">
             {tab === "pending"
-              ? "Video đã nhận dạng xong lời thoại — chọn model AI rồi bấm Dịch."
-              : data
-                ? `${data.total} video`
-                : "đang tải…"}
+              ? "Đã nhận dạng xong lời thoại — chọn AI, giọng đọc rồi bấm Dịch."
+              : tab === "duyet"
+                ? "Đọc lại bản dịch và nghe thử giọng trước khi ghép vào video."
+                : tab === "kenh"
+                  ? "Kênh nguồn được quét định kỳ để lấy video mới."
+                  : data
+                    ? `${data.total} video`
+                    : "đang tải…"}
           </p>
         </div>
         {/* Ô tìm kiếm chỉ lọc danh sách đầy đủ, tab chờ dịch không dùng đến. */}
@@ -139,20 +153,48 @@ function LibraryInner() {
         )}
       </header>
 
-      <div className="flex gap-2 mb-3">
+      {/*
+        Ô dán link nằm NGAY ĐẦU trang này thay vì ở một trang riêng: dán xong
+        là muốn xem kết quả ngay, tách làm hai trang chỉ thêm một bước đi lại.
+        Gấp lại được vì phần lớn thời gian người dùng vào đây để XEM, không
+        phải để thêm.
+      */}
+      <details className="card mb-3" open={videos.length === 0} hidden={tab === "kenh"}>
+        <summary className="cursor-pointer list-none text-[13.5px] font-medium marker:content-none">
+          <span className="text-accent">＋</span> Thêm video — dán link
+          <span className="ml-2 text-[11.5px] font-normal text-muted">
+            Douyin, Bilibili, Kuaishou, Xiaohongshu, Weibo, YouTube, TikTok… hầu hết trang video
+          </span>
+        </summary>
+        <div className="mt-3 border-t border-border pt-3">
+          <PasteLinksForm />
+        </div>
+      </details>
+
+      {/* Tab dùng dạng khối liền, KHÁC hẳn dải chip lọc trạng thái ngay bên
+          dưới. Trước đây cả hai cùng là chip bo tròn nên nhìn như hai hàng lọc
+          ngang hàng, trong khi thực ra một hàng đổi cả trang, một hàng chỉ lọc. */}
+      <div className="mb-3 inline-flex rounded-lg border border-border bg-panel p-0.5">
         {TABS.map((t) => (
           <button
             key={t.value}
             onClick={() => setTab(t.value)}
-            className={clsx("chip", tab === t.value && "chip-active")}
+            className={clsx(
+              "rounded-[7px] px-3.5 py-1.5 text-[13px] transition-colors",
+              tab === t.value
+                ? "bg-accent font-medium text-white"
+                : "text-muted hover:bg-panel2 hover:text-fg",
+            )}
           >
             {t.label}
-            {t.value === "pending" && counts?.review != null && ` · ${counts.review}`}
+            {t.value === "pending" && !!counts?.review && ` · ${counts.review}`}
           </button>
         ))}
       </div>
 
-      {tab === "duyet" ? (
+      {tab === "kenh" ? (
+        <ChannelsTab />
+      ) : tab === "duyet" ? (
         <DuyetBanDichTab />
       ) : tab === "pending" ? (
         <PendingTranslateTab />
@@ -181,6 +223,7 @@ function LibraryInner() {
               onToggle={toggle}
               onRetry={retry}
               onDelete={remove}
+              onXemThu={setDangXem}
             />
           ))}
 
@@ -196,6 +239,7 @@ function LibraryInner() {
           />
         </>
       )}
+      {dangXem && <XemThuVideo video={dangXem} onDong={() => setDangXem(null)} />}
     </div>
   );
 }

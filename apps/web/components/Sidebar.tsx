@@ -18,8 +18,10 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
     items: [
       { href: "/", label: "Tổng quan", icon: "◲" },
       { href: "/pipelines", label: "Luồng tự động", icon: "⚡", soon: true },
-      { href: "/sources", label: "Nguồn Trung Quốc", icon: "↓" },
-      { href: "/library", label: "Thư viện", icon: "▤" },
+      //: "Nguồn" và "Thư viện" trước là hai trang: một chỗ dán link, một chỗ
+      //: xem kết quả. Nhưng dán xong là muốn xem ngay, nên tách ra chỉ tạo
+      //: thêm một bước đi lại. Gộp thành một.
+      { href: "/library", label: "Video", icon: "▤" },
       { href: "/editor", label: "Editor", icon: "✧" },
     ],
   },
@@ -33,7 +35,9 @@ const GROUPS: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Hệ thống",
-    items: [{ href: "/settings", label: "Cài đặt", icon: "⚙", soon: true }],
+    //: KHÔNG còn "sắp có" — trang Cấu hình đã chạy thật. Để cờ này là chặn
+    //: người dùng vào đúng trang họ cần.
+    items: [{ href: "/settings", label: "Cấu hình", icon: "⚙" }],
   },
 ];
 

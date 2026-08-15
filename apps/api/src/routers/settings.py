@@ -77,19 +77,21 @@ def _kieu_o(key: str) -> tuple[str, list[str]]:
 
 #: Gom theo nhóm và kèm mô tả để người dùng không phải đoán ý nghĩa từng biến.
 #: Giữ nguyên tên biến làm khoá — đó vẫn là thứ ``.env`` và mã nguồn dùng.
+#:
+#: Thứ tự nhóm đi THEO ĐÚNG THỨ TỰ PIPELINE — tải → nghe → dịch → phụ đề →
+#: chống trùng → giới hạn → đăng. Sắp theo chủ đề trừu tượng thì người dùng
+#: phải nhớ biến nào thuộc chủ đề nào; sắp theo thứ tự chạy thì chỉ cần nhớ
+#: bước nào đang sai.
 NHOM = [
     (
-        "AI dịch thuật",
+        "1 · Tải video",
         [
-            #: Khoá và địa chỉ của từng nhà cung cấp KHÔNG nằm ở đây — chúng có
-            #: trang riêng vì người dùng cấu hình nhiều bên cùng lúc.
-            ("LLM_BATCH_SIZE", "Số câu gửi mỗi lượt gọi"),
-            ("LLM_MAX_REQUESTS_PER_MIN", "Trần lượt/phút tự khai. 0 = không giới hạn"),
-            ("LLM_MAX_REQUESTS_PER_DAY", "Trần lượt/ngày tự khai. 0 = không giới hạn"),
+            ("YTDLP_COOKIES_FROM_BROWSER", "chrome · firefox · edge · safari"),
+            ("YTDLP_COOKIE_FILE", "File cookie dạng Netscape — cách duy nhất chạy trong Docker"),
         ],
     ),
     (
-        "Nhận dạng giọng nói",
+        "2 · Nhận dạng giọng nói",
         [
             ("WHISPER_MODEL", "tiny · base · small · medium · large-v3"),
             ("WHISPER_DEVICE", "cuda · cpu · auto"),
@@ -97,23 +99,23 @@ NHOM = [
         ],
     ),
     (
-        "Phụ đề",
+        "3 · Dịch thuật",
+        [
+            #: Khoá và địa chỉ của từng nhà cung cấp KHÔNG nằm ở đây — chúng có
+            #: mục riêng vì người dùng cấu hình nhiều bên cùng lúc.
+            ("LLM_BATCH_SIZE", "Số câu gửi mỗi lượt gọi"),
+            ("LLM_MAX_REQUESTS_PER_MIN", "Trần lượt/phút tự khai. 0 = không giới hạn"),
+            ("LLM_MAX_REQUESTS_PER_DAY", "Trần lượt/ngày tự khai. 0 = không giới hạn"),
+        ],
+    ),
+    (
+        "4 · Phụ đề",
         [
             ("SUB_FONT", "Tên font"),
             ("SUB_FONT_SIZE", "Pixel ở khung chuẩn 1080×1920"),
             ("SUB_MAX_CHARS_PER_LINE", "Chữ to hơn thì số ký tự mỗi dòng phải nhỏ đi"),
             ("SUB_MAX_LINES", "Số dòng tối đa mỗi khung"),
             ("SUB_MIN_DURATION", "Giây tối thiểu mỗi khung phụ đề"),
-        ],
-    ),
-    (
-        "Giới hạn an toàn",
-        [
-            ("MONTHLY_BUDGET_USD", "Trần chi tiêu tháng. 0 = không giới hạn"),
-            ("MAX_CONCURRENT_RENDERS", "Số render chạy cùng lúc"),
-            ("MAX_VIDEO_DURATION_SEC", "Video dài hơn mức này bị bỏ qua"),
-            ("DOWNLOAD_TIMEOUT_SEC", "Timeout tải video"),
-            ("FFMPEG_TIMEOUT_SEC", "Timeout mỗi lệnh ffmpeg"),
         ],
     ),
     (
@@ -126,10 +128,13 @@ NHOM = [
         ],
     ),
     (
-        "Tải video",
+        "Giới hạn an toàn",
         [
-            ("YTDLP_COOKIES_FROM_BROWSER", "chrome · firefox · edge · safari"),
-            ("YTDLP_COOKIE_FILE", "File cookie dạng Netscape — cách duy nhất chạy trong Docker"),
+            ("MONTHLY_BUDGET_USD", "Trần chi tiêu tháng. 0 = không giới hạn"),
+            ("MAX_CONCURRENT_RENDERS", "Số render chạy cùng lúc"),
+            ("MAX_VIDEO_DURATION_SEC", "Video dài hơn mức này bị bỏ qua"),
+            ("DOWNLOAD_TIMEOUT_SEC", "Timeout tải video"),
+            ("FFMPEG_TIMEOUT_SEC", "Timeout mỗi lệnh ffmpeg"),
         ],
     ),
     (

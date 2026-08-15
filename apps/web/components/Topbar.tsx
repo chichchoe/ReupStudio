@@ -25,15 +25,8 @@ export function Topbar() {
         ReupStudio
       </Link>
 
-      <nav className="flex items-center gap-3 text-[12.5px]">
-        <Link href="/library" className="text-muted hover:text-fg">
-          Thư viện
-        </Link>
-        <Link href="/settings" className="text-muted hover:text-fg">
-          Cấu hình
-        </Link>
-      </nav>
-
+      {/* Không có điều hướng ở đây: sidebar đã là nơi duy nhất dẫn đường.
+          Hai chỗ cùng dẫn tới một trang làm người dùng phải nhớ hai đường. */}
       <div className="ml-auto flex items-center gap-3 text-xs text-muted">
         <Badge ok={apiOk} label={apiOk ? "API sẵn sàng" : "API chưa kết nối"} />
         <Badge ok={connected} label={connected ? "Realtime bật" : "Realtime tắt"} />

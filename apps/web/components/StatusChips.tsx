@@ -24,9 +24,20 @@ interface Props {
 
 /** Dải chip lọc theo trạng thái video ở trang Thư viện. */
 export function StatusChips({ status, counts, onChange }: Props) {
+  // Ẩn trạng thái đang rỗng: bấm vào chỉ ra danh sách trắng. Lúc mới dùng thì
+  // 7/9 chip là số 0, chúng lấn át hai chip thật sự bấm được.
+  // Vẫn giữ "Tất cả" và chip đang chọn — nếu không, lọc xong rồi xoá hết video
+  // là chip đang chọn biến mất và không còn đường quay lại.
+  const hien = FILTERS.filter(
+    (key) => key === "all" || key === status || (counts?.[key] ?? 0) > 0,
+  );
+
+  //: Chỉ còn mỗi "Tất cả" thì dải lọc không lọc được gì — bỏ hẳn cho đỡ rác.
+  if (hien.length < 2) return null;
+
   return (
     <div className="flex gap-2 flex-wrap mb-3">
-      {FILTERS.map((key) => (
+      {hien.map((key) => (
         <button
           key={key}
           onClick={() => onChange(key)}

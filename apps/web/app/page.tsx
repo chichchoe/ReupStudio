@@ -74,7 +74,7 @@ export default function DashboardPage() {
           {activeJobs.length === 0 ? (
             <p className="text-[12.5px] text-muted py-6 text-center">
               Không có job nào đang chạy.{" "}
-              <Link href="/sources" className="text-accent">
+              <Link href="/library" className="text-accent">
                 Thêm video →
               </Link>
             </p>

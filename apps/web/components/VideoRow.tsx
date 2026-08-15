@@ -14,6 +14,8 @@ interface Props {
   onToggle: (id: string) => void;
   onRetry: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Bấm play — mở khối xem thử ngay trong trang, không phải tải file về. */
+  onXemThu: (video: Video) => void;
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -24,9 +26,20 @@ const STATUS_TONE: Record<string, string> = {
   running: "text-run",
 };
 
-export function VideoRow({ video, progress, selected, onToggle, onRetry, onDelete }: Props) {
+export function VideoRow({
+  video,
+  progress,
+  selected,
+  onToggle,
+  onRetry,
+  onDelete,
+  onXemThu,
+}: Props) {
   const title = video.title_vi || video.title_original || video.source_video_id;
   const note = buildNote(video, progress);
+  //: Chỉ xem được khi đã có file ra. `posted` cũng có file — video đã đăng vẫn
+  //: cần xem lại được.
+  const xemDuoc = video.status === "ready" || video.status === "posted";
 
   return (
     <div
@@ -46,12 +59,28 @@ export function VideoRow({ video, progress, selected, onToggle, onRetry, onDelet
         {selected ? "✓" : ""}
       </button>
 
-      <div className="w-11 h-[60px] shrink-0 rounded-lg bg-gradient-to-br from-[#2E3646] to-[#171B24] relative flex items-center justify-center text-xl">
-        🎬
-        <span className="absolute bottom-0.5 right-0.5 bg-black/75 text-[9.5px] px-1 rounded">
+      {/* Bấm vào ảnh đại diện để xem thử — chỉ khi đã render xong; chưa xong
+          thì không có gì để xem, và nút bấm được nhưng không làm gì còn tệ hơn
+          không có nút. */}
+      <button
+        type="button"
+        disabled={!xemDuoc}
+        onClick={() => onXemThu(video)}
+        aria-label={xemDuoc ? "Xem thử bản render" : "Chưa render xong"}
+        className={clsx(
+          "group relative flex h-[60px] w-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#2E3646] to-[#171B24] text-xl",
+          xemDuoc && "cursor-pointer hover:brightness-125",
+        )}
+      >
+        {xemDuoc ? (
+          <span className="text-[15px] text-white/90 group-hover:text-white">▶</span>
+        ) : (
+          "🎬"
+        )}
+        <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[9.5px]">
           {formatDuration(video.duration_sec)}
         </span>
-      </div>
+      </button>
 
       <div className="flex-1 min-w-0">
         <div className="text-[13.5px] font-medium truncate">{title}</div>
@@ -94,10 +123,15 @@ export function VideoRow({ video, progress, selected, onToggle, onRetry, onDelet
       </div>
 
       <div className="flex gap-1.5 shrink-0">
-        {video.status === "ready" && (
-          <a className="btn btn-sm" href={api.fileUrl(video.id)} download>
-            ⬇ Tải file
-          </a>
+        {xemDuoc && (
+          <>
+            <button className="btn btn-sm btn-primary" onClick={() => onXemThu(video)}>
+              ▶ Xem thử
+            </button>
+            <a className="btn btn-sm" href={api.fileUrl(video.id)} download>
+              ⬇ Tải
+            </a>
+          </>
         )}
         {video.status === "error" && (
           <button className="btn btn-sm" onClick={() => onRetry(video.id)}>
