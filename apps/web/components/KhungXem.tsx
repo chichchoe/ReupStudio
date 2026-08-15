@@ -39,8 +39,11 @@ export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
   const note = ghiChuVideo(video, progress);
 
   return (
-    <aside className="overflow-hidden rounded-xl border border-border bg-panel">
-      <div className="flex items-center justify-center bg-black">
+    //: Cao hết vùng còn lại rồi chia: phần hình lấy chỗ thừa, khối chữ giữ
+    //: đúng chiều nó cần. Trước đây chặn cứng theo vh nên cửa sổ cao bao nhiêu
+    //: thì khung phát vẫn bé như nhau.
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-panel">
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-black">
         {xemDuoc ? (
           /* eslint-disable-next-line jsx-a11y/media-has-caption --
              Phụ đề đã BURN vào hình, không có track riêng để gắn. */
@@ -51,12 +54,10 @@ export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
             src={api.fileUrl(video.id)}
             controls
             autoPlay
-            //: Chặn theo chiều cao cửa sổ để cả thẻ — video, tên, nút Tải/Xoá —
-            //: nằm gọn trong một màn. Khung dính mà cao hơn màn thì dính vô ích.
-            className="max-h-[46vh] max-w-full"
+            className="h-full w-full object-contain"
           />
         ) : (
-          <div className="flex h-52 w-full flex-col items-center justify-center gap-2 text-[12.5px] text-muted">
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-[12.5px] text-muted">
             <span className="text-2xl opacity-50">🎬</span>
             {video.status === "running" ? "Đang xử lý — xong là xem được ngay" : "Chưa có bản dựng"}
             {progress && video.status === "running" && (
@@ -71,13 +72,21 @@ export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
         )}
       </div>
 
-      <div className="p-3.5">
-        <h2 className="text-[13.5px] font-medium leading-snug">{ten}</h2>
+      {/* Khối chữ giữ càng thấp càng tốt: mỗi dòng ở đây là một dòng hình bị
+          mất. Tiêu đề cắt ở 2 dòng — tiêu đề Douyin dài cả đoạn, để nguyên là
+          nuốt mất một phần ba khung phát. */}
+      <div className="shrink-0 p-3">
+        <h2
+          className="text-[13px] font-medium leading-snug"
+          style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}
+          title={ten}
+        >
+          {ten}
+        </h2>
         <p className="mt-1 text-[11.5px] text-muted">
           {platformLabel(video.source_platform)}
           {video.source_author && ` · ${video.source_author}`} · {formatRelative(video.created_at)}
-        </p>
-        <p className="mt-0.5 text-[11.5px] text-muted">
+          {" · "}
           {formatDuration(video.duration_sec)}
           {/* Ghi rõ "gốc": `width`/`height` là kích thước video TẢI VỀ, còn thứ
               đang phát là bản đã dựng lại 9:16. Không ghi thì con số ngang
@@ -85,16 +94,15 @@ export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
           {video.width ? ` · gốc ${video.width}×${video.height}` : ""}
         </p>
 
-        <p
-          className={clsx(
-            "mt-2 text-[12px]",
-            video.status === "error" ? "text-err" : xemDuoc ? "text-ok" : "text-muted",
-          )}
-        >
-          {note}
-        </p>
-
-        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span
+            className={clsx(
+              "mr-auto text-[11.5px]",
+              video.status === "error" ? "text-err" : xemDuoc ? "text-ok" : "text-muted",
+            )}
+          >
+            {note}
+          </span>
           {xemDuoc && (
             <a className="btn btn-sm" href={api.fileUrl(video.id)} download>
               ⬇ Tải file
@@ -105,10 +113,7 @@ export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
               Thử lại
             </button>
           )}
-          <button
-            className="btn btn-sm ml-auto border-err/35 text-err"
-            onClick={() => onDelete(video.id)}
-          >
+          <button className="btn btn-sm border-err/35 text-err" onClick={() => onDelete(video.id)}>
             Xoá
           </button>
         </div>

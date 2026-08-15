@@ -115,6 +115,7 @@ function LibraryInner() {
   //: render, nên khung xem tự cập nhật khi video chạy xong mà không phải đồng
   //: bộ tay.
   const [idDangXem, setIdDangXem] = useState<string | null>(null);
+  const [moThem, setMoThem] = useState(false);
   const dangXem = videos.find((v) => v.id === idDangXem) ?? null;
 
   //: KHÔNG tự chọn video đầu tiên. Mở trang ra mà có tiếng phát ra ngay thì
@@ -138,24 +139,6 @@ function LibraryInner() {
     //: `h-full` + `min-h-0` để danh sách bên trong tự cuộn được. Không có nó,
     //: cả trang cuộn và khung xem bên phải trôi mất khỏi màn hình.
     <div className="flex h-full min-h-0 flex-col">
-      {/*
-        Ô dán link nằm NGAY ĐẦU trang này thay vì ở một trang riêng: dán xong
-        là muốn xem kết quả ngay, tách làm hai trang chỉ thêm một bước đi lại.
-        Gấp lại được vì phần lớn thời gian người dùng vào đây để XEM, không
-        phải để thêm.
-      */}
-      <details className="card mb-3" open={videos.length === 0} hidden={tab === "kenh"}>
-        <summary className="cursor-pointer list-none text-[13.5px] font-medium marker:content-none">
-          <span className="text-accent">＋</span> Thêm video — dán link
-          <span className="ml-2 text-[11.5px] font-normal text-muted">
-            Douyin, Bilibili, Kuaishou, Xiaohongshu, Weibo, YouTube, TikTok… hầu hết trang video
-          </span>
-        </summary>
-        <div className="mt-3 border-t border-border pt-3">
-          <PasteLinksForm />
-        </div>
-      </details>
-
       {/* Tab dùng dạng khối liền, KHÁC hẳn dải chip lọc trạng thái ngay bên
           dưới. Trước đây cả hai cùng là chip bo tròn nên nhìn như hai hàng lọc
           ngang hàng, trong khi thực ra một hàng đổi cả trang, một hàng chỉ lọc. */}
@@ -183,13 +166,31 @@ function LibraryInner() {
             Tab chờ dịch / chờ duyệt / kênh không dùng đến nên ẩn hẳn. */}
         {tab === "all" && (
           <input
-            className="input ml-auto w-72"
+            className="input ml-auto w-64"
             placeholder="🔍 Tìm theo tiêu đề hoặc tác giả…"
             value={queryInput}
             onChange={(e) => setQueryInput(e.target.value)}
           />
         )}
+
+        {/* Ô dán link chiếm gần 200px chiều cao, mà phần lớn thời gian vào đây
+            là để XEM chứ không phải để thêm. Thu về một nút, mở ra khi cần. */}
+        {tab !== "kenh" && (
+          <button
+            className={clsx("btn", tab === "all" || "ml-auto", moThem && "btn-primary")}
+            onClick={() => setMoThem((v) => !v)}
+          >
+            ＋ Thêm video
+          </button>
+        )}
       </div>
+
+      {/* Danh sách rỗng thì mở sẵn: lúc đó không còn việc gì khác để làm ở đây. */}
+      {(moThem || (!isLoading && videos.length === 0 && tab === "all")) && tab !== "kenh" && (
+        <div className="card mb-3">
+          <PasteLinksForm />
+        </div>
+      )}
 
       {tab === "kenh" ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -235,7 +236,7 @@ function LibraryInner() {
               nó chứa video dọc 9:16 — để co giãn thì mỗi lần cửa sổ đổi bề
               rộng, khung phát lại nhảy kích thước. */}
           {videos.length > 0 && (
-            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] items-start gap-4">
+            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
               {/* Chỉ DANH SÁCH cuộn, khung xem bên phải đứng yên — cuộn tìm
                   video tiếp theo mà bản đang xem trôi mất là phải cuộn ngược. */}
               <div className="h-full overflow-y-auto pr-1">

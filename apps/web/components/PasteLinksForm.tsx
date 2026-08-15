@@ -5,22 +5,23 @@ import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import type { CreateFromLinksResult } from "@/lib/types";
 
-/**
- * Văn phong dịch — không còn ô chọn trên giao diện. Giữ đúng giá trị mà ô đó
- * vẫn mặc định, để video thêm từ nay dịch y hệt video đã thêm trước; bỏ hẳn
- * thì worker rơi về "doi_thuong" và giọng dịch đổi mà không ai biết.
- */
-const VAN_PHONG_MAC_DINH = "ngon_tinh";
+const TONES = [
+  { value: "doi_thuong", label: "Đời thường" },
+  { value: "ngon_tinh", label: "Ngôn tình" },
+  { value: "hai_huoc", label: "Hài hước" },
+  { value: "trang_trong", label: "Trang trọng" },
+];
 
-/** Ô dán link ở trang Video: dán nhiều link, gửi thẳng vào hàng đợi. */
+/** Ô dán link ở trang Video: dán nhiều link, chọn văn phong, gửi vào hàng đợi. */
 export function PasteLinksForm() {
   const [text, setText] = useState("");
+  const [tone, setTone] = useState("ngon_tinh");
   const [result, setResult] = useState<CreateFromLinksResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: (urls: string[]) => api.createFromLinks(urls, { tone: VAN_PHONG_MAC_DINH }),
+    mutationFn: (urls: string[]) => api.createFromLinks(urls, { tone }),
     onSuccess: (data) => {
       setResult(data);
       setError(null);
@@ -54,6 +55,22 @@ Mỗi dòng một link — hỗ trợ link rút gọn và link có tham số sha
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
+        <label className="text-xs text-muted" htmlFor="van-phong">
+          Văn phong dịch
+        </label>
+        <select
+          id="van-phong"
+          value={tone}
+          onChange={(e) => setTone(e.target.value)}
+          className="input"
+        >
+          {TONES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+
         <span className="text-xs text-muted">
           {urls.length > 0 ? `${urls.length} link` : "chưa có link nào"}
         </span>
