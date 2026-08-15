@@ -55,9 +55,4 @@ def fits_in_safe_area(box: tuple[float, float, float, float], safe: SafeArea) ->
     UI ở bất kỳ cạnh nào (trên/dưới/trái/phải).
     """
     x, y, w, h = box
-    return (
-        x >= safe.left
-        and y >= safe.top
-        and x + w <= 1 - safe.right
-        and y + h <= 1 - safe.bottom
-    )
+    return x >= safe.left and y >= safe.top and x + w <= 1 - safe.right and y + h <= 1 - safe.bottom

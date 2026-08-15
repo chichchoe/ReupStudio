@@ -32,6 +32,10 @@ ai = [
     "torch>=2.2",                    # nền chạy LaMa trên Metal
     "simple-lama-inpainting>=0.1.2", # model vá vùng đã xoá
     "Pillow>=10",
+    # M8 — lồng tiếng. edge-tts KHÔNG cần khoá API và không tính phí: nó dùng
+    # đúng dịch vụ đọc của trình duyệt Edge. Chọn nó thay vì Gemini TTS vì hạn
+    # mức Gemini của dự án đã chật cho riêng việc dịch (xem cost_logs).
+    "edge-tts>=7.0",
 ]
 dev = ["pytest>=8.2", "ruff>=0.5"]
 

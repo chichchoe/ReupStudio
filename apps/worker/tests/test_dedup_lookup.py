@@ -80,9 +80,7 @@ def test_md5_giong_het_thi_bat_duoc(session) -> None:
 def test_khac_md5_nhung_phash_gan_thi_van_bat_duoc(session) -> None:
     """Bản mã hoá lại: từng byte khác nhau nên md5 vô dụng, pHash phải cứu."""
     goc = add_video(session, md5=MD5_A, phash=PHASH_A)
-    moi = add_video(
-        session, md5="f" * 32, phash=_flip_bits(PHASH_A, 3), status=VideoStatus.RUNNING
-    )
+    moi = add_video(session, md5="f" * 32, phash=_flip_bits(PHASH_A, 3), status=VideoStatus.RUNNING)
 
     found = _find_duplicate(session, moi)
     assert found is not None

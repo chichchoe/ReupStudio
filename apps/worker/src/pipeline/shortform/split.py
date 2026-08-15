@@ -65,8 +65,7 @@ def split_by_duration(
         raise InvalidSplitLimitError(f"total_sec phải >= 0, nhận {total_sec}")
     if max_duration_sec < 0:
         raise InvalidSplitLimitError(
-            f"max_duration_sec phải >= 0 (0 nghĩa là không giới hạn), "
-            f"nhận {max_duration_sec}"
+            f"max_duration_sec phải >= 0 (0 nghĩa là không giới hạn), nhận {max_duration_sec}"
         )
     if min_part_sec < 0:
         raise InvalidSplitLimitError(f"min_part_sec phải >= 0, nhận {min_part_sec}")

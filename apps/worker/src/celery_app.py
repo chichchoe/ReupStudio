@@ -29,6 +29,16 @@ app.conf.update(
         "reup.transcribe_video": {"queue": "gpu"},
         "reup.translate_video": {"queue": "media"},
         "reup.format_subtitles": {"queue": "media"},
+        #: M3 chạy model nặng (RapidOCR rồi LaMa trên Metal) nên đi hàng "gpu",
+        #: nơi worker chạy concurrency 1. Thiếu hai dòng này thì task rơi vào
+        #: hàng mặc định mà không worker nào nghe: chain được gửi đi, không có
+        #: lỗi nào, và video đứng im mãi mãi.
+        "reup.detect_masks": {"queue": "gpu"},
+        "reup.inpaint_video": {"queue": "gpu"},
+        #: TTS là lời gọi MẠNG chứ không phải model chạy máy, nên đi hàng
+        #: "media" cùng các bước ffmpeg — chiếm chỗ hàng "gpu" (concurrency 1)
+        #: sẽ chặn mất bước vá vốn mới là chỗ nghẽn thật.
+        "reup.tts_video": {"queue": "media"},
         "reup.render_video": {"queue": "media"},
         "reup.process_video": {"queue": "download"},
         "reup.retry_from_step": {"queue": "download"},

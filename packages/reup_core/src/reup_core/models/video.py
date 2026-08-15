@@ -24,9 +24,7 @@ class Video(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = uuid_pk()
 
     # --- nguồn ---
-    source_platform: Mapped[str] = mapped_column(
-        sa.String(32), nullable=False
-    )
+    source_platform: Mapped[str] = mapped_column(sa.String(32), nullable=False)
     source_video_id: Mapped[str] = mapped_column(sa.String(128), nullable=False)
     source_url: Mapped[str] = mapped_column(sa.Text, nullable=False)
     source_author: Mapped[str | None] = mapped_column(sa.String(255))
@@ -52,10 +50,11 @@ class Video(Base, TimestampMixin):
 
     # --- trạng thái ---
     status: Mapped[str] = mapped_column(
-        sa.String(32), nullable=False, default=VideoStatus.QUEUED.value,
+        sa.String(32),
+        nullable=False,
+        default=VideoStatus.QUEUED.value,
     )
-    current_step: Mapped[str | None] = mapped_column(
-        sa.String(32))
+    current_step: Mapped[str | None] = mapped_column(sa.String(32))
     error_message: Mapped[str | None] = mapped_column(sa.Text)
     flags: Mapped[dict[str, Any]] = mapped_column(sa.JSON, default=dict)
 
@@ -73,6 +72,9 @@ class Video(Base, TimestampMixin):
     )
     job_runs = relationship(
         "JobRun", back_populates="video", cascade="all, delete-orphan"
+    )
+    mask_regions = relationship(
+        "MaskRegion", back_populates="video", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:  # pragma: no cover

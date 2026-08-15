@@ -97,17 +97,13 @@ def spy(monkeypatch):
 
 
 def test_nguon_ngang_co_buoc_reframe(spy) -> None:
-    render_variant(
-        "vid-ngang", SRC, [], _plan(), safe=TIKTOK, video_width=1920, video_height=1080
-    )
+    render_variant("vid-ngang", SRC, [], _plan(), safe=TIKTOK, video_width=1920, video_height=1080)
     assert len(spy["reframe_blur"]) == 1
     assert spy["reframe_crop"] == []
 
 
 def test_nguon_doc_khong_co_buoc_reframe(spy) -> None:
-    render_variant(
-        "vid-doc", SRC, [], _plan(), safe=TIKTOK, video_width=1080, video_height=1920
-    )
+    render_variant("vid-doc", SRC, [], _plan(), safe=TIKTOK, video_width=1080, video_height=1920)
     assert spy["reframe_blur"] == []
     assert spy["reframe_crop"] == []
     # Không reframe -> trim_video chạy thẳng trên nguồn gốc, không phải file trung gian.
@@ -159,12 +155,8 @@ def test_reframe_dung_chung_cho_nhieu_tap_khong_render_lai(spy) -> None:
     plan1 = _plan(part_index=1, part_total=2, start=0.0, end=30.0)
     plan2 = _plan(part_index=2, part_total=2, start=30.0, end=60.0)
 
-    render_variant(
-        "vid-chung", SRC, [], plan1, safe=TIKTOK, video_width=1920, video_height=1080
-    )
-    render_variant(
-        "vid-chung", SRC, [], plan2, safe=TIKTOK, video_width=1920, video_height=1080
-    )
+    render_variant("vid-chung", SRC, [], plan1, safe=TIKTOK, video_width=1920, video_height=1080)
+    render_variant("vid-chung", SRC, [], plan2, safe=TIKTOK, video_width=1920, video_height=1080)
 
     assert len(spy["reframe_blur"]) == 1, "phải tái dùng, không reframe lại cho tập 2"
 
@@ -213,12 +205,8 @@ def test_khong_co_hook_text_khong_tap_nao_co_filter_hook(spy) -> None:
     plan1 = _plan(part_index=1, part_total=2, start=0.0, end=30.0)
     plan2 = _plan(part_index=2, part_total=2, start=30.0, end=60.0)
 
-    render_variant(
-        "vid-nohook", SRC, cues, plan1, safe=TIKTOK, video_width=1080, video_height=1920
-    )
-    render_variant(
-        "vid-nohook", SRC, cues, plan2, safe=TIKTOK, video_width=1080, video_height=1920
-    )
+    render_variant("vid-nohook", SRC, cues, plan1, safe=TIKTOK, video_width=1080, video_height=1920)
+    render_variant("vid-nohook", SRC, cues, plan2, safe=TIKTOK, video_width=1080, video_height=1920)
 
     for _, _, _, kwargs in spy["burn_subtitles"]:
         assert kwargs["hook_filter"] is None

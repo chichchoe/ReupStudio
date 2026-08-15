@@ -79,14 +79,22 @@ def burn_subtitles(
     if start is not None and duration_sec is not None:
         args += ["-t", f"{duration_sec:.3f}"]
     args += [
-        "-vf", vf,
-        "-c:v", "libx264",
-        "-preset", "medium",
-        "-crf", "21",
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-movflags", "+faststart",
+        "-vf",
+        vf,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "21",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
         str(tmp),
     ]
     if progress_cb is not None and duration_sec is not None:
@@ -131,9 +139,7 @@ def extract_audio(src: Path, dst: Path) -> Path:
     """Tách audio 16kHz mono — định dạng Whisper cần."""
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
-    run_ffmpeg(
-        ["-i", str(src), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(tmp)]
-    )
+    run_ffmpeg(["-i", str(src), "-vn", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", str(tmp)])
     tmp.replace(dst)
     return dst
 
@@ -149,11 +155,22 @@ def make_proxy(
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
     args = [
-        "-i", str(src),
-        "-vf", "scale=-2:540",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "28",
-        "-c:a", "aac", "-b:a", "96k",
-        "-movflags", "+faststart",
+        "-i",
+        str(src),
+        "-vf",
+        "scale=-2:540",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "28",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "96k",
+        "-movflags",
+        "+faststart",
         str(tmp),
     ]
     if progress_cb is not None and duration_sec is not None:

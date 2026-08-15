@@ -50,6 +50,9 @@ M1_STEPS: tuple[PipelineStep, ...] = (
     PipelineStep.TRANSCRIBE,
     PipelineStep.TRANSLATE,
     PipelineStep.FORMAT_SUB,
+    PipelineStep.DETECT,
+    PipelineStep.INPAINT,
+    PipelineStep.TTS,
     PipelineStep.RENDER,
 )
 
@@ -71,6 +74,14 @@ M1_STEPS_TRUOC_DICH: tuple[PipelineStep, ...] = (
 M1_STEPS_SAU_DICH: tuple[PipelineStep, ...] = (
     PipelineStep.TRANSLATE,
     PipelineStep.FORMAT_SUB,
+    #: M3 nằm ở NỬA SAU chứ không phải nửa đầu, dù nó không phụ thuộc bản dịch.
+    #: Dò rồi xoá chữ trên video một tiếng mất khoảng nửa tiếng; đặt ở nửa đầu
+    #: thì tab Chờ dịch phải đợi ngần ấy mới thấy video, và công đó đổ đi nếu
+    #: người dùng quyết định không xử lý video này. Tắt được bằng cờ
+    #: ``xoa_chu_cung`` trong ``process_config``.
+    PipelineStep.DETECT,
+    PipelineStep.INPAINT,
+    PipelineStep.TTS,
     PipelineStep.RENDER,
 )
 

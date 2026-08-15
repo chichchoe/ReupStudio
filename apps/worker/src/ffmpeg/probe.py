@@ -36,8 +36,10 @@ def probe(path: Path) -> MediaInfo:
 
     cmd = [
         ffprobe_bin(),
-        "-v", "error",
-        "-print_format", "json",
+        "-v",
+        "error",
+        "-print_format",
+        "json",
         "-show_format",
         "-show_streams",
         str(path),

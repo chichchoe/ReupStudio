@@ -26,7 +26,9 @@ class Subtitle(Base, TimestampMixin):
         sa.ForeignKey("videos.id", ondelete="CASCADE"), nullable=False
     )
     lang: Mapped[str] = mapped_column(sa.String(8), nullable=False)  # zh | vi
-    source: Mapped[str] = mapped_column(sa.String(16), nullable=False)  # asr|ocr|llm|manual
+    source: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False
+    )  # asr|ocr|llm|manual
     #: [{"i": 0, "start": 1.2, "end": 3.4, "text": "..."}]
     cues: Mapped[list[dict[str, Any]]] = mapped_column(sa.JSON, nullable=False)
     edited_by_user: Mapped[bool] = mapped_column(sa.Boolean, default=False)

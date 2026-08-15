@@ -71,7 +71,9 @@ class TestFormatCues:
         assert len(format_cues(cues)) == 2
 
     def test_dam_bao_thoi_luong_toi_thieu(self) -> None:
-        out = format_cues([Cue(0, 0.0, 0.6, "Xin chào các bạn nhé")], FormatOptions(merge_below=0.1))
+        out = format_cues(
+            [Cue(0, 0.0, 0.6, "Xin chào các bạn nhé")], FormatOptions(merge_below=0.1)
+        )
         assert out[0].duration >= 1.2 - 1e-6
 
     def test_khong_co_khung_nao_chong_thoi_gian(self) -> None:
@@ -81,7 +83,9 @@ class TestFormatCues:
             assert prev.end <= nxt.start + 1e-6
 
     def test_moi_dong_khong_vuot_gioi_han_ky_tu(self) -> None:
-        long_text = "Từ hôm nay tôi sẽ không nhân nhượng vì bất kỳ ai nữa dù người đó là ai đi chăng nữa"
+        long_text = (
+            "Từ hôm nay tôi sẽ không nhân nhượng vì bất kỳ ai nữa dù người đó là ai đi chăng nữa"
+        )
         out = format_cues([Cue(0, 0.0, 5.0, long_text)])
         for cue in out:
             for line in cue.text.split("\n"):

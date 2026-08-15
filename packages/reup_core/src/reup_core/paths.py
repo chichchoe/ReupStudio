@@ -84,6 +84,26 @@ def reframed_video(video_id: str, mode: str) -> Path:
     return work_dir(video_id) / f"reframe.{mode}.mp4"
 
 
+def voice_track(video_id: str) -> Path:
+    """Dải tiếng Việt đã khớp thời gian, trước khi trộn vào video (M8)."""
+    return work_dir(video_id) / "loitieng.wav"
+
+
+def voice_parts_dir(video_id: str) -> Path:
+    """Thư mục chứa từng mẩu giọng của từng câu."""
+    return _ensure(work_dir(video_id) / "giong")
+
+
+def cleaned_video(video_id: str) -> Path:
+    """Bản đã xoá chữ cứng và watermark (M3), trước khi burn phụ đề tiếng Việt.
+
+    File trung gian dùng chung cho mọi bước render phía sau, giống
+    ``reframed_video``: xoá chữ tốn hàng chục phút nên chỉ chạy MỘT LẦN cho cả
+    video, các bước sau đọc lại file này.
+    """
+    return work_dir(video_id) / "cleaned.mp4"
+
+
 def variant_video(video_id: str, target: str, part_index: int = 1) -> Path:
     """File render của một ``render_variants`` — một bản mỗi nền tảng đích.
 

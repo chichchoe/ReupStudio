@@ -68,8 +68,11 @@ def add_platform_limit(session, platform: str, max_duration_sec: int) -> Platfor
 
 def _plan(target: str = "tiktok", part_index: int = 1, part_total: int = 1) -> VariantPlan:
     return VariantPlan(
-        target_platform=target, part_index=part_index, part_total=part_total,
-        start=0.0, end=100.0,
+        target_platform=target,
+        part_index=part_index,
+        part_total=part_total,
+        start=0.0,
+        end=100.0,
     )
 
 
@@ -178,8 +181,13 @@ def test_upsert_lan_dau_tao_dung_mot_dong_moi(session) -> None:
     plan = _plan()
 
     row = _upsert_render_variant(
-        session, video, plan, Path("/tmp/tiktok.p1.mp4"),
-        {"target_platform": "tiktok"}, 1080, 1920,
+        session,
+        video,
+        plan,
+        Path("/tmp/tiktok.p1.mp4"),
+        {"target_platform": "tiktok"},
+        1080,
+        1920,
     )
     session.flush()
 
@@ -201,8 +209,13 @@ def test_upsert_lan_hai_cung_khoa_khong_tao_dong_trung_chi_cap_nhat(session) -> 
     plan = _plan()
 
     _upsert_render_variant(
-        session, video, plan, Path("/tmp/tiktok.p1.mp4"),
-        {"target_platform": "tiktok", "attempt": 1}, 1080, 1920,
+        session,
+        video,
+        plan,
+        Path("/tmp/tiktok.p1.mp4"),
+        {"target_platform": "tiktok", "attempt": 1},
+        1080,
+        1920,
     )
     session.flush()
     assert len(session.scalars(select(RenderVariant)).all()) == 1
@@ -210,8 +223,13 @@ def test_upsert_lan_hai_cung_khoa_khong_tao_dong_trung_chi_cap_nhat(session) -> 
     # Chạy lại (giả lập render_variants_task chạy lần 2, VD sau khi retry) —
     # cùng (video_id, target_platform, part_index), kích thước file đổi.
     row2 = _upsert_render_variant(
-        session, video, plan, Path("/tmp/tiktok.p1.mp4"),
-        {"target_platform": "tiktok", "attempt": 2}, 720, 1280,
+        session,
+        video,
+        plan,
+        Path("/tmp/tiktok.p1.mp4"),
+        {"target_platform": "tiktok", "attempt": 2},
+        720,
+        1280,
     )
     session.flush()
 
@@ -230,10 +248,22 @@ def test_upsert_hai_nen_tang_khac_nhau_tao_hai_dong_rieng(session) -> None:
     video = add_video(session)
 
     _upsert_render_variant(
-        session, video, _plan("tiktok"), Path("/tmp/tiktok.p1.mp4"), {}, None, None,
+        session,
+        video,
+        _plan("tiktok"),
+        Path("/tmp/tiktok.p1.mp4"),
+        {},
+        None,
+        None,
     )
     _upsert_render_variant(
-        session, video, _plan("youtube"), Path("/tmp/youtube.p1.mp4"), {}, None, None,
+        session,
+        video,
+        _plan("youtube"),
+        Path("/tmp/youtube.p1.mp4"),
+        {},
+        None,
+        None,
     )
     session.flush()
 
@@ -249,12 +279,22 @@ def test_upsert_hai_tap_cung_nen_tang_tao_hai_dong_rieng(session) -> None:
     video = add_video(session)
 
     _upsert_render_variant(
-        session, video, _plan("tiktok", part_index=1, part_total=2),
-        Path("/tmp/tiktok.p1.mp4"), {}, None, None,
+        session,
+        video,
+        _plan("tiktok", part_index=1, part_total=2),
+        Path("/tmp/tiktok.p1.mp4"),
+        {},
+        None,
+        None,
     )
     _upsert_render_variant(
-        session, video, _plan("tiktok", part_index=2, part_total=2),
-        Path("/tmp/tiktok.p2.mp4"), {}, None, None,
+        session,
+        video,
+        _plan("tiktok", part_index=2, part_total=2),
+        Path("/tmp/tiktok.p2.mp4"),
+        {},
+        None,
+        None,
     )
     session.flush()
 

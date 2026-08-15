@@ -23,11 +23,15 @@ vài giây), và việc đó chỉ đáng làm sau khi đo xong bộ nhớ thậ
 
 from __future__ import annotations
 
+import subprocess
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from reup_core.logging import get_logger
+from reup_core.paths import tmp_sibling
 
-from ...errors import InvalidFrameSizeError
+from ...errors import FFmpegError, InvalidFrameSizeError
 from .timeline import MaskRegion
 
 log = get_logger(__name__)
@@ -281,3 +285,121 @@ def va_khung(
         ra[y1:y2, x1:x2] = va[: y2 - y1, : x2 - x1]
 
     return ra
+
+
+def va_video(
+    src: Path,
+    dst: Path,
+    masks: list[MaskRegion],
+    *,
+    progress_cb: Callable[[int], None] | None = None,
+    dung_lama: bool = True,
+    timeout: int = 6 * 60 * 60,
+) -> Path:
+    """Vá cả video, giữ nguyên tiếng gốc, trả về đường dẫn file đã sạch chữ.
+
+    Đọc khung bằng OpenCV rồi ĐẨY THẲNG sang ffmpeg qua ống dẫn, không ghi ảnh
+    ra đĩa: video một tiếng là ~90.000 khung, ghi ra PNG rồi đọc lại tốn hàng
+    chục GB đĩa và nhiều thời gian hơn cả phần vá.
+
+    ffmpeg nhận HAI đầu vào — luồng khung đã vá ở ``pipe:0`` và file gốc để lấy
+    tiếng. ``-map 1:a?`` có dấu hỏi: video câm là chuyện thường, thiếu dấu hỏi
+    thì ffmpeg báo lỗi và cả job hỏng vì một thứ vô hại.
+
+    Ghi ra file tạm rồi ``rename``, để một file dở dang không bị bước sau coi
+    là hợp lệ.
+    """
+    import cv2
+
+    if not masks:
+        log.info("va_video.khong_co_mask", src=str(src))
+        return src
+
+    cap = cv2.VideoCapture(str(src))
+    if not cap.isOpened():
+        raise InvalidFrameSizeError(f"Không mở được video để vá: {src}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0.0
+    rong = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    cao = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    tong_khung = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
+    if fps <= 0 or rong <= 0 or cao <= 0:
+        cap.release()
+        raise InvalidFrameSizeError(f"Không đọc được thông số video {src}: {rong}x{cao} @ {fps}")
+
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tam = tmp_sibling(dst)
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-loglevel",
+        "error",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "bgr24",
+        "-s",
+        f"{rong}x{cao}",
+        "-r",
+        f"{fps}",
+        "-i",
+        "pipe:0",
+        "-i",
+        str(src),
+        "-map",
+        "0:v",
+        "-map",
+        "1:a?",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "20",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "copy",
+        "-shortest",
+        str(tam),
+    ]
+    log.info("va_video.bat_dau", khung=tong_khung, mask=len(masks), kich_thuoc=f"{rong}x{cao}")
+
+    bo_nho = BoNhoVa()
+    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    moc_da_bao = -1
+    chi_so = 0
+    try:
+        while True:
+            doc_duoc, anh = cap.read()
+            if not doc_duoc:
+                break
+            da_va = va_khung(anh, masks, chi_so / fps, dung_lama=dung_lama, bo_nho=bo_nho)
+            proc.stdin.write(da_va.tobytes())  # type: ignore[union-attr]
+
+            if progress_cb and tong_khung > 0:
+                phan_tram = int(chi_so * 100 / tong_khung)
+                if phan_tram > moc_da_bao:
+                    moc_da_bao = phan_tram
+                    progress_cb(phan_tram)
+            chi_so += 1
+    finally:
+        cap.release()
+        if proc.stdin:
+            proc.stdin.close()
+
+    _, stderr = proc.communicate(timeout=timeout)
+    if proc.returncode != 0:
+        tam.unlink(missing_ok=True)
+        raise FFmpegError(stderr.decode("utf-8", "replace")[-2000:])
+
+    tam.rename(dst)
+    log.info(
+        "va_video.xong",
+        path=str(dst),
+        khung=chi_so,
+        goi_model=bo_nho.so_lan_va,
+        dung_lai=bo_nho.so_lan_dung_lai,
+    )
+    return dst

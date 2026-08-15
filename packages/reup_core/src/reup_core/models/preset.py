@@ -26,7 +26,9 @@ class Preset(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = uuid_pk()
     kind: Mapped[str] = mapped_column(sa.String(16), nullable=False)
     name: Mapped[str] = mapped_column(sa.String(128), nullable=False)
-    config: Mapped[dict[str, Any]] = mapped_column(sa.JSON, nullable=False, default=dict)
+    config: Mapped[dict[str, Any]] = mapped_column(
+        sa.JSON, nullable=False, default=dict
+    )
     is_default: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
 
     def __repr__(self) -> str:  # pragma: no cover

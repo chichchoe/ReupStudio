@@ -37,10 +37,7 @@ def _frame(seed: int = 0) -> bytes:
     hash sai.
     """
     rnd = random.Random(seed)
-    waves = [
-        (rnd.uniform(0.5, 3.5), rnd.uniform(0.5, 3.5), rnd.uniform(-1, 1))
-        for _ in range(5)
-    ]
+    waves = [(rnd.uniform(0.5, 3.5), rnd.uniform(0.5, 3.5), rnd.uniform(-1, 1)) for _ in range(5)]
     pixels = []
     for y in range(PHASH_GRID):
         for x in range(PHASH_GRID):
@@ -68,9 +65,7 @@ def _shift(pixels: bytes, delta: int) -> bytes:
 
 def _add_noise(pixels: bytes, amplitude: int, seed: int = 7) -> bytes:
     rnd = random.Random(seed)
-    return bytes(
-        max(0, min(255, p + rnd.randint(-amplitude, amplitude))) for p in pixels
-    )
+    return bytes(max(0, min(255, p + rnd.randint(-amplitude, amplitude))) for p in pixels)
 
 
 # --------------------------------------------------------------------------- #

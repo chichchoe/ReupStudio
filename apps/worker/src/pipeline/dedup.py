@@ -79,8 +79,7 @@ def _cos_table(n: int, keep: int) -> tuple[tuple[float, ...], ...]:
     Bảng phụ thuộc duy nhất vào kích thước nên tính một lần rồi dùng lại.
     """
     return tuple(
-        tuple(math.cos(math.pi / n * (i + 0.5) * k) for i in range(n))
-        for k in range(keep)
+        tuple(math.cos(math.pi / n * (i + 0.5) * k) for i in range(n)) for k in range(keep)
     )
 
 
@@ -95,8 +94,7 @@ def _dct_low_freq(matrix: list[list[float]], keep: int) -> list[list[float]]:
     table = _cos_table(n, keep)
     rows = [[sum(row[i] * table[k][i] for i in range(n)) for k in range(keep)] for row in matrix]
     return [
-        [sum(rows[i][x] * table[k][i] for i in range(n)) for x in range(keep)]
-        for k in range(keep)
+        [sum(rows[i][x] * table[k][i] for i in range(n)) for x in range(keep)] for k in range(keep)
     ]
 
 
@@ -113,9 +111,7 @@ def _median(values: list[float]) -> float:
 # --------------------------------------------------------------------------- #
 
 
-def phash_from_gray(
-    pixels: bytes, *, grid: int = PHASH_GRID, keep: int = PHASH_LOW_FREQ
-) -> int:
+def phash_from_gray(pixels: bytes, *, grid: int = PHASH_GRID, keep: int = PHASH_LOW_FREQ) -> int:
     """pHash 64 bit của một ảnh xám thô ``grid × grid``.
 
     Mỗi bit = "hệ số DCT này có lớn hơn trung vị không". So với trung vị (không
@@ -181,9 +177,7 @@ def phash_distance(left: str, right: str) -> int:
     0 = giống hệt. Tối đa = số bit của chuỗi.
     """
     if len(left) != len(right):
-        raise DedupError(
-            f"Hai pHash khác độ dài ({len(left)} vs {len(right)}), không so sánh được"
-        )
+        raise DedupError(f"Hai pHash khác độ dài ({len(left)} vs {len(right)}), không so sánh được")
     try:
         return (int(left, 16) ^ int(right, 16)).bit_count()
     except ValueError as exc:

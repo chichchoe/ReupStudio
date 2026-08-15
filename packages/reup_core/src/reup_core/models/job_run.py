@@ -24,10 +24,10 @@ class JobRun(Base):
     video_id: Mapped[uuid.UUID] = mapped_column(
         sa.ForeignKey("videos.id", ondelete="CASCADE"), nullable=False
     )
-    step: Mapped[str] = mapped_column(
-        sa.String(32), nullable=False
-    )
-    status: Mapped[str] = mapped_column(sa.String(16), nullable=False)  # running|success|failed
+    step: Mapped[str] = mapped_column(sa.String(32), nullable=False)
+    status: Mapped[str] = mapped_column(
+        sa.String(16), nullable=False
+    )  # running|success|failed
     celery_task_id: Mapped[str | None] = mapped_column(sa.String(64))
     started_at: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.func.now()

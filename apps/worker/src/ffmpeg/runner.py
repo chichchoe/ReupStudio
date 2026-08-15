@@ -126,19 +126,20 @@ def run_ffmpeg_progress(
     cmd = [
         ffmpeg_bin(),
         "-hide_banner",
-        "-loglevel", "error",
+        "-loglevel",
+        "error",
         "-y",
-        "-progress", "pipe:1",
+        "-progress",
+        "pipe:1",
         "-nostats",
-        "-stats_period", "0.1",
+        "-stats_period",
+        "0.1",
         *args,
     ]
     limit = timeout or get_settings().ffmpeg_timeout_sec
     log.debug("ffmpeg.run_progress", cmd=" ".join(cmd), timeout=limit)
 
-    with subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    ) as proc:
+    with subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc:
         stderr_lines: list[str] = []
 
         def _drain_stderr() -> None:

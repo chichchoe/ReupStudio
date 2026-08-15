@@ -1,6 +1,7 @@
 from .base import Base, TimestampMixin
 from .cost_log import CostLog
 from .job_run import JobRun
+from .mask_region import MaskRegion
 from .platform_limit import PlatformLimit
 from .preset import Preset
 from .render_variant import RenderVariant
@@ -12,6 +13,7 @@ __all__ = [
     "Base",
     "CostLog",
     "JobRun",
+    "MaskRegion",
     "PlatformLimit",
     "Preset",
     "RenderVariant",

@@ -142,10 +142,7 @@ def reframe_blur(
     gì), ghép chồng giữa nền. Idempotent: ghi ra file tạm rồi ``rename``, chạy
     lại cho cùng kết quả (đầu vào không đổi thì đầu ra không đổi).
     """
-    fg = (
-        f"[0:v]scale={out_width}:{out_height}:force_original_aspect_ratio=decrease,"
-        f"setsar=1[fg]"
-    )
+    fg = f"[0:v]scale={out_width}:{out_height}:force_original_aspect_ratio=decrease,setsar=1[fg]"
     bg = (
         f"[0:v]scale={out_width}:{out_height}:force_original_aspect_ratio=increase,"
         f"crop={out_width}:{out_height},"
@@ -157,17 +154,28 @@ def reframe_blur(
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
     args = [
-        "-i", str(src),
-        "-filter_complex", filter_complex,
-        "-map", "[outv]",
-        "-map", "0:a?",
-        "-c:v", "libx264",
-        "-preset", "medium",
-        "-crf", "21",
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-movflags", "+faststart",
+        "-i",
+        str(src),
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[outv]",
+        "-map",
+        "0:a?",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "21",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
         str(tmp),
     ]
     log.info("reframe.blur", src=src.name, out=f"{out_width}x{out_height}")
@@ -213,15 +221,24 @@ def reframe_crop(
     tmp = tmp_sibling(dst)
     tmp.parent.mkdir(parents=True, exist_ok=True)
     args = [
-        "-i", str(src),
-        "-vf", vf,
-        "-c:v", "libx264",
-        "-preset", "medium",
-        "-crf", "21",
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-movflags", "+faststart",
+        "-i",
+        str(src),
+        "-vf",
+        vf,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        "21",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-movflags",
+        "+faststart",
         str(tmp),
     ]
     log.info(

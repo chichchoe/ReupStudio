@@ -19,8 +19,16 @@ from reup_core.enums import (
     VideoStatus,
 )
 from reup_core.logging import get_logger
-from reup_core.models import PlatformLimit, RenderVariant, Subtitle, Video
-from reup_core.paths import audio_path, raw_video, subtitle_path
+from reup_core.models import MaskRegion, PlatformLimit, RenderVariant, Subtitle, Video
+from reup_core.paths import (
+    audio_path,
+    cleaned_video,
+    raw_video,
+    subtitle_path,
+    voice_parts_dir,
+    voice_track,
+)
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 
 from .. import progress as prog
@@ -28,13 +36,21 @@ from ..celery_app import app
 from ..config import get_settings
 from ..errors import PlatformLimitNotFoundError, VideoTooLongError
 from ..ffmpeg.burn import extract_audio
+from ..ffmpeg.dub import dung_dai_tieng, tron_tieng_vao_video
 from ..ffmpeg.probe import probe
 from ..milestones import milestones, percent_of
 from ..pipeline.cues import Cue, cues_from_dicts, cues_to_dicts
 from ..pipeline.dedup import fingerprint, is_similar_phash
 from ..pipeline.download import download_video
+from ..pipeline.dubbing import lap_lich_long_tieng
+from ..pipeline.masking.loc import loc_vung_can_xoa
+from ..pipeline.masking.ocr import doc_video
+from ..pipeline.masking.timeline import MaskRegion as MaskRegionPipeline
+from ..pipeline.masking.timeline import dung_mask
+from ..pipeline.masking.vaa import va_video
 from ..pipeline.render import (
     VariantPlan,
+    ban_cu_con_dung,
     build_proxy,
     plan_variants,
     render_normalized,
@@ -45,6 +61,8 @@ from ..pipeline.shortform.safe_area import SafeArea
 from ..pipeline.subtitle_format import FormatOptions, format_cues
 from ..pipeline.transcribe import transcribe
 from ..pipeline.translate import translate_cues
+from ..tts import lay_provider
+from ..tts.edge import GIONG_MAC_DINH
 from . import cost
 from .base import pipeline_step
 
@@ -520,11 +538,187 @@ def format_subtitles_task(session, video) -> dict:
     return {"cues_before": len(vi_cues), "cues_after": len(formatted)}
 
 
+#: Bật/tắt toàn bộ M3 bằng một cờ trong ``process_config`` (tiêu chí nghiệm thu
+#: số 4 của spec). M3 là bước nặng và có rủi ro xoá nhầm, phải tắt được — tắt
+#: thì pipeline chạy đúng như trước khi có M3.
+_M3_MAC_DINH_BAT = True
+
+
+def _bat_m3(video) -> bool:
+    config = video.process_config or {}
+    return bool(config.get("xoa_chu_cung", _M3_MAC_DINH_BAT))
+
+
+def _bat_long_tieng(video) -> bool:
+    """Lồng tiếng bật/tắt được như M3 — bước nặng thì phải tắt được."""
+    config = video.process_config or {}
+    return bool(config.get("long_tieng", True))
+
+
+def _do_dai_am(f: Path) -> float:
+    """Độ dài file âm thanh, tính bằng giây. Trả 0 khi file hỏng hoặc rỗng."""
+    if not f.exists() or f.stat().st_size == 0:
+        return 0.0
+    try:
+        return float(probe(f).duration_sec or 0.0)
+    except Exception as exc:
+        log.warning("tts.khong_do_duoc_do_dai", file=str(f), error=str(exc))
+        return 0.0
+
+
+def _nguon_de_render(video) -> Path:
+    """Bản đã xoá chữ cứng nếu có, ngược lại bản gốc.
+
+    Rơi về bản gốc chứ KHÔNG báo lỗi khi thiếu file sạch: video không có chữ
+    cứng nào là chuyện bình thường, và M3 tắt được bằng cờ.
+    """
+    sach = cleaned_video(str(video.id))
+    if sach.exists() and sach.stat().st_size > 0:
+        return sach
+    return Path(video.raw_path)
+
+
+@app.task(name="reup.detect_masks")
+@pipeline_step(PipelineStep.DETECT)
+def detect_masks_task(session, video) -> dict:
+    """Dò vùng chữ cứng và watermark, ghi vào bảng ``mask_regions`` (M3).
+
+    Tách khỏi bước vá vì hai lý do: dò tốn 0,11 giây mỗi khung còn lọc thì tức
+    thì, nên chỉnh ngưỡng lọc không phải dò lại; và người dùng phải xem/sửa
+    được mask trước khi máy xoá thật.
+
+    Chỉ xoá lại các dòng ``source="auto"`` — bản chỉnh tay của người dùng phải
+    sống sót qua mọi lần dò lại.
+    """
+    vid = str(video.id)
+    if not _bat_m3(video):
+        return {"skipped": "M3 tắt trong preset"}
+
+    boxes = doc_video(Path(video.raw_path))
+    prog.progress(vid, PipelineStep.DETECT.value, 80)
+    masks = dung_mask(loc_vung_can_xoa(boxes))
+
+    session.execute(
+        sa_delete(MaskRegion).where(MaskRegion.video_id == video.id, MaskRegion.source == "auto")
+    )
+    for m in masks:
+        session.add(
+            MaskRegion(
+                video_id=video.id,
+                x=m.x,
+                y=m.y,
+                w=m.w,
+                h=m.h,
+                start_sec=m.bat_dau,
+                end_sec=m.ket_thuc,
+                source="auto",
+                confidence=m.diem,
+                reason=" · ".join(m.ly_do),
+            )
+        )
+
+    return {"vung_chu": len(boxes), "mask": len(masks)}
+
+
+@app.task(name="reup.inpaint_video")
+@pipeline_step(PipelineStep.INPAINT)
+def inpaint_video_task(session, video) -> dict:
+    """Xoá chữ khỏi khung hình, ghi ra ``work/<id>/cleaned.mp4`` (M3).
+
+    Các bước render phía sau đọc file này thay cho bản gốc. Không có mask nào
+    thì KHÔNG sinh file — ``_nguon_de_render`` sẽ tự rơi về bản gốc.
+    """
+    vid = str(video.id)
+    if not _bat_m3(video):
+        return {"skipped": "M3 tắt trong preset"}
+
+    rows = list(
+        session.scalars(
+            select(MaskRegion).where(MaskRegion.video_id == video.id).order_by(MaskRegion.start_sec)
+        )
+    )
+    if not rows:
+        return {"mask": 0, "skipped": "không có vùng nào cần xoá"}
+
+    masks = [
+        MaskRegionPipeline(
+            x=r.x,
+            y=r.y,
+            w=r.w,
+            h=r.h,
+            bat_dau=r.start_sec,
+            ket_thuc=r.end_sec,
+            diem=r.confidence,
+            ly_do=tuple((r.reason or "").split(" · ")),
+        )
+        for r in rows
+    ]
+
+    src = Path(video.raw_path)
+    dst = cleaned_video(vid)
+    if ban_cu_con_dung(dst, src):
+        log.info("inpaint.skip_existing", path=str(dst))
+        return {"mask": len(masks), "skipped": "bản sạch đã có và mới hơn nguồn"}
+
+    va_video(
+        src, dst, masks, progress_cb=lambda p: prog.progress(vid, PipelineStep.INPAINT.value, p)
+    )
+    return {"mask": len(masks), "out": str(dst), "size": dst.stat().st_size}
+
+
+@app.task(name="reup.tts_video")
+@pipeline_step(PipelineStep.TTS)
+def tts_video_task(session, video) -> dict:
+    """Sinh giọng đọc tiếng Việt và dựng dải tiếng khớp thời gian (M8).
+
+    Chỉ tạo ``work/<id>/loitieng.wav``, KHÔNG đụng vào video. Bước render sau
+    đó trộn dải tiếng này vào bản dựng cuối — giữ cho render là nơi duy nhất
+    sinh ra file đầu ra, nhờ vậy chạy lại vẫn ra đúng một kết quả (luật số 4).
+    Trộn ngay tại đây sẽ chồng giọng lên bản đã lồng tiếng ở lần chạy thứ hai.
+    """
+    vid = str(video.id)
+    if not _bat_long_tieng(video):
+        return {"skipped": "lồng tiếng tắt trong preset"}
+
+    vi_cues = _load_subtitle(session, video, "vi")
+    if not vi_cues:
+        return {"cues": 0, "skipped": "không có phụ đề tiếng Việt để đọc"}
+
+    provider = lay_provider()
+    giong = (video.process_config or {}).get("giong_doc", GIONG_MAC_DINH)
+
+    files = provider.doc_nhieu(
+        [c.text.replace("\n", " ") for c in vi_cues],
+        voice_parts_dir(vid),
+        giong=giong,
+        progress_cb=lambda p: prog.progress(vid, PipelineStep.TTS.value, int(p * 0.9)),
+    )
+
+    #: Đo độ dài THẬT của từng file thay vì ước theo số chữ: tốc độ đọc của
+    #: edge-tts đổi theo dấu câu và chữ số, ước sai thì cả lịch phát lệch theo.
+    do_dai = [_do_dai_am(files[i]) if i in files else 0.0 for i in range(len(vi_cues))]
+    lich = lap_lich_long_tieng(vi_cues, do_dai)
+
+    tong_giay = video.duration_sec or (max(c.end for c in vi_cues) + 2.0)
+    dung_dai_tieng(lich, files, tong_giay, voice_track(vid))
+    prog.progress(vid, PipelineStep.TTS.value, 100)
+
+    ep_nhanh = sum(1 for d in lich if d.he_so_toc_do > 1.01)
+    return {
+        "cues": len(vi_cues),
+        "giong_sinh_duoc": len(files),
+        "doan": len(lich),
+        "phai_ep_nhanh": ep_nhanh,
+        "giong": giong,
+    }
+
+
 @app.task(name="reup.render_video")
 @pipeline_step(PipelineStep.RENDER)
 def render_video_task(session, video) -> dict:
     vid = str(video.id)
-    source = Path(video.raw_path)
+    #: Bản đã xoá chữ cứng nếu bước INPAINT đã chạy — không thì bản gốc.
+    source = _nguon_de_render(video)
     vi_cues = _load_subtitle(session, video, "vi")
 
     platform = _target_platform(video)
@@ -569,6 +763,7 @@ def render_video_task(session, video) -> dict:
         video_height=video.height,
         reframe_mode=_reframe_mode(video),
     )
+    out = _tron_long_tieng_neu_co(vid, out)
     video.out_path = str(out)
     video.status = VideoStatus.READY
     video.current_step = None
@@ -578,6 +773,18 @@ def render_video_task(session, video) -> dict:
         "out_size": out.stat().st_size,
         "srt": str(subtitle_path(vid, "vi")),
     }
+
+
+def _tron_long_tieng_neu_co(vid: str, out: Path) -> Path:
+    """Trộn dải tiếng Việt vào bản vừa dựng, nếu bước TTS đã tạo ra nó.
+
+    Không có dải tiếng thì trả về nguyên bản vừa dựng — lồng tiếng tắt được, và
+    video không có lời thoại thì cũng không có gì để đọc.
+    """
+    tieng = voice_track(vid)
+    if not tieng.exists() or tieng.stat().st_size == 0:
+        return out
+    return tron_tieng_vao_video(out, tieng, out)
 
 
 @app.task(name="reup.render_variants")
@@ -663,6 +870,9 @@ _STEP_TASKS = {
     PipelineStep.TRANSCRIBE: transcribe_video_task,
     PipelineStep.TRANSLATE: translate_video_task,
     PipelineStep.FORMAT_SUB: format_subtitles_task,
+    PipelineStep.DETECT: detect_masks_task,
+    PipelineStep.INPAINT: inpaint_video_task,
+    PipelineStep.TTS: tts_video_task,
     PipelineStep.RENDER: render_video_task,
 }
 

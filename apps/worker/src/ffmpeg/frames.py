@@ -30,9 +30,7 @@ def sample_timestamps(duration_sec: float, count: int) -> list[float]:
     return [round(duration_sec * (i + 0.5) / count, 3) for i in range(count)]
 
 
-def extract_gray_frame(
-    src: Path, at_sec: float, size: int, *, timeout: int | None = None
-) -> bytes:
+def extract_gray_frame(src: Path, at_sec: float, size: int, *, timeout: int | None = None) -> bytes:
     """Một khung tại giây ``at_sec``, scale về ``size × size``, xám, thô.
 
     Ép về hình vuông (bỏ tỷ lệ khung hình) là cố ý: nhờ vậy bản 9:16 và bản đã
@@ -41,13 +39,19 @@ def extract_gray_frame(
     expected = size * size
     data = run_ffmpeg_binary(
         [
-            "-ss", f"{max(0.0, at_sec):.3f}",
-            "-i", str(src),
-            "-frames:v", "1",
+            "-ss",
+            f"{max(0.0, at_sec):.3f}",
+            "-i",
+            str(src),
+            "-frames:v",
+            "1",
             "-an",
-            "-vf", f"scale={size}:{size}:flags=bilinear",
-            "-pix_fmt", "gray",
-            "-f", "rawvideo",
+            "-vf",
+            f"scale={size}:{size}:flags=bilinear",
+            "-pix_fmt",
+            "gray",
+            "-f",
+            "rawvideo",
             "-",
         ],
         timeout=timeout or FRAME_TIMEOUT_SEC,
