@@ -31,6 +31,29 @@ log = get_logger(__name__)
 _VALID_REFRAME_MODES = {"blur", "crop"}
 
 
+def ban_cu_con_dung(dst: Path, *nguon: Path) -> bool:
+    """Bản render cũ có còn dùng được không, hay phải dựng lại?
+
+    Điều kiện cũ chỉ là "file tồn tại và khác rỗng". Ngày 2026-08-15 quan sát
+    được hậu quả: dịch lại một video, chuỗi tác vụ chạy đủ, hệ thống báo READY,
+    nhưng file giao ra vẫn là bản render hôm trước mang phụ đề của bản dịch cũ.
+    Log chỉ ghi ``render.skip_existing``. Đây đúng loại hỏng tệ nhất của dự án
+    này — hệ thống nói "xong" trong khi thứ giao ra không phải thứ vừa dựng.
+
+    Nay phải mới hơn MỌI đầu vào. Đầu vào không tồn tại thì bỏ qua: thiếu file
+    nguồn là việc của bước sau, nó sẽ báo lỗi rõ ràng hơn ở đây nhiều.
+
+    GIỚI HẠN: chỉ bắt được thay đổi nằm trong FILE. Đổi tham số (hook_text,
+    reframe_mode, vùng an toàn) không đụng tới mtime nào nên vẫn dùng lại bản
+    cũ — muốn render lại thì xoá file đích.
+    """
+    if not dst.exists() or dst.stat().st_size == 0:
+        return False
+
+    moc = dst.stat().st_mtime
+    return all(not p.exists() or p.stat().st_mtime <= moc for p in nguon)
+
+
 def render_with_subtitles(
     video_id: str,
     source: Path,
@@ -62,7 +85,7 @@ def render_with_subtitles(
     )
     dst = out_video(video_id, target)
 
-    if dst.exists() and dst.stat().st_size > 0:
+    if ban_cu_con_dung(dst, ass, source):
         log.info("render.skip_existing", path=str(dst))
         return dst
 
@@ -217,7 +240,7 @@ def _reframe_if_horizontal(
             f"reframe_mode '{reframe_mode}' không hợp lệ — chỉ nhận {sorted(_VALID_REFRAME_MODES)}."
         )
     reframed = reframed_video(video_id, reframe_mode)
-    if reframed.exists() and reframed.stat().st_size > 0:
+    if ban_cu_con_dung(reframed, source):
         log.info("render.reframe_skip_existing", path=str(reframed))
     else:
         reframe_fn = reframe_blur if reframe_mode == "blur" else reframe_crop
@@ -252,7 +275,7 @@ def render_normalized(
     mất chất lượng.
     """
     dst = out_video(video_id, target)
-    if dst.exists() and dst.stat().st_size > 0:
+    if ban_cu_con_dung(dst, source):
         log.info("render_normalized.skip_existing", path=str(dst))
         return dst
 
@@ -343,7 +366,7 @@ def render_variant(
       trên cue của chính tập đó, chỉ áp khi tập có lời thoại) trước khi burn.
     """
     dst = variant_video(video_id, plan.target_platform, plan.part_index)
-    if dst.exists() and dst.stat().st_size > 0:
+    if ban_cu_con_dung(dst, source):
         log.info("render_variant.skip_existing", path=str(dst))
         return dst
 

@@ -174,6 +174,40 @@ def test_write_ass_ghi_file_utf8_va_tra_ve_duong_dan(tmp_path) -> None:
     assert noi_dung.startswith("[Script Info]")
 
 
+def test_ghi_lai_cung_noi_dung_thi_khong_dung_vao_file(tmp_path) -> None:
+    """Giữ nguyên mtime khi nội dung không đổi.
+
+    ``render`` dùng mtime của file ASS để biết phụ đề có mới hơn bản render cũ
+    không. Ghi đè vô điều kiện làm mtime luôn nhảy, khiến mọi lần chạy lại đều
+    render lại từ đầu — mất sạch tính idempotent của luật số 4.
+    """
+    import os
+
+    path = tmp_path / "sub.vi.ass"
+    ky = dict(width=1080, height=1920, style=build_ass_style(TIKTOK, 1080, 1920))
+    write_ass(CUES, path, **ky)
+    os.utime(path, (1000, 1000))
+
+    write_ass(CUES, path, **ky)
+
+    assert path.stat().st_mtime == 1000
+
+
+def test_ghi_lai_noi_dung_khac_thi_cap_nhat_file(tmp_path) -> None:
+    import os
+
+    path = tmp_path / "sub.vi.ass"
+    ky = dict(width=1080, height=1920, style=build_ass_style(TIKTOK, 1080, 1920))
+    write_ass(CUES, path, **ky)
+    os.utime(path, (1000, 1000))
+
+    khac = [Cue(0, 0.0, 2.0, "Câu hoàn toàn khác")]
+    write_ass(khac, path, **ky)
+
+    assert path.stat().st_mtime > 1000
+    assert "Câu hoàn toàn khác" in path.read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize("height", [0, -1])
 def test_chieu_cao_khong_hop_le_thi_bao_loi(height: int) -> None:
     """Chia cho 0 khi quy đổi cỡ chữ — báo lỗi rõ thay vì ném ZeroDivisionError."""

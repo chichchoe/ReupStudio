@@ -226,7 +226,15 @@ def build_ass(cues: list[Cue], *, width: int | None, height: int | None, style: 
 def write_ass(
     cues: list[Cue], path: Path, *, width: int | None, height: int | None, style: AssStyle
 ) -> Path:
-    """Ghi file ASS (UTF-8, không BOM) và trả về đường dẫn."""
+    """Ghi file ASS (UTF-8, không BOM) và trả về đường dẫn.
+
+    KHÔNG ghi đè khi nội dung không đổi. ``render`` so mtime của file này với
+    bản render cũ để biết phụ đề đã mới hơn chưa; ghi đè vô điều kiện làm mtime
+    luôn nhảy, và mọi lần chạy lại đều render lại từ đầu.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(build_ass(cues, width=width, height=height, style=style), encoding="utf-8")
+    noi_dung = build_ass(cues, width=width, height=height, style=style)
+    if path.exists() and path.read_text(encoding="utf-8") == noi_dung:
+        return path
+    path.write_text(noi_dung, encoding="utf-8")
     return path
