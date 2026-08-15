@@ -114,6 +114,7 @@ def translate(video_id: uuid.UUID, body: TranslateRequest, db: Session = Depends
     video_service.luu_tuy_chon_xu_ly(
         db,
         video_id,
+        llm_provider=body.llm_provider,
         xoa_chu_cung=body.xoa_chu_cung,
         tts_provider=body.tts_provider,
         giong_doc=body.giong_doc,

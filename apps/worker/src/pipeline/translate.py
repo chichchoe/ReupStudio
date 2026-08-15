@@ -88,6 +88,9 @@ def translate_cues(
     on_usage=None,
     dem_luot_gan_day=None,
     model: str | None = None,
+    api_key: str = "",
+    base_url: str = "",
+    provider: str = "",
 ) -> list[Cue]:
     """Dịch cả danh sách cue, gọi ``on_usage`` sau MỖI lô.
 
@@ -104,7 +107,7 @@ def translate_cues(
         return []
 
     settings = get_settings()
-    translator = get_translator(model)
+    translator = get_translator(model, api_key=api_key, base_url=base_url, provider=provider)
     #: Gắn vào TRANSLATOR chứ không báo sau mỗi lô: một lô lệch số dòng nở ra
     #: nhiều lượt gọi (chia đôi, rồi dịch từng dòng), báo theo lô sẽ đếm hụt
     #: hàng chục lần — xem ``_translate_with_guard`` và ``BaseTranslator``.

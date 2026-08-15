@@ -96,10 +96,13 @@ class OpenAITranslator(BaseTranslator):
 
     def _call(self, system: str, user: str, *, max_tokens: int = 4096) -> str:
         settings = get_settings()
-        if not settings.llm_api_key:
-            raise TranslateError("Chưa cấu hình LLM_API_KEY")
+        #: Ưu tiên khoá của nhà cung cấp người dùng chọn cho video này; không
+        #: có thì rơi về cấu hình chung.
+        api_key = self.api_key or settings.llm_api_key
+        if not api_key:
+            raise TranslateError("Chưa dán khoá API. Vào trang Cấu hình, mục Nhà cung cấp AI.")
 
-        url = chat_url(settings.llm_base_url)
+        url = chat_url(self.base_url or settings.llm_base_url)
         payload = {
             "model": self.model,
             "temperature": 0.3,
@@ -109,11 +112,11 @@ class OpenAITranslator(BaseTranslator):
                 {"role": "user", "content": user},
             ],
         }
-        headers = {"Authorization": f"Bearer {settings.llm_api_key}"}
+        headers = {"Authorization": f"Bearer {api_key}"}
 
         def che_khoa(text: str) -> str:
             """Không bao giờ để khoá API lọt vào thông báo lỗi hay log."""
-            return text.replace(settings.llm_api_key, "***")
+            return text.replace(api_key, "***") if api_key else text
 
         for lan_thu in range(_MAX_RETRIES + 1):
             try:

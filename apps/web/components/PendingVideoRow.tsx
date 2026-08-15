@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { formatCount, formatDuration, platformLabel } from "@/lib/format";
-import type { TtsOptions, TuyChonDich, Video } from "@/lib/types";
+import type { NhaCungCapAI, TtsOptions, TuyChonDich, Video } from "@/lib/types";
 
 /** Bản phụ đề gốc tiếng Trung — số cue của bản này chính là số câu thoại của video. */
 const SOURCE_LANG = "zh";
@@ -19,10 +19,8 @@ const CAU_TOI_DA_CHO_GEMINI = 400;
 
 interface Props {
   video: Video;
-  /** Danh sách model dịch từ `GET /llm/models`; tab cha tải một lần rồi truyền xuống. */
-  models: string[];
-  /** Model cấu hình sẵn (`LLM_MODEL`), chọn sẵn trong ô chọn. */
-  defaultModel: string;
+  /** Nhà cung cấp AI đã dán khoá; tab cha tải một lần rồi truyền xuống. */
+  nhaCungCap: NhaCungCapAI[];
   /** Giọng đọc theo từng nhà cung cấp, từ `GET /videos/tts-options`. */
   ttsOptions: TtsOptions[];
   selected: boolean;
@@ -46,8 +44,7 @@ interface Props {
  */
 export function PendingVideoRow({
   video,
-  models,
-  defaultModel,
+  nhaCungCap,
   ttsOptions,
   selected,
   pending,
@@ -60,26 +57,40 @@ export function PendingVideoRow({
   });
   const cueCount = subtitles?.find((s) => s.lang === SOURCE_LANG)?.cues.length ?? null;
 
-  // Chưa chọn gì thì lấy model MẶC ĐỊNH backend trả về, không phải model đầu
-  // danh sách. Ảnh chụp giao diện thật (2026-08-15) cho thấy hậu quả của việc
-  // lấy option đầu: ô chọn hiện model 20 lượt/NGÀY trong khi cấu hình để model
-  // 500 lượt/ngày — ai bấm nhanh dính đúng model tệ nhất mà không biết.
+  // Chỉ hiện những bên ĐÃ dán khoá — hiện cả bên chưa có khoá rồi báo lỗi lúc
+  // bấm Dịch là cách chắc chắn nhất làm người dùng tưởng hỏng.
+  const sanSang = nhaCungCap.filter((n) => n.da_dat_khoa || !n.can_khoa);
+  const [provider, setProvider] = useState(sanSang[0]?.ma ?? "");
+  const maNhaCungCap = provider || sanSang[0]?.ma || "";
+
+  // Hỏi THẲNG nhà cung cấp xem khoá này dùng được model nào. Hỏi trực tiếp thay
+  // vì để người dùng gõ tay: gõ sai một ký tự thì lỗi chỉ hiện ra lúc dịch, sau
+  // khi đã chờ tải và nhận dạng xong cả video.
+  const { data: models = [], isLoading: dangTaiModel } = useQuery({
+    queryKey: ["provider-models", maNhaCungCap, "translate"],
+    queryFn: () => api.modelCuaNhaCungCap(maNhaCungCap, "translate"),
+    enabled: Boolean(maNhaCungCap),
+    //: Danh sách model của một nhà cung cấp gần như không đổi trong một phiên.
+    staleTime: 10 * 60 * 1000,
+    retry: false,
+  });
+
   const [chosen, setChosen] = useState("");
-  const model = chosen || defaultModel || models[0] || "";
+  const model = chosen || models[0] || "";
 
   const [xoaChuCung, setXoaChuCung] = useState(true);
-  const [provider, setProvider] = useState(ttsOptions[0]?.provider ?? "edge");
+  const [ttsProvider, setTtsProvider] = useState(ttsOptions[0]?.provider ?? "edge");
   const [giong, setGiong] = useState("");
 
-  const nhomGiong = ttsOptions.find((o) => o.provider === provider);
+  const nhomGiong = ttsOptions.find((o) => o.provider === ttsProvider);
   const giongDaChon = giong || nhomGiong?.giong?.[0]?.ma || "";
   const quaNhieuCauChoGemini =
-    provider === "gemini" && cueCount != null && cueCount > CAU_TOI_DA_CHO_GEMINI;
+    ttsProvider === "gemini" && cueCount != null && cueCount > CAU_TOI_DA_CHO_GEMINI;
 
   const title = video.title_vi || video.title_original || video.source_video_id;
 
-  function doiProvider(ma: string) {
-    setProvider(ma);
+  function doiGiongProvider(ma: string) {
+    setTtsProvider(ma);
     // Giọng của nhà cung cấp cũ không tồn tại ở nhà cung cấp mới — xoá đi để
     // rơi về giọng đầu danh sách, thay vì gửi lên một mã giọng không có thật.
     setGiong("");
@@ -141,9 +152,10 @@ export function PendingVideoRow({
           disabled={pending || !model}
           onClick={() =>
             onTranslate(video.id, {
+              llmProvider: maNhaCungCap,
               llmModel: model,
               xoaChuCung,
-              ttsProvider: provider,
+              ttsProvider,
               giongDoc: giongDaChon,
             })
           }
@@ -156,13 +168,33 @@ export function PendingVideoRow({
         <label className="flex items-center gap-2 text-[12px]">
           <span className="text-muted">AI dịch</span>
           <select
-            className="input w-44 py-1"
+            className="input w-32 py-1"
+            value={maNhaCungCap}
+            onChange={(e) => {
+              setProvider(e.target.value);
+              //: Model của bên cũ không tồn tại ở bên mới — xoá để rơi về model
+              //: đầu danh sách mới, thay vì gửi lên một tên model không có thật.
+              setChosen("");
+            }}
+            aria-label="Chọn nhà cung cấp AI"
+          >
+            {sanSang.length === 0 && <option value="">Chưa dán khoá</option>}
+            {sanSang.map((n) => (
+              <option key={n.ma} value={n.ma}>
+                {n.ten}
+              </option>
+            ))}
+          </select>
+          <select
+            className="input w-52 py-1"
             value={model}
             disabled={models.length === 0}
             onChange={(e) => setChosen(e.target.value)}
             aria-label="Chọn model AI để dịch video này"
           >
-            {models.length === 0 && <option value="">Chưa có model</option>}
+            {models.length === 0 && (
+              <option value="">{dangTaiModel ? "Đang hỏi…" : "Không có model"}</option>
+            )}
             {models.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -188,8 +220,8 @@ export function PendingVideoRow({
           <span className="text-muted">Giọng</span>
           <select
             className="input w-28 py-1"
-            value={provider}
-            onChange={(e) => doiProvider(e.target.value)}
+            value={ttsProvider}
+            onChange={(e) => doiGiongProvider(e.target.value)}
             aria-label="Chọn nhà cung cấp giọng đọc"
           >
             {ttsOptions.map((o) => (
@@ -212,6 +244,12 @@ export function PendingVideoRow({
           </select>
         </label>
       </div>
+
+      {sanSang.length === 0 && (
+        <div className="mt-2 text-[11px] text-err">
+          Chưa dán khoá AI nào — vào trang Cấu hình, mục Nhà cung cấp AI.
+        </div>
+      )}
 
       {nhomGiong?.ghi_chu && (
         <div className={clsx("mt-2 text-[11px]", quaNhieuCauChoGemini ? "text-err" : "text-muted")}>

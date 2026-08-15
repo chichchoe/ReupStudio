@@ -45,6 +45,24 @@ class Settings(BaseSettings):
     monthly_budget_usd: float = 200.0
 
 
+def _dam_bao_chung_chi_ssl() -> None:
+    """Trỏ Python vào bộ chứng chỉ của ``certifi`` nếu môi trường chưa có.
+
+    Bản Python 3.14 tải từ python.org KHÔNG kèm bộ chứng chỉ hệ thống, nên mọi
+    lời gọi HTTPS ném ``CERTIFICATE_VERIFY_FAILED``. Đặt ở đây thay vì bắt người
+    chạy nhớ ``SSL_CERT_FILE=...`` trước mỗi lệnh: quên một lần là sinh ra một
+    lỗi trông như "khoá API sai" trong khi khoá hoàn toàn đúng.
+    """
+    if os.getenv("SSL_CERT_FILE"):
+        return
+    try:
+        import certifi
+    except ImportError:
+        return
+    os.environ["SSL_CERT_FILE"] = certifi.where()
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", certifi.where())
+
+
 #: Đã đọc cấu hình từ DB chưa. Đọc lại mỗi lần gọi sẽ thành một truy vấn DB cho
 #: MỖI lời gọi ``get_settings()``, mà hàm đó được gọi ở khắp nơi.
 _da_nap = False
@@ -72,6 +90,7 @@ def _nap_tu_db() -> None:
     #: Đặt cờ TRƯỚC khi làm gì: ``Settings()`` dưới đây có thể gọi lại
     #: ``get_settings()`` gián tiếp, và không có cờ thì thành đệ quy vô hạn.
     _da_nap = True
+    _dam_bao_chung_chi_ssl()
 
     try:
         #: Vòng luẩn quẩn phải gỡ: hàm này cần DATABASE_URL để tới DB, nhưng

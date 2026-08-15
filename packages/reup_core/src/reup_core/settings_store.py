@@ -65,7 +65,7 @@ class KhoaMaHoaThieu(RuntimeError):
     """Chưa có ``SETTINGS_KEY`` nên không đọc/ghi được bí mật."""
 
 
-def _fernet():
+def fernet():
     from cryptography.fernet import Fernet
 
     khoa = os.getenv(ENV_KEY_MA_HOA, "").strip()
@@ -105,7 +105,7 @@ def ghi(db: Session, key: str, value: str) -> AppSetting:
     if row.is_secret:
         if not value:
             return row
-        row.value_encrypted = _fernet().encrypt(value.encode()).decode()
+        row.value_encrypted = fernet().encrypt(value.encode()).decode()
         row.value_plain = None
     else:
         row.value_plain = value
@@ -141,7 +141,7 @@ def doc_tat_ca_that(db: Session) -> dict[str, str]:
         if not row.value_encrypted:
             continue
         try:
-            ra[row.key] = _fernet().decrypt(row.value_encrypted.encode()).decode()
+            ra[row.key] = fernet().decrypt(row.value_encrypted.encode()).decode()
         except Exception:
             continue
     return ra

@@ -19,7 +19,7 @@ API_URL = "https://api.anthropic.com/v1/messages"
 class AnthropicTranslator(BaseTranslator):
     def _call(self, system: str, user: str, *, max_tokens: int = 4096) -> str:
         settings = get_settings()
-        if not settings.llm_api_key:
+        if not (self.api_key or settings.llm_api_key):
             raise TranslateError("Chưa cấu hình LLM_API_KEY")
 
         payload = {
@@ -30,7 +30,7 @@ class AnthropicTranslator(BaseTranslator):
             "messages": [{"role": "user", "content": user}],
         }
         headers = {
-            "x-api-key": settings.llm_api_key,
+            "x-api-key": (self.api_key or settings.llm_api_key),
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
         }

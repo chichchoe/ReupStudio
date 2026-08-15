@@ -51,6 +51,7 @@ export type TtsOptions = S["TtsOptionsOut"];
 export type CauHinh = S["CauHinhOut"];
 export type NhomCauHinh = S["NhomCauHinhOut"];
 export type MucCauHinh = S["MucCauHinhOut"];
+export type NhaCungCapAI = S["NhaCungCapOut"];
 export type GiongDoc = S["GiongDocOut"];
 
 /**
@@ -58,6 +59,8 @@ export type GiongDoc = S["GiongDocOut"];
  * rời: thứ tự bốn tham số cùng kiểu string rất dễ truyền nhầm chỗ.
  */
 export interface TuyChonDich {
+  /** Nhà cung cấp AI dùng để dịch video này — `gemini`, `openrouter`, … */
+  llmProvider: string;
   llmModel: string;
   /** Bỏ tích khi video không có chữ cứng — bước này nặng nhất pipeline. */
   xoaChuCung: boolean;

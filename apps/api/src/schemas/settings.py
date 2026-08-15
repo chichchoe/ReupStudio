@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field
 class MucCauHinhOut(BaseModel):
     key: str
     mo_ta: str
+    #: ``select`` · ``number`` · ``text``. Ô nào chỉ có vài giá trị hợp lệ thì
+    #: phải cho CHỌN, không cho gõ tay — gõ "smal" thay vì "small" là hỏng bước
+    #: nhận dạng, mà lỗi chỉ hiện ra sau khi đã tải xong video.
+    kieu: str = "text"
+    #: Chỉ có nghĩa khi ``kieu == "select"``.
+    lua_chon: list[str] = Field(default_factory=list)
     #: Với bí mật, đây LUÔN là chuỗi che — giá trị thật không bao giờ ra khỏi API.
     value: str
     is_secret: bool

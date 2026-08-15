@@ -22,6 +22,7 @@ import type {
   Subtitle,
   Video,
   CauHinh,
+  NhaCungCapAI,
   TtsOptions,
   TuyChonDich,
 } from "./types";
@@ -193,6 +194,7 @@ export const api = {
     request<TranslateAccepted>(`/videos/${id}/translate`, {
       method: "POST",
       body: JSON.stringify({
+        llm_provider: tuyChon.llmProvider,
         llm_model: tuyChon.llmModel,
         xoa_chu_cung: tuyChon.xoaChuCung,
         tts_provider: tuyChon.ttsProvider,
@@ -219,6 +221,31 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ gia_tri: giaTri }),
     }),
+
+  /** Nhà cung cấp AI đã cấu hình. Khoá LUÔN chỉ về dạng cờ đã-đặt-hay-chưa. */
+  nhaCungCapAI: () => request<NhaCungCapAI[]>("/ai-providers"),
+
+  /** Ô khoá để trống nghĩa là giữ nguyên, không phải xoá. */
+  luuNhaCungCapAI: (
+    ma: string,
+    body: { api_key?: string; base_url?: string; enabled: boolean },
+  ) =>
+    request<NhaCungCapAI[]>(`/ai-providers/${ma}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  goKhoaAI: (ma: string) =>
+    request<NhaCungCapAI[]>(`/ai-providers/${ma}/khoa`, { method: "DELETE" }),
+
+  /**
+   * Hỏi THẲNG nhà cung cấp xem khoá này dùng được model nào.
+   *
+   * Hỏi trực tiếp thay vì để người dùng gõ tay: gõ sai một ký tự thì lỗi chỉ
+   * hiện ra lúc dịch, sau khi đã chờ tải và nhận dạng xong.
+   */
+  modelCuaNhaCungCap: (ma: string, mucDich: "translate" | "tts" = "translate") =>
+    request<string[]>(`/ai-providers/${ma}/models?muc_dich=${mucDich}`),
 
   sinhKhoaMaHoa: () =>
     request<{ khoa: string; huong_dan: string }>("/settings/sinh-khoa-ma-hoa", {

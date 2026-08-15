@@ -143,7 +143,9 @@ def test_translate_cues_bao_usage_ve_cho_goi(monkeypatch) -> None:
                 self.on_usage(self.usage)
             return [f"vi:{t}" for t in texts]
 
-    monkeypatch.setattr("src.pipeline.translate.get_translator", lambda model=None: TranslatorGia())
+    monkeypatch.setattr(
+        "src.pipeline.translate.get_translator", lambda model=None, **_: TranslatorGia()
+    )
 
     cues = [Cue(i, i, i + 1, f"câu {i}") for i in range(5)]
     ra = translate_cues(cues, on_usage=nhan_duoc.append)
@@ -179,7 +181,7 @@ def test_bao_mot_lan_cho_MOI_LUOT_GOI_khong_phai_moi_lo(monkeypatch) -> None:
             return [f"vi:{t}" for t in texts]
 
     monkeypatch.setattr(
-        "src.pipeline.translate.get_translator", lambda model=None: TranslatorHayLech()
+        "src.pipeline.translate.get_translator", lambda model=None, **_: TranslatorHayLech()
     )
     monkeypatch.setattr("src.pipeline.translate.get_settings", lambda: _cau_hinh_lo(4))
 

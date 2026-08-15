@@ -506,6 +506,7 @@ def translate_video_task(session, video) -> dict:
         on_usage=_ghi,
         dem_luot_gan_day=_dem_luot_gan_day,
         model=_llm_model(video),
+        **_khoa_llm_cho_translate(video),
     )
     _save_subtitle(session, video, "vi", "llm", vi_cues)
     tong = lan_truoc[0]
@@ -586,6 +587,49 @@ def _doc_tuan_tu(provider, vi_cues, vid: str, giong: str) -> dict[int, Path]:
 def _bat_m3(video) -> bool:
     config = video.process_config or {}
     return bool(config.get("xoa_chu_cung", _M3_MAC_DINH_BAT))
+
+
+def _khoa_llm_theo_video(video) -> tuple[str, str, str]:
+    """``(khoá API, địa chỉ gốc, mã nhà cung cấp)`` cho việc dịch video này.
+
+    Đọc từ bảng ``ai_providers`` theo bên người dùng đã chọn ở tab Chờ dịch.
+    Không chọn bên nào thì rơi về cấu hình chung — giữ cho các video cũ (lưu
+    trước khi có nhiều nhà cung cấp) vẫn chạy được.
+    """
+    from reup_core.ai_providers import DANH_MUC
+    from reup_core.models import AiProvider
+    from reup_core.settings_store import fernet
+
+    ma = (video.process_config or {}).get("llm_provider_ma") or ""
+    if not ma or ma not in DANH_MUC:
+        return ("", "", "")
+
+    with session_scope() as db:
+        row = db.get(AiProvider, ma)
+        if row is None or not row.api_key_encrypted:
+            return ("", "", ma)
+        try:
+            khoa = fernet().decrypt(row.api_key_encrypted.encode()).decode()
+        except Exception:
+            #: Đổi SETTINGS_KEY mà quên nhập lại khoá — coi như chưa cấu hình
+            #: và rơi về cấu hình chung, chứ không làm hỏng cả job.
+            log.warning("llm.khoa_khong_giai_ma_duoc", provider=ma)
+            return ("", "", ma)
+        goc = (row.base_url or "").strip() or DANH_MUC[ma].base_url
+    return (khoa, goc, ma)
+
+
+def _khoa_llm_cho_translate(video) -> dict[str, str]:
+    """Tham số khoá/địa chỉ/nhà cung cấp truyền cho ``translate_cues``."""
+    khoa, goc, ma = _khoa_llm_theo_video(video)
+    if not khoa:
+        return {}
+    #: Mọi bên trừ Anthropic đều tương thích OpenAI — xem ``get_translator``.
+    return {
+        "api_key": khoa,
+        "base_url": goc,
+        "provider": "anthropic" if ma == "anthropic" else "openai",
+    }
 
 
 def _cau_hinh_tts(video) -> tuple[str, str, str]:

@@ -39,7 +39,9 @@ def dong_ho(monkeypatch):
     """Đồng hồ giả — không bài test nào phải chờ thật 60 giây."""
     trang_thai = {"da_ngu": []}
     monkeypatch.setattr(mod, "_sleep", lambda giay: trang_thai["da_ngu"].append(giay))
-    monkeypatch.setattr(mod, "get_translator", lambda model=None: TranslatorGia())
+    #: Nhận **kwargs: chữ ký thật có thêm api_key/base_url/provider cho việc
+    #: chọn nhà cung cấp theo từng video.
+    monkeypatch.setattr(mod, "get_translator", lambda model=None, **_: TranslatorGia())
     return trang_thai
 
 

@@ -1,3 +1,4 @@
+from .ai_provider import AiProvider
 from .app_setting import AppSetting
 from .base import Base, TimestampMixin
 from .cost_log import CostLog
@@ -11,6 +12,7 @@ from .subtitle import Subtitle
 from .video import Video
 
 __all__ = [
+    "AiProvider",
     "AppSetting",
     "Base",
     "CostLog",

@@ -368,6 +368,7 @@ def luu_tuy_chon_xu_ly(
     *,
     xoa_chu_cung: bool,
     tts_provider: str,
+    llm_provider: str | None = None,
     giong_doc: str | None,
     tts_model: str | None,
 ) -> Video:
@@ -383,6 +384,8 @@ def luu_tuy_chon_xu_ly(
     video = get_video(db, video_id)
     config = dict(video.process_config or {})
 
+    if llm_provider:
+        config["llm_provider_ma"] = llm_provider
     config["xoa_chu_cung"] = bool(xoa_chu_cung)
     config["tts_provider"] = tts_provider
     if giong_doc:

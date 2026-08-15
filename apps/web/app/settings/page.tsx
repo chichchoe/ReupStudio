@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
+import { NhaCungCapAI } from "@/components/NhaCungCapAI";
 import type { MucCauHinh } from "@/lib/types";
 
 /**
@@ -80,6 +81,16 @@ export default function SettingsPage() {
             )}
           </div>
 
+          <section className="mt-6">
+            <h2 className="mb-1 text-[15px] font-semibold">Nhà cung cấp AI</h2>
+            <p className="mb-2.5 max-w-[65ch] text-[12px] text-muted">
+              Dán khoá của bên nào bạn có; lúc dịch sẽ chọn bên và model. Mỗi bên mạnh một
+              kiểu và có hạn mức riêng, nên dán sẵn nhiều bên rồi chọn theo từng video là
+              cách rẻ nhất.
+            </p>
+            <NhaCungCapAI />
+          </section>
+
           {data.nhom.map((nhom) => (
             <section key={nhom.ten} className="mt-6">
               <h2 className="mb-2 text-[15px] font-semibold">{nhom.ten}</h2>
@@ -151,15 +162,31 @@ function Dong({ muc, dauTien, giaTri, onDoi }: DongProps) {
             {muc.da_dat ? "đã đặt" : "chưa đặt"}
           </span>
         )}
-        <input
-          id={muc.key}
-          className="input w-64 py-1"
-          type={muc.is_secret ? "password" : "text"}
-          value={hienThi}
-          placeholder={muc.is_secret && muc.da_dat ? "để trống = giữ nguyên" : ""}
-          onChange={(e) => onDoi(e.target.value)}
-          autoComplete="off"
-        />
+        {muc.kieu === "select" ? (
+          <select
+            id={muc.key}
+            className="input w-64 py-1"
+            value={hienThi}
+            onChange={(e) => onDoi(e.target.value)}
+          >
+            {(muc.lua_chon ?? []).map((v) => (
+              <option key={v} value={v}>
+                {v === "" ? "(không dùng)" : v}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            id={muc.key}
+            className="input w-64 py-1"
+            type={muc.is_secret ? "password" : muc.kieu === "number" ? "number" : "text"}
+            step={muc.kieu === "number" ? "any" : undefined}
+            value={hienThi}
+            placeholder={muc.is_secret && muc.da_dat ? "để trống = giữ nguyên" : ""}
+            onChange={(e) => onDoi(e.target.value)}
+            autoComplete="off"
+          />
+        )}
       </div>
     </div>
   );

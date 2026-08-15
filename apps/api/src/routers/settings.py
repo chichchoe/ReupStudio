@@ -36,16 +36,53 @@ from ..schemas.settings import (
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
+#: Ô nào chỉ có vài giá trị hợp lệ thì cho CHỌN, không cho gõ tay. Gõ "smal"
+#: thay vì "small" làm hỏng bước nhận dạng, mà lỗi chỉ hiện ra sau khi đã chờ
+#: tải xong video.
+LUA_CHON: dict[str, list[str]] = {
+    "WHISPER_MODEL": ["tiny", "base", "small", "medium", "large-v3"],
+    "WHISPER_DEVICE": ["auto", "cpu", "cuda"],
+    "WHISPER_COMPUTE_TYPE": ["int8", "int8_float16", "float16", "float32"],
+    "DEDUP_ENABLED": ["true", "false"],
+    "SUB_MAX_LINES": ["1", "2", "3"],
+    "YTDLP_COOKIES_FROM_BROWSER": ["", "chrome", "firefox", "edge", "safari"],
+}
+
+#: Ô số — giao diện hiện bàn phím số và chặn chữ ngay tại chỗ nhập.
+KIEU_SO = {
+    "LLM_BATCH_SIZE",
+    "LLM_MAX_REQUESTS_PER_MIN",
+    "LLM_MAX_REQUESTS_PER_DAY",
+    "SUB_FONT_SIZE",
+    "SUB_MAX_CHARS_PER_LINE",
+    "SUB_MIN_DURATION",
+    "MONTHLY_BUDGET_USD",
+    "MAX_CONCURRENT_RENDERS",
+    "MAX_VIDEO_DURATION_SEC",
+    "DOWNLOAD_TIMEOUT_SEC",
+    "FFMPEG_TIMEOUT_SEC",
+    "DEDUP_PHASH_FRAMES",
+    "DEDUP_PHASH_MAX_DISTANCE",
+    "DEDUP_PHASH_SCAN_LIMIT",
+}
+
+
+def _kieu_o(key: str) -> tuple[str, list[str]]:
+    if key in LUA_CHON:
+        return ("select", LUA_CHON[key])
+    if key in KIEU_SO:
+        return ("number", [])
+    return ("text", [])
+
+
 #: Gom theo nhóm và kèm mô tả để người dùng không phải đoán ý nghĩa từng biến.
 #: Giữ nguyên tên biến làm khoá — đó vẫn là thứ ``.env`` và mã nguồn dùng.
 NHOM = [
     (
         "AI dịch thuật",
         [
-            ("LLM_PROVIDER", "openai cho mọi nhà cung cấp nói giao thức OpenAI"),
-            ("LLM_API_KEY", "Khoá API. Lưu mã hoá, không bao giờ hiện lại."),
-            ("LLM_BASE_URL", "Địa chỉ gốc API"),
-            ("LLM_MODEL", "Model dùng mặc định khi dịch"),
+            #: Khoá và địa chỉ của từng nhà cung cấp KHÔNG nằm ở đây — chúng có
+            #: trang riêng vì người dùng cấu hình nhiều bên cùng lúc.
             ("LLM_BATCH_SIZE", "Số câu gửi mỗi lượt gọi"),
             ("LLM_MAX_REQUESTS_PER_MIN", "Trần lượt/phút tự khai. 0 = không giới hạn"),
             ("LLM_MAX_REQUESTS_PER_DAY", "Trần lượt/ngày tự khai. 0 = không giới hạn"),
@@ -117,10 +154,13 @@ def doc_cau_hinh(db: Session = Depends(get_db)):
         muc = []
         for key, mo_ta in cac_khoa:
             row = da_luu.get(key)
+            kieu, lua_chon = _kieu_o(key)
             muc.append(
                 MucCauHinhOut(
                     key=key,
                     mo_ta=mo_ta,
+                    kieu=kieu,
+                    lua_chon=lua_chon,
                     value=row.value if row else "",
                     is_secret=key in KHOA_BI_MAT,
                     da_dat=bool(row and row.da_dat),

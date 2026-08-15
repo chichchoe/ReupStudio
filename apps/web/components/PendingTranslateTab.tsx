@@ -41,6 +41,11 @@ export function PendingTranslateTab() {
     queryKey: ["llm-models"],
     queryFn: api.llmModels,
   });
+  const { data: nhaCungCap = [] } = useQuery({
+    queryKey: ["ai-providers"],
+    queryFn: api.nhaCungCapAI,
+    staleTime: 5 * 60 * 1000,
+  });
   const { data: ttsOptions = [] } = useQuery({
     queryKey: ["tts-options"],
     queryFn: api.ttsOptions,
@@ -130,8 +135,7 @@ export function PendingTranslateTab() {
         <PendingVideoRow
           key={video.id}
           video={video}
-          models={translateModels}
-          defaultModel={defaultModel}
+          nhaCungCap={nhaCungCap}
           selected={selected.has(video.id)}
           pending={pendingIds.has(video.id)}
           ttsOptions={ttsOptions}
@@ -149,6 +153,7 @@ export function PendingTranslateTab() {
           //: lý do chính dùng công cụ này) và giọng miễn phí không tính lượt.
           //: Muốn khác thì bấm Dịch ở từng dòng.
           translate([...selected], {
+            llmProvider: nhaCungCap.find((n) => n.da_dat_khoa || !n.can_khoa)?.ma ?? "",
             llmModel: model,
             xoaChuCung: true,
             ttsProvider: "edge",

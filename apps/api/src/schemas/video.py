@@ -88,6 +88,9 @@ class TranslateRequest(BaseModel):
     """
 
     llm_model: str | None = None
+    #: Nhà cung cấp AI dùng để dịch video này. Bỏ trống thì worker dùng bên nào
+    #: đang bật trong bảng ``ai_providers``.
+    llm_provider: str | None = None
 
     #: Bật/tắt xoá chữ cứng và watermark cho RIÊNG video này. Bước này nặng
     #: nhất pipeline (video một tiếng mất hàng tiếng) và không phải video nào

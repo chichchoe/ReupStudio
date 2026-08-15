@@ -575,6 +575,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Danh Sach
+         * @description Mọi nhà cung cấp trong danh mục, kèm trạng thái đã cấu hình hay chưa.
+         */
+        get: operations["danh_sach_api_v1_ai_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai-providers/{ma}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Sua
+         * @description Lưu khoá và cấu hình một nhà cung cấp.
+         *
+         *     Ô khoá để TRỐNG nghĩa là giữ nguyên cái đang có, không phải xoá — giao diện
+         *     không bao giờ nhận được khoá thật nên nó luôn gửi chuỗi rỗng ở ô không sửa.
+         *     Muốn gỡ khoá thì dùng ``DELETE``.
+         */
+        put: operations["sua_api_v1_ai_providers__ma__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai-providers/{ma}/khoa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Go Khoa
+         * @description Gỡ khoá — dùng khi đổi tài khoản hoặc nghi khoá bị lộ.
+         */
+        delete: operations["go_khoa_api_v1_ai_providers__ma__khoa_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai-providers/{ma}/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Models
+         * @description Hỏi THẲNG nhà cung cấp xem khoá này dùng được model nào, lọc theo việc.
+         *
+         *     Hỏi trực tiếp thay vì để người dùng gõ tay tên model: gõ sai một ký tự thì
+         *     lỗi chỉ hiện ra lúc dịch, sau khi đã chờ tải và nhận dạng xong.
+         */
+        get: operations["models_api_v1_ai_providers__ma__models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -789,12 +876,42 @@ export interface components {
             key: string;
             /** Mo Ta */
             mo_ta: string;
+            /**
+             * Kieu
+             * @default text
+             */
+            kieu: string;
+            /** Lua Chon */
+            lua_chon?: string[];
             /** Value */
             value: string;
             /** Is Secret */
             is_secret: boolean;
             /** Da Dat */
             da_dat: boolean;
+        };
+        /** NhaCungCapOut */
+        NhaCungCapOut: {
+            /** Ma */
+            ma: string;
+            /** Ten */
+            ten: string;
+            /** Ghi Chu */
+            ghi_chu: string;
+            /** Trang Lay Khoa */
+            trang_lay_khoa: string;
+            /** Base Url Mac Dinh */
+            base_url_mac_dinh: string;
+            /** Base Url */
+            base_url: string;
+            /** Can Khoa */
+            can_khoa: boolean;
+            /** Da Dat Khoa */
+            da_dat_khoa: boolean;
+            /** Enabled */
+            enabled: boolean;
+            /** Model Goi Y */
+            model_goi_y?: string[];
         };
         /** NhomCauHinhOut */
         NhomCauHinhOut: {
@@ -1155,6 +1272,21 @@ export interface components {
             gia_tri?: {
                 [key: string]: string;
             };
+        };
+        /**
+         * SuaNhaCungCapIn
+         * @description Ô khoá để trống = giữ nguyên, không phải xoá.
+         */
+        SuaNhaCungCapIn: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
         };
         /** SubtitleCue */
         SubtitleCue: {
@@ -2413,6 +2545,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KhoaMoiOut"];
+                };
+            };
+        };
+    };
+    danh_sach_api_v1_ai_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NhaCungCapOut"][];
+                };
+            };
+        };
+    };
+    sua_api_v1_ai_providers__ma__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ma: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuaNhaCungCapIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NhaCungCapOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    go_khoa_api_v1_ai_providers__ma__khoa_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ma: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NhaCungCapOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    models_api_v1_ai_providers__ma__models_get: {
+        parameters: {
+            query?: {
+                muc_dich?: string;
+            };
+            header?: never;
+            path: {
+                ma: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

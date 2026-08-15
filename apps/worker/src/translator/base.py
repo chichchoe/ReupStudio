@@ -49,7 +49,13 @@ class LlmUsage:
 
 
 class BaseTranslator(ABC):
-    def __init__(self, model: str | None = None) -> None:
+    def __init__(self, model: str | None = None, *, api_key: str = "", base_url: str = "") -> None:
+        #: Khoá và địa chỉ của RIÊNG lượt chạy này, lấy từ nhà cung cấp người
+        #: dùng chọn ở tab "Chờ dịch" (bảng ``ai_providers``). Rỗng thì rơi về
+        #: cấu hình chung — giữ cho video cũ, lưu trước khi có nhiều nhà cung
+        #: cấp, vẫn chạy được.
+        self.api_key = api_key
+        self.base_url = base_url
         #: Model của RIÊNG lượt chạy này. Người dùng chọn model cho từng video
         #: ở tab "Chờ dịch" (lưu vào ``process_config["llm_model"]``), nên không
         #: thể đọc thẳng ``settings.llm_model`` ở mọi nơi — đó chỉ là mặc định
@@ -79,21 +85,35 @@ class BaseTranslator(ABC):
         """Sinh tiêu đề tiếng Việt hấp dẫn từ nội dung video."""
 
 
-def get_translator(model: str | None = None) -> BaseTranslator:
+def get_translator(
+    model: str | None = None, *, api_key: str = "", base_url: str = "", provider: str = ""
+) -> BaseTranslator:
     """Tạo translator theo nhà cung cấp đã cấu hình.
 
-    ``model`` là lựa chọn của RIÊNG video đang xử lý (người dùng chọn ở tab
-    "Chờ dịch"). Không truyền thì dùng ``LLM_MODEL`` mặc định.
+    ``model``, ``api_key``, ``base_url`` là lựa chọn của RIÊNG video đang xử lý
+    (người dùng chọn nhà cung cấp và model ở tab "Chờ dịch"). Không truyền thì
+    dùng cấu hình chung.
+
+    Anthropic nói giao thức riêng nên có lớp riêng; mọi bên còn lại — Gemini,
+    OpenRouter, DeepSeek, Ollama — đều tương thích OpenAI nên dùng chung một
+    lớp, chỉ khác địa chỉ gốc.
     """
-    provider = get_settings().llm_provider.lower()
+    provider = (provider or get_settings().llm_provider).lower()
     if provider == "anthropic":
         from .anthropic import AnthropicTranslator
 
-        return AnthropicTranslator(model)
+        return AnthropicTranslator(model, api_key=api_key, base_url=base_url)
     if provider == "openai":
         from .openai import OpenAITranslator
 
-        return OpenAITranslator(model)
+        return OpenAITranslator(model, api_key=api_key, base_url=base_url)
+    #: Có khoá thì chắc chắn KHÔNG phải mock — người dùng vừa dán khoá thật ở
+    #: trang cấu hình, rơi về mock ở đây sẽ cho ra bản dịch giả mà vẫn báo xong.
+    if api_key:
+        from .openai import OpenAITranslator
+
+        return OpenAITranslator(model, api_key=api_key, base_url=base_url)
+
     from .mock import MockTranslator
 
     return MockTranslator(model)
