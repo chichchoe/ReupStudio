@@ -12,8 +12,15 @@ const TONES = [
   { value: "trang_trong", label: "Trang trọng" },
 ];
 
+interface Props {
+  /** Số dòng của ô nhập. Trong modal thì rộng rãi, nhúng thẳng vào trang thì hẹp. */
+  soDong?: number;
+  /** Gọi sau khi thêm xong — modal dùng để tự đóng. */
+  onXong?: () => void;
+}
+
 /** Ô dán link ở trang Video: dán nhiều link, chọn văn phong, gửi vào hàng đợi. */
-export function PasteLinksForm() {
+export function PasteLinksForm({ soDong = 6, onXong }: Props = {}) {
   const [text, setText] = useState("");
   const [tone, setTone] = useState("ngon_tinh");
   const [result, setResult] = useState<CreateFromLinksResult | null>(null);
@@ -28,6 +35,9 @@ export function PasteLinksForm() {
       setText("");
       queryClient.invalidateQueries({ queryKey: ["videos"] });
       queryClient.invalidateQueries({ queryKey: ["counts"] });
+      // Chỉ đóng khi thật sự tạo được video. Không tạo được link nào mà modal
+      // vẫn đóng thì người dùng không biết vì sao danh sách chẳng có gì mới.
+      if (data.created > 0) setTimeout(() => onXong?.(), 1200);
     },
     onError: (err) => {
       setError(err instanceof ApiError ? err.message : "Không gửi được yêu cầu");
@@ -44,7 +54,7 @@ export function PasteLinksForm() {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        rows={6}
+        rows={soDong}
         placeholder={`https://v.douyin.com/iRxxxx/
 https://www.bilibili.com/video/BV1xx411c7mD
 https://www.youtube.com/shorts/xxxxxxxxxxx

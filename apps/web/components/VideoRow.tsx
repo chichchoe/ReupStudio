@@ -14,11 +14,13 @@ interface Props {
   selected: boolean;
   /** Đang là video hiện ở khung xem bên phải. */
   dangXem: boolean;
+  /** Video này đang chạy trong khung xem — nút đổi thành ⏸. */
+  dangPhat: boolean;
   onToggle: (id: string) => void;
   /**
-   * Bấm ▶ — đưa video sang khung xem bên phải. CHỈ nút này mở xem; bấm chỗ
-   * khác trên dòng không đổi gì, để lúc đang xem dở mà lỡ tay chạm danh sách
-   * thì video không nhảy sang cái khác.
+   * Bấm ▶ — đưa video sang khung xem bên phải, hoặc dừng/chạy tiếp nếu nó đã ở
+   * đó. CHỈ nút này mở xem; bấm chỗ khác trên dòng không đổi gì, để lúc đang
+   * xem dở mà lỡ tay chạm danh sách thì video không nhảy sang cái khác.
    */
   onXemThu: (id: string) => void;
   onRetry: (id: string) => void;
@@ -39,6 +41,7 @@ export function VideoRow({
   progress,
   selected,
   dangXem,
+  dangPhat,
   onToggle,
   onXemThu,
   onRetry,
@@ -49,6 +52,11 @@ export function VideoRow({
   //: Chỉ xem được khi đã có file ra. `posted` cũng có file — video đã đăng vẫn
   //: cần xem lại được.
   const xemDuoc = video.status === "ready" || video.status === "posted";
+  //: Ba trạng thái, ba chữ khác nhau: chưa mở · đang chạy · mở rồi mà đang
+  //: dừng. "Xem tiếp" quan trọng nhất — nó nói cho biết bấm vào sẽ chạy tiếp
+  //: chứ không phải xem lại từ đầu.
+  const dangChay = dangXem && dangPhat;
+  const nhanXem = !dangXem ? "▶ Xem thử" : dangPhat ? "⏸ Dừng" : "▶ Xem tiếp";
 
   return (
     <div
@@ -78,13 +86,17 @@ export function VideoRow({
         type="button"
         disabled={!xemDuoc}
         onClick={() => onXemThu(video.id)}
-        aria-label={xemDuoc ? "Xem thử bản render" : "Chưa render xong"}
+        aria-label={xemDuoc ? nhanXem : "Chưa render xong"}
         className={clsx(
           "group relative flex h-[52px] w-[38px] shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#2E3646] to-[#171B24] text-[13px]",
           xemDuoc && "hover:brightness-125",
         )}
       >
-        {xemDuoc ? <span className="text-white/90 group-hover:text-white">▶</span> : "🎬"}
+        {xemDuoc ? (
+          <span className="text-white/90 group-hover:text-white">{dangChay ? "⏸" : "▶"}</span>
+        ) : (
+          "🎬"
+        )}
         <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 text-[9px]">
           {formatDuration(video.duration_sec)}
         </span>
@@ -128,7 +140,7 @@ export function VideoRow({
               className={clsx("btn btn-sm", dangXem && "btn-primary")}
               onClick={() => onXemThu(video.id)}
             >
-              ▶ Xem thử
+              {nhanXem}
             </button>
             <a className="btn btn-sm" href={api.fileUrl(video.id)} download>
               ⬇ Tải

@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { useEffect, useRef } from "react";
 import { api } from "@/lib/api";
 import { formatDuration, formatRelative, platformLabel } from "@/lib/format";
 import { ghiChuVideo } from "@/lib/ghiChuVideo";
@@ -21,11 +22,49 @@ import type { VideoProgress } from "@/lib/ws";
 interface Props {
   video: Video | null;
   progress?: VideoProgress;
+  /** Đang phát hay đang dừng — do trang giữ, vì nút ▶ ngoài danh sách cũng đổi
+      theo trạng thái này. */
+  dangPhat: boolean;
+  onDoiPhat: (phat: boolean) => void;
+  /** Giây đã xem tới, để quay lại tab là xem tiếp chứ không phải xem lại. */
+  viTriBanDau: number;
+  onLuuViTri: (giay: number) => void;
   onRetry: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
-export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
+export function KhungXem({
+  video,
+  progress,
+  dangPhat,
+  onDoiPhat,
+  viTriBanDau,
+  onLuuViTri,
+  onRetry,
+  onDelete,
+}: Props) {
+  const theVideo = useRef<HTMLVideoElement>(null);
+
+  // Trang này giữ trạng thái phát; thẻ <video> chỉ chạy theo. Người dùng bấm
+  // nút ▶ trên dòng hay bấm thẳng nút phát của trình duyệt đều ra cùng kết quả.
+  useEffect(() => {
+    const el = theVideo.current;
+    if (!el) return;
+    if (dangPhat) void el.play().catch(() => undefined);
+    else el.pause();
+  }, [dangPhat, video?.id]);
+
+  // Ghi lại vị trí trước khi thẻ bị gỡ — chuyển tab là cả nhánh này biến mất,
+  // không kịp đợi sự kiện `pause`.
+  useEffect(() => {
+    const el = theVideo.current;
+    const id = video?.id;
+    return () => {
+      if (el && id && el.currentTime > 0) onLuuViTri(el.currentTime);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [video?.id]);
+
   if (!video) {
     return (
       <aside className="rounded-xl border border-dashed border-border p-8 text-center text-[12.5px] text-muted">
@@ -51,9 +90,17 @@ export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
             //: `key` bắt React dựng thẻ mới khi đổi video. Nếu chỉ đổi `src`,
             //: trình duyệt giữ nguyên vị trí đang tua của video trước.
             key={video.id}
+            ref={theVideo}
             src={api.fileUrl(video.id)}
             controls
-            autoPlay
+            //: Không `autoPlay`: việc phát do `dangPhat` quyết. Quay lại tab mà
+            //: lúc đi đang dừng thì vẫn phải dừng.
+            onLoadedMetadata={(e) => {
+              if (viTriBanDau > 0) e.currentTarget.currentTime = viTriBanDau;
+              if (dangPhat) void e.currentTarget.play().catch(() => undefined);
+            }}
+            onPlay={() => onDoiPhat(true)}
+            onPause={() => onDoiPhat(false)}
             className="h-full w-full object-contain"
           />
         ) : (

@@ -3,14 +3,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { BulkActionBar } from "@/components/BulkActionBar";
 import { ChannelsTab } from "@/components/ChannelsTab";
 import { BulkSkipNotice } from "@/components/BulkSkipNotice";
 import { DuyetBanDichTab } from "@/components/DuyetBanDichTab";
 import { KhungXem } from "@/components/KhungXem";
-import { PasteLinksForm } from "@/components/PasteLinksForm";
 import { PendingTranslateTab } from "@/components/PendingTranslateTab";
+import { ThemVideoModal } from "@/components/ThemVideoModal";
 import { VideoRow } from "@/components/VideoRow";
 import { api } from "@/lib/api";
 import { STATUS_LABEL, type BulkResult, type VideoStatus } from "@/lib/types";
@@ -115,6 +115,27 @@ function LibraryInner() {
   //: render, nên khung xem tự cập nhật khi video chạy xong mà không phải đồng
   //: bộ tay.
   const [idDangXem, setIdDangXem] = useState<string | null>(null);
+  const [dangPhat, setDangPhat] = useState(false);
+  //: Giây đã xem tới của từng video. Để trong ref chứ không phải state: ghi
+  //: mỗi lần rời khung xem, mà một lần ghi không đáng để vẽ lại cả trang.
+  const viTriDaXem = useRef<Record<string, number>>({});
+
+  // Chuyển tab là dừng. Khung xem bị gỡ khỏi màn hình, để tiếng vẫn chạy thì
+  // không tìm được chỗ nào mà tắt. Vị trí đã xem vẫn giữ, quay lại bấm
+  // "▶ Xem tiếp" là chạy tiếp từ đúng chỗ đó.
+  useEffect(() => {
+    setDangPhat(false);
+  }, [tab]);
+
+  //: Bấm ▶ ở video đang xem thì dừng/chạy tiếp; bấm ở video khác thì đổi sang
+  //: video đó và phát từ chỗ lần trước bỏ dở.
+  const bamXem = (id: string) => {
+    if (id === idDangXem) setDangPhat((dang) => !dang);
+    else {
+      setIdDangXem(id);
+      setDangPhat(true);
+    }
+  };
   const [moThem, setMoThem] = useState(false);
   const dangXem = videos.find((v) => v.id === idDangXem) ?? null;
 
@@ -185,12 +206,7 @@ function LibraryInner() {
         )}
       </div>
 
-      {/* Danh sách rỗng thì mở sẵn: lúc đó không còn việc gì khác để làm ở đây. */}
-      {(moThem || (!isLoading && videos.length === 0 && tab === "all")) && tab !== "kenh" && (
-        <div className="card mb-3">
-          <PasteLinksForm />
-        </div>
-      )}
+      {moThem && <ThemVideoModal onDong={() => setMoThem(false)} />}
 
       {tab === "kenh" ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -226,15 +242,26 @@ function LibraryInner() {
 
           {isLoading && <p className="text-[13px] text-muted py-8 text-center">Đang tải…</p>}
 
+          {/* Rỗng vì chưa có video nào thì mời thêm; rỗng vì đang tìm kiếm thì
+              không — lúc đó cái người dùng cần là sửa từ khoá, không phải dán
+              link mới. */}
           {!isLoading && videos.length === 0 && (
-            <div className="text-center py-16 text-muted text-[13px]">
-              Chưa có video nào khớp bộ lọc.
+            <div className="py-16 text-center text-[13px] text-muted">
+              {query || status !== "all" ? (
+                "Chưa có video nào khớp bộ lọc."
+              ) : (
+                <>
+                  <p>Chưa có video nào.</p>
+                  <button className="btn btn-primary mt-3" onClick={() => setMoThem(true)}>
+                    ＋ Thêm video
+                  </button>
+                </>
+              )}
             </div>
           )}
 
-          {/* Danh sách bên trái, khung xem bên phải. Cột phải rộng cố định vì
-              nó chứa video dọc 9:16 — để co giãn thì mỗi lần cửa sổ đổi bề
-              rộng, khung phát lại nhảy kích thước. */}
+          {/* Danh sách bên trái, khung xem bên phải. Cột phải rộng đúng 1/3 vì
+              nó chứa video dọc 9:16. */}
           {videos.length > 0 && (
             <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
               {/* Chỉ DANH SÁCH cuộn, khung xem bên phải đứng yên — cuộn tìm
@@ -247,8 +274,9 @@ function LibraryInner() {
                     progress={progress[video.id]}
                     selected={selected.has(video.id)}
                     dangXem={video.id === idDangXem}
+                    dangPhat={dangPhat}
                     onToggle={toggle}
-                    onXemThu={setIdDangXem}
+                    onXemThu={bamXem}
                     onRetry={retry}
                     onDelete={remove}
                   />
@@ -258,6 +286,12 @@ function LibraryInner() {
               <KhungXem
                 video={dangXem}
                 progress={dangXem ? progress[dangXem.id] : undefined}
+                dangPhat={dangPhat}
+                onDoiPhat={setDangPhat}
+                viTriBanDau={dangXem ? (viTriDaXem.current[dangXem.id] ?? 0) : 0}
+                onLuuViTri={(giay) => {
+                  if (dangXem) viTriDaXem.current[dangXem.id] = giay;
+                }}
                 onRetry={retry}
                 onDelete={remove}
               />

@@ -32,6 +32,16 @@ export function ChannelsTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["source-channels"] }),
   });
 
+  const xoaMutation = useMutation({
+    mutationFn: (id: string) => api.deleteSourceChannel(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["source-channels"] }),
+  });
+
+  //: Xoá hai nhịp: bấm lần đầu nút đổi thành "Xoá thật?", bấm lần hai mới gọi
+  //: API. Kênh xoá nhầm phải dán lại URL và chọn lại chu kỳ, tình trạng bản
+  //: quyền — mất nhiều hơn một cú bấm.
+  const [hoiXoa, setHoiXoa] = useState<string | null>(null);
+
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
@@ -61,6 +71,7 @@ export function ChannelsTab() {
                 <th className="px-3 py-2.5 font-medium">Chu kỳ quét</th>
                 <th className="px-3 py-2.5 font-medium">Tình trạng bản quyền</th>
                 <th className="px-3 py-2.5 text-right font-medium">Bật/tắt</th>
+                <th className="px-3 py-2.5 text-right font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -86,6 +97,26 @@ export function ChannelsTab() {
                       onClick={() => toggleMutation.mutate({ id: c.id, enabled: !c.enabled })}
                     >
                       {c.enabled ? "Đang bật" : "Đang tắt"}
+                    </button>
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <button
+                      className={clsx(
+                        "btn btn-sm border-err/35 text-err",
+                        hoiXoa === c.id && "bg-err/15",
+                      )}
+                      disabled={xoaMutation.isPending}
+                      onClick={() => {
+                        if (hoiXoa === c.id) {
+                          xoaMutation.mutate(c.id);
+                          setHoiXoa(null);
+                        } else {
+                          setHoiXoa(c.id);
+                        }
+                      }}
+                      onBlur={() => setHoiXoa((cu) => (cu === c.id ? null : cu))}
+                    >
+                      {hoiXoa === c.id ? "Xoá thật?" : "Xoá"}
                     </button>
                   </td>
                 </tr>
