@@ -18,8 +18,20 @@ dependencies = [
 
 [project.optional-dependencies]
 # Cài riêng vì nặng: pip install -e "apps/worker[ai]"
+#
+# torch kéo về ~2 GB, simple-lama tải thêm ~200 MB weights lần chạy đầu. Worker
+# Docker chỉ chạy M1 thì KHÔNG cần nhóm này.
+#
+# Lưu ý cài đặt: Python 3.14 bản python.org thiếu bộ chứng chỉ SSL nên lần tải
+# model đầu tiên hỏng với CERTIFICATE_VERIFY_FAILED. Cách chạy được:
+#   SSL_CERT_FILE=$(python -c "import certifi; print(certifi.where())")
 ai = [
     "faster-whisper>=1.0.3",
+    # M3 — dò và xoá watermark / phụ đề cứng
+    "rapidocr-onnxruntime>=1.2.3",   # dò chữ, chạy ONNX qua CoreML
+    "torch>=2.2",                    # nền chạy LaMa trên Metal
+    "simple-lama-inpainting>=0.1.2", # model vá vùng đã xoá
+    "Pillow>=10",
 ]
 dev = ["pytest>=8.2", "ruff>=0.5"]
 
