@@ -76,7 +76,9 @@ export function VideoRow({ video, progress, selected, onToggle, onRetry, onDelet
         </div>
 
         <div className="flex items-center gap-2 mt-1.5">
-          <StatusDots status={video.status} currentStep={video.current_step} />
+          {/* `current_step` vắng mặt khi video chưa chạy bước nào — quy về null
+              để `StatusDots` chỉ phải xử lý một dạng "không có bước nào". */}
+          <StatusDots status={video.status} currentStep={video.current_step ?? null} />
           <span className={clsx("text-[11px]", STATUS_TONE[video.status] ?? "text-muted")}>
             {note}
           </span>

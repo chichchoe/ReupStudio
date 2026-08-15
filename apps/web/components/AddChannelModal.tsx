@@ -65,6 +65,10 @@ export function AddChannelModal({ onClose, onCreated }: Props) {
         handle: resolved.handle,
         scan_interval_min: scanInterval,
         license_status: licenseStatus,
+        // Kênh mới bật quét ngay. Backend cũng mặc định `true`, nhưng type sinh
+        // từ OpenAPI coi trường có giá trị mặc định là bắt buộc — ghi rõ ở đây
+        // vẫn hơn, vì "kênh mới có tự quét không" là quyết định nghiệp vụ.
+        enabled: true,
       });
     },
     onSuccess: onCreated,

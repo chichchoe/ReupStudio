@@ -96,9 +96,11 @@ Mỗi dòng một link — hỗ trợ link rút gọn và link có tham số sha
         <div className="mt-4 rounded-lg border border-accent/25 bg-accent/[0.07] p-3 text-[12.5px] text-[#B8C6E8]">
           Đã tạo <b>{result.created}</b> video
           {result.skipped_duplicate > 0 && <> · bỏ qua {result.skipped_duplicate} link trùng</>}
-          {result.invalid.length > 0 && (
+          {/* `invalid` có giá trị mặc định ở backend nên OpenAPI đánh dấu là tuỳ
+              chọn — thực tế luôn có, nhưng vẫn phải chịu được khi vắng. */}
+          {(result.invalid?.length ?? 0) > 0 && (
             <div className="mt-1.5 text-warn">
-              {result.invalid.length} link không nhận diện được: {result.invalid[0]}
+              {result.invalid?.length} link không nhận diện được: {result.invalid?.[0]}
             </div>
           )}
           {result.created > 0 && <div className="mt-1">Đang chuyển sang Thư viện…</div>}

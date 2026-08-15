@@ -11,7 +11,10 @@ class SourceChannelOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    platform: str
+    #: Dùng ĐÚNG enum như ``SourceChannelCreate`` bên dưới. Khai ``str`` ở chiều
+    #: ra trong khi chiều vào khai enum khiến frontend không ghép được dữ liệu
+    #: đọc lên với dữ liệu gửi đi, và phải gõ tay lại union (luật số 7).
+    platform: SourcePlatform
     external_id: str
     handle: str | None
     display_name: str | None
@@ -21,7 +24,7 @@ class SourceChannelOut(BaseModel):
     last_seen_video_id: str | None
     filter_preset_id: uuid.UUID | None
     process_preset_id: uuid.UUID | None
-    license_status: str
+    license_status: LicenseStatus
     license_note: str | None
     enabled: bool
     created_at: datetime
@@ -65,7 +68,10 @@ class ResolveChannelResult(BaseModel):
     lấy metadata thật là việc của task Celery quét kênh, làm ở chặng sau.
     """
 
-    platform: str
+    #: Kết quả này được đưa thẳng vào ``SourceChannelCreate.platform`` (xem
+    #: ``AddChannelModal``), nên phải cùng kiểu — nếu không frontend nhận
+    #: ``string`` rồi gán vào chỗ đòi enum và không biên dịch được.
+    platform: SourcePlatform
     external_id: str
     handle: str | None
     url: str

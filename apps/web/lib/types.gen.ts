@@ -484,6 +484,31 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * BulkResult
+         * @description Kết quả ``POST /videos/bulk``.
+         *
+         *     Trước đây endpoint trả ``dict`` trần nên OpenAPI chỉ mô tả được "một object
+         *     bất kỳ", và frontend phải gõ tay lại interface.
+         *
+         *     ``skipped`` LUÔN kèm lý do và giao diện phải hiển thị — video bị bỏ qua âm
+         *     thầm là cách nhanh nhất để người dùng tưởng đã duyệt xong cả lô.
+         */
+        BulkResult: {
+            /** Affected */
+            affected: number;
+            /** Action */
+            action: string;
+            /** Skipped */
+            skipped: components["schemas"]["BulkSkip"][];
+        };
+        /** BulkSkip */
+        BulkSkip: {
+            /** Id */
+            id: string;
+            /** Reason */
+            reason: string;
+        };
         /** CreateFromLinks */
         CreateFromLinks: {
             /** Urls */
@@ -518,10 +543,12 @@ export interface components {
         };
         /** JobRunOut */
         JobRunOut: {
-            /** Step */
-            step: string;
-            /** Status */
-            status: string;
+            step: components["schemas"]["PipelineStep"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "running" | "success" | "failed";
             /**
              * Started At
              * Format: date-time
@@ -616,6 +643,11 @@ export interface components {
             limit: number;
         };
         /**
+         * PipelineStep
+         * @enum {string}
+         */
+        PipelineStep: "download" | "probe" | "transcribe" | "translate" | "format_sub" | "detect" | "inpaint" | "shortform" | "tts" | "render" | "qc" | "upload";
+        /**
          * Platform
          * @description Nền tảng đăng (Việt Nam) — tập trung vào video ngắn.
          * @enum {string}
@@ -640,10 +672,7 @@ export interface components {
             safe_daily_posts: number;
             /** Aspect Ratios */
             aspect_ratios: string[];
-            /** Safe Area */
-            safe_area: {
-                [key: string]: number;
-            };
+            safe_area: components["schemas"]["SafeArea"];
             /** Notes */
             notes: string | null;
             /**
@@ -669,10 +698,7 @@ export interface components {
             safe_daily_posts?: number | null;
             /** Aspect Ratios */
             aspect_ratios?: string[] | null;
-            /** Safe Area */
-            safe_area?: {
-                [key: string]: number;
-            } | null;
+            safe_area?: components["schemas"]["SafeArea"] | null;
             /** Notes */
             notes?: string | null;
         };
@@ -806,8 +832,7 @@ export interface components {
          *     lấy metadata thật là việc của task Celery quét kênh, làm ở chặng sau.
          */
         ResolveChannelResult: {
-            /** Platform */
-            platform: string;
+            platform: components["schemas"]["SourcePlatform"];
             /** External Id */
             external_id: string;
             /** Handle */
@@ -825,6 +850,24 @@ export interface components {
              * @default true
              */
             needs_scan: boolean;
+        };
+        /**
+         * SafeArea
+         * @description Vùng bị giao diện nền tảng che, theo PHẦN TRĂM 0–1 (luật số 2 CLAUDE.md).
+         *
+         *     Khai thành model chứ không phải ``dict[str, float]``: dict cho ra
+         *     ``additionalProperties`` trong OpenAPI, mất sạch tên bốn cạnh, nên frontend
+         *     phải gõ tay lại interface — đúng thứ luật số 7 cấm.
+         */
+        SafeArea: {
+            /** Top */
+            top: number;
+            /** Bottom */
+            bottom: number;
+            /** Left */
+            left: number;
+            /** Right */
+            right: number;
         };
         /** SourceChannelCreate */
         SourceChannelCreate: {
@@ -863,8 +906,7 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Platform */
-            platform: string;
+            platform: components["schemas"]["SourcePlatform"];
             /** External Id */
             external_id: string;
             /** Handle */
@@ -883,8 +925,7 @@ export interface components {
             filter_preset_id: string | null;
             /** Process Preset Id */
             process_preset_id: string | null;
-            /** License Status */
-            license_status: string;
+            license_status: components["schemas"]["LicenseStatus"];
             /** License Note */
             license_note: string | null;
             /** Enabled */
@@ -1013,10 +1054,8 @@ export interface components {
             width?: number | null;
             /** Height */
             height?: number | null;
-            /** Status */
-            status: string;
-            /** Current Step */
-            current_step?: string | null;
+            status: components["schemas"]["VideoStatus"];
+            current_step?: components["schemas"]["PipelineStep"] | null;
             /** Error Message */
             error_message?: string | null;
             /** Flags */
@@ -1077,10 +1116,8 @@ export interface components {
             width?: number | null;
             /** Height */
             height?: number | null;
-            /** Status */
-            status: string;
-            /** Current Step */
-            current_step?: string | null;
+            status: components["schemas"]["VideoStatus"];
+            current_step?: components["schemas"]["PipelineStep"] | null;
             /** Error Message */
             error_message?: string | null;
             /** Flags */
@@ -1100,6 +1137,11 @@ export interface components {
              */
             updated_at: string;
         };
+        /**
+         * VideoStatus
+         * @enum {string}
+         */
+        VideoStatus: "queued" | "running" | "review" | "ready" | "scheduled" | "posted" | "error" | "skipped";
         /** VideoUpdate */
         VideoUpdate: {
             /** Title Vi */
@@ -1442,9 +1484,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["BulkResult"];
                 };
             };
             /** @description Validation Error */

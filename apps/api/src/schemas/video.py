@@ -5,8 +5,12 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+from reup_core.enums import M1_STEPS, PipelineStep, VideoStatus
 
-from reup_core.enums import M1_STEPS
+#: Giá trị ``job_runs.status`` mà worker ghi ra (``tasks/base.py``). Khai bằng
+#: ``Literal`` chứ không phải ``str`` để OpenAPI mang được tập giá trị sang
+#: frontend — ``lib/types.ts`` sinh từ đó (luật số 7 CLAUDE.md).
+JobRunStatus = Literal["running", "success", "failed"]
 
 
 class VideoOut(BaseModel):
@@ -22,8 +26,12 @@ class VideoOut(BaseModel):
     duration_sec: float | None = None
     width: int | None = None
     height: int | None = None
-    status: str
-    current_step: str | None = None
+    #: Khai bằng enum, KHÔNG phải ``str``: OpenAPI khi đó mang được tập giá trị
+    #: sang frontend, nên ``lib/types.ts`` sinh ra union thay vì ``string``.
+    #: Trước đây frontend gõ tay lại hai union này — đúng thứ luật số 7
+    #: CLAUDE.md cấm, và không có gì bảo đảm chúng còn khớp backend.
+    status: VideoStatus
+    current_step: PipelineStep | None = None
     error_message: str | None = None
     flags: dict[str, Any] = Field(default_factory=dict)
     out_path: str | None = None
@@ -88,6 +96,26 @@ class BulkAction(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
+class BulkSkip(BaseModel):
+    id: str
+    reason: str
+
+
+class BulkResult(BaseModel):
+    """Kết quả ``POST /videos/bulk``.
+
+    Trước đây endpoint trả ``dict`` trần nên OpenAPI chỉ mô tả được "một object
+    bất kỳ", và frontend phải gõ tay lại interface.
+
+    ``skipped`` LUÔN kèm lý do và giao diện phải hiển thị — video bị bỏ qua âm
+    thầm là cách nhanh nhất để người dùng tưởng đã duyệt xong cả lô.
+    """
+
+    affected: int
+    action: str
+    skipped: list[BulkSkip]
+
+
 class SubtitleCue(BaseModel):
     i: int
     start: float
@@ -107,8 +135,8 @@ class SubtitleOut(BaseModel):
 class JobRunOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    step: str
-    status: str
+    step: PipelineStep
+    status: JobRunStatus
     started_at: datetime
     finished_at: datetime | None = None
     duration_sec: float | None = None

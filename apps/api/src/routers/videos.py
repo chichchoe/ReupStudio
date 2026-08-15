@@ -12,6 +12,7 @@ from ..errors import NotFound
 from ..schemas.common import Page, TaskAccepted
 from ..schemas.video import (
     BulkAction,
+    BulkResult,
     CreateFromLinks,
     CreateFromLinksResult,
     JobRunOut,
@@ -105,8 +106,8 @@ def approve(video_id: uuid.UUID, db: Session = Depends(get_db)):
     return video_service.approve(db, video_id)
 
 
-@router.post("/bulk")
-def bulk(body: BulkAction, db: Session = Depends(get_db)) -> dict:
+@router.post("/bulk", response_model=BulkResult)
+def bulk(body: BulkAction, db: Session = Depends(get_db)):
     return video_service.bulk_action(db, body.ids, body.action, body.payload)
 
 
