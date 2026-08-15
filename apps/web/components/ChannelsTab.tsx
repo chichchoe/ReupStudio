@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useState } from "react";
 import { AddChannelModal } from "@/components/AddChannelModal";
+import { HopXacNhan } from "@/components/HopXacNhan";
 import { LicenseStatusBadge } from "@/components/LicenseStatusBadge";
 import { api } from "@/lib/api";
 import { platformLabel } from "@/lib/format";
+import type { SourceChannel } from "@/lib/types";
 
 /** Khớp mốc chọn ở `AddChannelModal` — dùng chung để hiển thị nhất quán. */
 const SCAN_INTERVAL_LABEL: Record<number, string> = {
@@ -37,10 +39,9 @@ export function ChannelsTab() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["source-channels"] }),
   });
 
-  //: Xoá hai nhịp: bấm lần đầu nút đổi thành "Xoá thật?", bấm lần hai mới gọi
-  //: API. Kênh xoá nhầm phải dán lại URL và chọn lại chu kỳ, tình trạng bản
-  //: quyền — mất nhiều hơn một cú bấm.
-  const [hoiXoa, setHoiXoa] = useState<string | null>(null);
+  //: Kênh đang chờ xác nhận xoá. Giữ cả object để hộp hỏi lại gọi đúng tên
+  //: kênh — "Xoá kênh này?" không nói được là kênh nào khi bảng có chục dòng.
+  const [xoaKenh, setXoaKenh] = useState<SourceChannel | null>(null);
 
   return (
     <div>
@@ -101,22 +102,10 @@ export function ChannelsTab() {
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <button
-                      className={clsx(
-                        "btn btn-sm border-err/35 text-err",
-                        hoiXoa === c.id && "bg-err/15",
-                      )}
-                      disabled={xoaMutation.isPending}
-                      onClick={() => {
-                        if (hoiXoa === c.id) {
-                          xoaMutation.mutate(c.id);
-                          setHoiXoa(null);
-                        } else {
-                          setHoiXoa(c.id);
-                        }
-                      }}
-                      onBlur={() => setHoiXoa((cu) => (cu === c.id ? null : cu))}
+                      className="btn btn-sm border-err/35 text-err"
+                      onClick={() => setXoaKenh(c)}
                     >
-                      {hoiXoa === c.id ? "Xoá thật?" : "Xoá"}
+                      Xoá
                     </button>
                   </td>
                 </tr>
@@ -124,6 +113,26 @@ export function ChannelsTab() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {xoaKenh && (
+        <HopXacNhan
+          tieuDe="Xoá kênh theo dõi?"
+          moTa={
+            <>
+              <b className="text-fg">{xoaKenh.handle ?? xoaKenh.display_name ?? xoaKenh.external_id}</b>{" "}
+              sẽ không được quét nữa. Video đã tải về từ kênh này vẫn giữ nguyên.
+              <br />
+              Thêm lại phải dán URL và chọn lại chu kỳ quét, tình trạng bản quyền.
+            </>
+          }
+          dangChay={xoaMutation.isPending}
+          onXacNhan={() => {
+            xoaMutation.mutate(xoaKenh.id);
+            setXoaKenh(null);
+          }}
+          onHuy={() => setXoaKenh(null)}
+        />
       )}
 
       {showModal && (

@@ -8,12 +8,13 @@ import { BulkActionBar } from "@/components/BulkActionBar";
 import { ChannelsTab } from "@/components/ChannelsTab";
 import { BulkSkipNotice } from "@/components/BulkSkipNotice";
 import { DuyetBanDichTab } from "@/components/DuyetBanDichTab";
+import { HopXacNhan } from "@/components/HopXacNhan";
 import { KhungXem } from "@/components/KhungXem";
 import { PendingTranslateTab } from "@/components/PendingTranslateTab";
 import { ThemVideoModal } from "@/components/ThemVideoModal";
 import { VideoRow } from "@/components/VideoRow";
 import { api } from "@/lib/api";
-import { STATUS_LABEL, type BulkResult, type VideoStatus } from "@/lib/types";
+import { STATUS_LABEL, type BulkResult, type Video, type VideoStatus } from "@/lib/types";
 import { useLibraryMutations } from "@/lib/useLibraryMutations";
 import { useReupSocket } from "@/lib/ws";
 
@@ -137,6 +138,10 @@ function LibraryInner() {
     }
   };
   const [moThem, setMoThem] = useState(false);
+  //: Video đang chờ xác nhận xoá, và cờ xoá cả lô. Hai đường xoá khác nhau nên
+  //: giữ riêng, nhưng cùng dùng một hộp hỏi lại.
+  const [xoaVideo, setXoaVideo] = useState<Video | null>(null);
+  const [xoaLo, setXoaLo] = useState(false);
   const dangXem = videos.find((v) => v.id === idDangXem) ?? null;
 
   //: KHÔNG tự chọn video đầu tiên. Mở trang ra mà có tiếng phát ra ngay thì
@@ -208,6 +213,41 @@ function LibraryInner() {
 
       {moThem && <ThemVideoModal onDong={() => setMoThem(false)} />}
 
+      {xoaVideo && (
+        <HopXacNhan
+          tieuDe="Xoá video này?"
+          moTa={
+            <>
+              <b className="text-fg">
+                {xoaVideo.title_vi || xoaVideo.title_original || xoaVideo.source_video_id}
+              </b>
+              <br />
+              Xoá cả file đã tải và bản đã dựng. Muốn có lại phải tải và xử lý lại từ đầu.
+            </>
+          }
+          onXacNhan={() => {
+            remove(xoaVideo.id);
+            if (xoaVideo.id === idDangXem) setIdDangXem(null);
+            setXoaVideo(null);
+          }}
+          onHuy={() => setXoaVideo(null)}
+        />
+      )}
+
+      {xoaLo && (
+        <HopXacNhan
+          tieuDe={`Xoá ${selected.size} video?`}
+          moTa="Xoá cả file đã tải và bản đã dựng của từng video. Muốn có lại phải tải và xử lý lại từ đầu."
+          nhanXacNhan={`Xoá ${selected.size} video`}
+          dangChay={bulkPending}
+          onXacNhan={() => {
+            bulk([...selected], "delete");
+            setXoaLo(false);
+          }}
+          onHuy={() => setXoaLo(false)}
+        />
+      )}
+
       {tab === "kenh" ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <ChannelsTab />
@@ -278,7 +318,7 @@ function LibraryInner() {
                     onToggle={toggle}
                     onXemThu={bamXem}
                     onRetry={retry}
-                    onDelete={remove}
+                    onDelete={() => setXoaVideo(video)}
                   />
                 ))}
               </div>
@@ -293,7 +333,7 @@ function LibraryInner() {
                   if (dangXem) viTriDaXem.current[dangXem.id] = giay;
                 }}
                 onRetry={retry}
-                onDelete={remove}
+                onDelete={() => setXoaVideo(dangXem)}
               />
             </div>
           )}
@@ -303,7 +343,7 @@ function LibraryInner() {
             pending={bulkPending}
             onApprove={() => bulk([...selected], "approve")}
             onRetry={() => bulk([...selected], "retry")}
-            onDelete={() => bulk([...selected], "delete")}
+            onDelete={() => setXoaLo(true)}
             onApplyPreset={(presetId) =>
               bulk([...selected], "apply_preset", { preset_id: presetId })
             }

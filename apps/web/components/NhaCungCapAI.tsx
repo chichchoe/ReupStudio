@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { HopXacNhan } from "@/components/HopXacNhan";
 import { api, ApiError } from "@/lib/api";
 import type { NhaCungCapAI as Nha } from "@/lib/types";
 
@@ -38,6 +39,9 @@ function TheNhaCungCap({ nha }: { nha: Nha }) {
   const [baseUrl, setBaseUrl] = useState(nha.base_url);
   const [loi, setLoi] = useState<string | null>(null);
   const [models, setModels] = useState<string[] | null>(null);
+  //: Gỡ khoá cũng phải hỏi: khoá đã lưu thì không đọc lại được, gỡ nhầm là
+  //: phải vào tận trang nhà cung cấp lấy khoá mới.
+  const [hoiGo, setHoiGo] = useState(false);
 
   const luu = useMutation({
     mutationFn: () =>
@@ -142,7 +146,7 @@ function TheNhaCungCap({ nha }: { nha: Nha }) {
           <button
             className="btn btn-sm text-err"
             disabled={goKhoa.isPending}
-            onClick={() => goKhoa.mutate()}
+            onClick={() => setHoiGo(true)}
           >
             Gỡ khoá
           </button>
@@ -152,6 +156,25 @@ function TheNhaCungCap({ nha }: { nha: Nha }) {
       <p className="mt-1.5 text-[11px] text-muted">
         Địa chỉ gốc để trống là dùng mặc định — chỉ điền khi chạy qua proxy hoặc bản tự dựng.
       </p>
+
+      {hoiGo && (
+        <HopXacNhan
+          tieuDe={`Gỡ khoá ${nha.ten}?`}
+          moTa={
+            <>
+              Khoá đã lưu không đọc lại được, nên gỡ xong phải vào tận trang {nha.ten} lấy khoá
+              mới. Video đang dịch dở bằng bên này sẽ lỗi ở lượt gọi tiếp theo.
+            </>
+          }
+          nhanXacNhan="Gỡ khoá"
+          dangChay={goKhoa.isPending}
+          onXacNhan={() => {
+            goKhoa.mutate();
+            setHoiGo(false);
+          }}
+          onHuy={() => setHoiGo(false)}
+        />
+      )}
 
       {models && (
         <div className="mt-2 rounded-lg border border-ok/25 bg-ok/[0.06] p-2 text-[11.5px]">
