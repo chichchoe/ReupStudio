@@ -28,8 +28,8 @@ interface Props {
 export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
   if (!video) {
     return (
-      <aside className="sticky top-0 rounded-xl border border-dashed border-border p-6 text-center text-[12.5px] text-muted">
-        Bấm một video bên trái để xem tại đây.
+      <aside className="rounded-xl border border-dashed border-border p-8 text-center text-[12.5px] text-muted">
+        Bấm <span className="text-fg">▶ Xem thử</span> ở một video bên trái để xem tại đây.
       </aside>
     );
   }
@@ -39,7 +39,7 @@ export function KhungXem({ video, progress, onRetry, onDelete }: Props) {
   const note = ghiChuVideo(video, progress);
 
   return (
-    <aside className="sticky top-0 overflow-hidden rounded-xl border border-border bg-panel">
+    <aside className="overflow-hidden rounded-xl border border-border bg-panel">
       <div className="flex items-center justify-center bg-black">
         {xemDuoc ? (
           /* eslint-disable-next-line jsx-a11y/media-has-caption --

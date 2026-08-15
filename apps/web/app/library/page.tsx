@@ -117,12 +117,8 @@ function LibraryInner() {
   const [idDangXem, setIdDangXem] = useState<string | null>(null);
   const dangXem = videos.find((v) => v.id === idDangXem) ?? null;
 
-  // Tự chọn video đầu tiên: mở trang ra là xem được luôn. Cũng chạy khi video
-  // đang xem bị xoá hoặc rơi khỏi bộ lọc — nếu không thì khung bên phải trống
-  // mà danh sách vẫn đầy, trông như hỏng.
-  useEffect(() => {
-    if (videos.length > 0 && !dangXem) setIdDangXem(videos[0].id);
-  }, [videos, dangXem]);
+  //: KHÔNG tự chọn video đầu tiên. Mở trang ra mà có tiếng phát ra ngay thì
+  //: giật mình; phải bấm ▶ mới xem.
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -133,34 +129,15 @@ function LibraryInner() {
     });
   };
 
-  return (
-    <div>
-      <header className="flex items-start justify-between gap-4 mb-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold">Video</h1>
-          <p className="mt-0.5 text-[13px] text-muted">
-            {tab === "pending"
-              ? "Đã nhận dạng xong lời thoại — chọn AI, giọng đọc rồi bấm Dịch."
-              : tab === "duyet"
-                ? "Đọc lại bản dịch và nghe thử giọng trước khi ghép vào video."
-                : tab === "kenh"
-                  ? "Kênh nguồn được quét định kỳ để lấy video mới."
-                  : data
-                    ? `${data.total} video`
-                    : "đang tải…"}
-          </p>
-        </div>
-        {/* Ô tìm kiếm chỉ lọc danh sách đầy đủ, tab chờ dịch không dùng đến. */}
-        {tab === "all" && (
-          <input
-            className="input w-72"
-            placeholder="🔍 Tìm theo tiêu đề hoặc tác giả…"
-            value={queryInput}
-            onChange={(e) => setQueryInput(e.target.value)}
-          />
-        )}
-      </header>
+  //: Số hiện trên tab lấy từ /videos/counts chứ không từ `data.total`:
+  //: `data.total` là số SAU khi lọc và tìm, gõ vào ô tìm kiếm là con số trên
+  //: tab tụt xuống — trông như video vừa biến mất.
+  const tongSo = counts?.all;
 
+  return (
+    //: `h-full` + `min-h-0` để danh sách bên trong tự cuộn được. Không có nó,
+    //: cả trang cuộn và khung xem bên phải trôi mất khỏi màn hình.
+    <div className="flex h-full min-h-0 flex-col">
       {/*
         Ô dán link nằm NGAY ĐẦU trang này thay vì ở một trang riêng: dán xong
         là muốn xem kết quả ngay, tách làm hai trang chỉ thêm một bước đi lại.
@@ -182,30 +159,50 @@ function LibraryInner() {
       {/* Tab dùng dạng khối liền, KHÁC hẳn dải chip lọc trạng thái ngay bên
           dưới. Trước đây cả hai cùng là chip bo tròn nên nhìn như hai hàng lọc
           ngang hàng, trong khi thực ra một hàng đổi cả trang, một hàng chỉ lọc. */}
-      <div className="mb-3 inline-flex rounded-lg border border-border bg-panel p-0.5">
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setTab(t.value)}
-            className={clsx(
-              "rounded-[7px] px-3.5 py-1.5 text-[13px] transition-colors",
-              tab === t.value
-                ? "bg-accent font-medium text-white"
-                : "text-muted hover:bg-panel2 hover:text-fg",
-            )}
-          >
-            {t.label}
-            {t.value === "pending" && !!counts?.review && ` · ${counts.review}`}
-          </button>
-        ))}
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-lg border border-border bg-panel p-0.5">
+          {TABS.map((t) => (
+            <button
+              key={t.value}
+              onClick={() => setTab(t.value)}
+              className={clsx(
+                "rounded-[7px] px-3.5 py-1.5 text-[13px] transition-colors",
+                tab === t.value
+                  ? "bg-accent font-medium text-white"
+                  : "text-muted hover:bg-panel2 hover:text-fg",
+              )}
+            >
+              {t.label}
+              {t.value === "all" && tongSo != null && ` · ${tongSo}`}
+              {t.value === "pending" && !!counts?.review && ` · ${counts.review}`}
+            </button>
+          ))}
+        </div>
+
+        {/* Ô tìm kiếm nằm cạnh tab vì nó lọc đúng cái danh sách mà tab mở ra.
+            Tab chờ dịch / chờ duyệt / kênh không dùng đến nên ẩn hẳn. */}
+        {tab === "all" && (
+          <input
+            className="input ml-auto w-72"
+            placeholder="🔍 Tìm theo tiêu đề hoặc tác giả…"
+            value={queryInput}
+            onChange={(e) => setQueryInput(e.target.value)}
+          />
+        )}
       </div>
 
       {tab === "kenh" ? (
-        <ChannelsTab />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <ChannelsTab />
+        </div>
       ) : tab === "duyet" ? (
-        <DuyetBanDichTab />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <DuyetBanDichTab />
+        </div>
       ) : tab === "pending" ? (
-        <PendingTranslateTab />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <PendingTranslateTab />
+        </div>
       ) : (
         <>
           {/* Dải chip lọc trạng thái đã bỏ: lúc mới dùng thì gần hết là số 0,
@@ -238,8 +235,10 @@ function LibraryInner() {
               nó chứa video dọc 9:16 — để co giãn thì mỗi lần cửa sổ đổi bề
               rộng, khung phát lại nhảy kích thước. */}
           {videos.length > 0 && (
-            <div className="grid grid-cols-[minmax(0,1fr)_380px] items-start gap-4">
-              <div>
+            <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_380px] items-start gap-4">
+              {/* Chỉ DANH SÁCH cuộn, khung xem bên phải đứng yên — cuộn tìm
+                  video tiếp theo mà bản đang xem trôi mất là phải cuộn ngược. */}
+              <div className="h-full overflow-y-auto pr-1">
                 {videos.map((video) => (
                   <VideoRow
                     key={video.id}
@@ -248,7 +247,9 @@ function LibraryInner() {
                     selected={selected.has(video.id)}
                     dangXem={video.id === idDangXem}
                     onToggle={toggle}
-                    onChon={setIdDangXem}
+                    onXemThu={setIdDangXem}
+                    onRetry={retry}
+                    onDelete={remove}
                   />
                 ))}
               </div>
