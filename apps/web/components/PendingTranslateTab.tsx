@@ -28,6 +28,11 @@ export function PendingTranslateTab() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkNotice, setBulkNotice] = useState<BulkResult | null>(null);
   const [failures, setFailures] = useState<TranslateFailure[]>([]);
+  //: Ô "Xoá chữ cứng" của TỪNG video, giữ ở đây chứ không trong dòng — nút
+  //: Dịch hàng loạt cũng phải đọc được. Mặc định bật: đó là lý do chính dùng
+  //: công cụ này.
+  const [xoaChuCung, setXoaChuCung] = useState<Record<string, boolean>>({});
+  const coXoaChuCung = (id: string) => xoaChuCung[id] ?? true;
 
   // Khoá cache phải đúng dạng ["videos", status, query] — hai hook mutation bên
   // dưới sửa thẳng vào ô cache này để cập nhật lạc quan.
@@ -53,7 +58,14 @@ export function PendingTranslateTab() {
     staleTime: 10 * 60 * 1000,
   });
 
-  const videos = useMemo(() => data?.items ?? [], [data]);
+  //: Dịch xong video VẪN ở trạng thái `review` — nó chỉ chuyển sang chỗ dừng
+  //: thứ hai (chờ duyệt bản dịch), đánh dấu bằng cờ `cho_duyet_ban_dich`.
+  //: Không lọc cờ này ra thì dịch xong video rơi trở lại đúng tab Chờ dịch,
+  //: trông như bấm Dịch không ăn thua gì.
+  const videos = useMemo(
+    () => (data?.items ?? []).filter((v) => !v.flags?.cho_duyet_ban_dich),
+    [data],
+  );
   const translateModels = models?.translate ?? [];
   //: Model cấu hình sẵn để chọn trước trong ô chọn — không có thì rơi về
   //: model đầu danh sách, mà model đầu thường là bản hạn mức thấp.
@@ -141,6 +153,8 @@ export function PendingTranslateTab() {
           ttsOptions={ttsOptions}
           onToggle={toggle}
           onTranslate={(id, tuyChon) => translate([id], tuyChon)}
+          xoaChuCung={coXoaChuCung(video.id)}
+          onDoiXoaChuCung={(bat) => setXoaChuCung((cu) => ({ ...cu, [video.id]: bat }))}
         />
       ))}
 
@@ -149,16 +163,17 @@ export function PendingTranslateTab() {
         pending={bulkPending || translatePending}
         translateModels={translateModels}
         onTranslate={(model) =>
-          //: Chọn hàng loạt thì dùng mặc định AN TOÀN: vẫn xoá chữ cứng (đó là
-          //: lý do chính dùng công cụ này) và giọng miễn phí không tính lượt.
-          //: Muốn khác thì bấm Dịch ở từng dòng.
-          translate([...selected], {
+          //: Model và giọng dùng chung cho cả lô; riêng ô "Xoá chữ cứng" đọc
+          //: theo TỪNG video. Trước đây chỗ này nhét cứng `true`, nên bỏ tích ở
+          //: dòng rồi bấm Dịch hàng loạt là lựa chọn bị nuốt mất — và đó là
+          //: bước nặng nhất, video 1 tiếng mất hàng tiếng.
+          translate([...selected], (id) => ({
             llmProvider: nhaCungCap.find((n) => n.da_dat_khoa || !n.can_khoa)?.ma ?? "",
             llmModel: model,
-            xoaChuCung: true,
+            xoaChuCung: coXoaChuCung(id),
             ttsProvider: "edge",
             giongDoc: "vi-VN-HoaiMyNeural",
-          })
+          }))
         }
         onApprove={() => bulk([...selected], "approve")}
         onRetry={() => bulk([...selected], "retry")}

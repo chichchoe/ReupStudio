@@ -83,6 +83,16 @@ function LibraryInner() {
   });
   const { data: counts } = useQuery({ queryKey: ["counts"], queryFn: api.counts });
 
+  //: `counts.review` gộp CẢ HAI chỗ dừng — chờ dịch và chờ duyệt bản dịch —
+  //: nên không dùng làm số trên tab được. Tách bằng cờ `cho_duyet_ban_dich`,
+  //: dùng đúng khoá cache của hai tab kia nên không sinh thêm lượt gọi.
+  const { data: dangDung } = useQuery({
+    queryKey: ["videos", "review", ""],
+    queryFn: () => api.listVideos({ status: "review" }),
+  });
+  const soChoDich = (dangDung?.items ?? []).filter((v) => !v.flags?.cho_duyet_ban_dich).length;
+  const soChoDuyet = (dangDung?.items ?? []).filter((v) => v.flags?.cho_duyet_ban_dich).length;
+
   const videos = useMemo(() => data?.items ?? [], [data]);
 
   // Chỉ video đang chạy/chờ mới cần theo dõi tiến trình — subscribe sớm cả
@@ -183,7 +193,8 @@ function LibraryInner() {
             >
               {t.label}
               {t.value === "all" && tongSo != null && ` · ${tongSo}`}
-              {t.value === "pending" && !!counts?.review && ` · ${counts.review}`}
+              {t.value === "pending" && !!soChoDich && ` · ${soChoDich}`}
+              {t.value === "duyet" && !!soChoDuyet && ` · ${soChoDuyet}`}
             </button>
           ))}
         </div>

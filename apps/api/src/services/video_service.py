@@ -175,6 +175,27 @@ def prepare_retry(db: Session, video_id: uuid.UUID) -> Video:
     return video
 
 
+def _chan_dich_trung(video: Video) -> None:
+    """Chỉ cho bấm Dịch khi video ĐANG đứng ở chỗ dừng thứ nhất.
+
+    Trước đây hàm này nhận mọi lời gọi. Bấm Dịch hai lần — hoặc bấm lại vì lần
+    đầu tưởng không ăn — là gửi đi hai chuỗi task đầy đủ: đốt hai lần hạn mức
+    LLM, rồi hai chuỗi giẫm lên nhau. Quan sát ngày 16.08.2026: bốn chuỗi cùng
+    chạy, chuỗi tới sau kéo video đã duyệt xong QUAY NGƯỢC về ``review``, nên
+    người dùng thấy "dịch xong lại về chờ dịch".
+
+    Video ``error`` vẫn cho chạy lại — đó chính là nút Thử lại.
+    """
+    if video.status == VideoStatus.ERROR.value:
+        return
+    if video.status in (VideoStatus.READY.value, VideoStatus.POSTED.value):
+        raise ApiError("Video này đã dựng xong rồi. Muốn làm lại thì bấm Thử lại.")
+    if video.status != VideoStatus.REVIEW.value:
+        raise ApiError("Video đang xử lý, không bấm Dịch lại được. Đợi bước hiện tại xong đã.")
+    if (video.flags or {}).get("cho_duyet_ban_dich"):
+        raise ApiError("Video này đã dịch xong rồi — sang tab Chờ duyệt để đọc lại bản dịch.")
+
+
 def request_translate(db: Session, video_id: uuid.UUID, llm_model: str | None) -> Video:
     """Ghi model đã chọn rồi đưa video trở lại hàng đợi để chạy nửa sau pipeline.
 
@@ -190,6 +211,7 @@ def request_translate(db: Session, video_id: uuid.UUID, llm_model: str | None) -
     như tức thì, chậm một nhịp là nó đọc phải ``process_config`` cũ.
     """
     video = get_video(db, video_id)
+    _chan_dich_trung(video)
 
     if llm_model:
         muc_dich = phan_loai(llm_model)
@@ -405,6 +427,10 @@ def duyet_ban_dich(db: Session, video_id: uuid.UUID) -> Video:
     diện vẫn hiện video ở tab chờ duyệt dù đã bấm, trông như nút không ăn.
     """
     video = get_video(db, video_id)
+    #: Chỉ duyệt được thứ ĐANG chờ duyệt. Bấm hai lần là chạy hai lần bước xoá
+    #: chữ cứng — bước nặng nhất pipeline, video một tiếng mất hàng tiếng.
+    if not (video.flags or {}).get("cho_duyet_ban_dich"):
+        raise ApiError("Video này không ở chỗ chờ duyệt bản dịch.")
 
     flags = dict(video.flags or {})
     flags.pop("cho_duyet_ban_dich", None)

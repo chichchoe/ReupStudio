@@ -28,6 +28,10 @@ interface Props {
   pending: boolean;
   onToggle: (id: string) => void;
   onTranslate: (id: string, tuyChon: TuyChonDich) => void;
+  /** Do tab cha giữ, KHÔNG giữ trong dòng: nút Dịch hàng loạt cũng phải đọc
+      được lựa chọn này, và state nằm trong dòng thì nó không với tới. */
+  xoaChuCung: boolean;
+  onDoiXoaChuCung: (bat: boolean) => void;
 }
 
 /**
@@ -50,6 +54,8 @@ export function PendingVideoRow({
   pending,
   onToggle,
   onTranslate,
+  xoaChuCung,
+  onDoiXoaChuCung,
 }: Props) {
   const { data: subtitles, isLoading: loadingCues } = useQuery({
     queryKey: ["subtitles", video.id, SOURCE_LANG],
@@ -78,7 +84,6 @@ export function PendingVideoRow({
   const [chosen, setChosen] = useState("");
   const model = chosen || models[0] || "";
 
-  const [xoaChuCung, setXoaChuCung] = useState(true);
   const [ttsProvider, setTtsProvider] = useState(ttsOptions[0]?.provider ?? "edge");
   const [giong, setGiong] = useState("");
 
@@ -207,7 +212,7 @@ export function PendingVideoRow({
           <input
             type="checkbox"
             checked={xoaChuCung}
-            onChange={(e) => setXoaChuCung(e.target.checked)}
+            onChange={(e) => onDoiXoaChuCung(e.target.checked)}
             className="h-3.5 w-3.5 accent-[color:var(--accent,#5B8CFF)]"
           />
           <span>Xoá chữ cứng và watermark</span>

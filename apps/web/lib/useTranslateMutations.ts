@@ -27,15 +27,25 @@ interface Options {
  * nên bản hàng loạt gọi lặp. Endpoint trả `202` ngay, việc dịch chạy trong
  * Celery — tiến trình thật xem qua WebSocket như mọi bước khác, KHÔNG polling.
  */
+/**
+ * Một bộ tuỳ chọn cho cả lô, hoặc một hàm trả tuỳ chọn RIÊNG cho từng video.
+ *
+ * Cần dạng hàm vì ô "Xoá chữ cứng" là lựa chọn của từng video, còn model và
+ * giọng đọc thì chung cho cả lô. Trước đây bản hàng loạt nhét cứng
+ * `xoaChuCung: true`, nên người dùng bỏ tích ở dòng rồi bấm Dịch hàng loạt là
+ * lựa chọn bị nuốt mất — mà đó là bước nặng nhất pipeline.
+ */
+export type TuyChonTheoVideo = TuyChonDich | ((id: string) => TuyChonDich);
+
 export function useTranslateMutations({ videosKey, onDone }: Options) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: async ({ ids, tuyChon }: { ids: string[]; tuyChon: TuyChonDich }) => {
+    mutationFn: async ({ ids, tuyChon }: { ids: string[]; tuyChon: TuyChonTheoVideo }) => {
       // allSettled chứ không Promise.all: một video lỗi (chạm trần hạn mức,
       // model không hợp lệ) không được chặn những video còn lại trong lô.
       const results = await Promise.allSettled(
-        ids.map((id) => api.translateVideo(id, tuyChon)),
+        ids.map((id) => api.translateVideo(id, typeof tuyChon === "function" ? tuyChon(id) : tuyChon)),
       );
       return results.flatMap<TranslateFailure>((result, index) =>
         result.status === "rejected"
@@ -80,7 +90,7 @@ export function useTranslateMutations({ videosKey, onDone }: Options) {
   });
 
   return {
-    translate: (ids: string[], tuyChon: TuyChonDich) => mutation.mutate({ ids, tuyChon }),
+    translate: (ids: string[], tuyChon: TuyChonTheoVideo) => mutation.mutate({ ids, tuyChon }),
     /** Id các video đang có yêu cầu dịch bay dở — dùng để khoá nút ở từng dòng. */
     pendingIds: new Set(mutation.isPending ? mutation.variables?.ids ?? [] : []),
     translatePending: mutation.isPending,
