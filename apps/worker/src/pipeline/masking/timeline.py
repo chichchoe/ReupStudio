@@ -78,6 +78,18 @@ class ThamSoTimeline:
     #: 34% khung phủ 92 giây.
     chong_thoi_gian_toi_thieu: float = 0.8
 
+    #: TRẦN TUYỆT ĐỐI cho CHIỀU CAO một mask, theo tỉ lệ chiều cao khung.
+    #:
+    #: Đây là chốt quan trọng nhất, và là bài học của cả buổi: mỗi tầng đều có
+    #: trần TƯƠNG ĐỐI riêng (vệt 1,8 lần · nối 1,6 lần · gộp 1,8 lần) và mỗi
+    #: tầng đều "hợp lệ", nhưng nhân lại thành 4,6 lần. Đo trên video rednote:
+    #: mask cao 31% khung sống 89 giây, dựng từ một vệt chỉ 2 khung.
+    #:
+    #: Hai dòng phụ đề cộng lề chiếm khoảng 12% chiều cao khung. 14% là mức
+    #: rộng rãi cho việc đó; cao hơn nữa thì chắc chắn đã gom nhầm hai thứ khác
+    #: nhau vào một mask.
+    cao_toi_da: float = 0.14
+
     #: TRẦN TUYỆT ĐỐI cho diện tích một mask, tính theo tỉ lệ khung hình.
     #:
     #: Chạy trên video rednote đầy đủ (2026-08-15) cho ra một mask 96% × 89%
@@ -209,6 +221,8 @@ def noi_khoang_ho(masks: list[MaskRegion], tham_so: ThamSoTimeline) -> list[Mask
             #: đúng hơn vừa rẻ hơn, vì phần lớn khung không còn mask nào.
             if gop.h > cao_goc * tham_so.tran_phinh_chieu_cao:
                 continue
+            if gop.h > tham_so.cao_toi_da:
+                continue
 
             ra[chi_so] = (gop, cao_goc)
             break
@@ -268,8 +282,10 @@ def gop_chong_nhau(masks: list[MaskRegion], tham_so: ThamSoTimeline) -> list[Mas
 
                 gop = _gop(a, b)
                 dien_tich = gop.w * gop.h
-                #: Hai trần, và trần TUYỆT ĐỐI mới là cái chặn được nổ dây
-                #: chuyền — xem ``dien_tich_toi_da``.
+                #: Ba trần, và hai trần TUYỆT ĐỐI mới là cái chặn được nổ dây
+                #: chuyền — xem ``cao_toi_da`` và ``dien_tich_toi_da``.
+                if gop.h > tham_so.cao_toi_da:
+                    continue
                 if dien_tich > tham_so.dien_tich_toi_da:
                     continue
                 if dien_tich > (a.w * a.h + b.w * b.h) * tham_so.tran_phinh_khi_gop:
@@ -307,7 +323,7 @@ def dung_mask(vung: list[VungCanXoa], tham_so: ThamSoTimeline | None = None) -> 
     #: ngay và sửa tay được, đúng nguyên tắc "phân vân thì không xoá".
     ra: list[MaskRegion] = []
     for m in da_gop:
-        if m.w * m.h > tham_so.dien_tich_toi_da:
+        if m.h > tham_so.cao_toi_da or m.w * m.h > tham_so.dien_tich_toi_da:
             log.warning(
                 "mask.bo_vi_qua_lon",
                 dien_tich=round(m.w * m.h, 3),

@@ -84,9 +84,16 @@ def test_vung_phu_gan_tron_khung_bi_BO_o_chot_cuoi() -> None:
 
 def test_chu_cao_hon_thi_noi_bien_nhieu_hon() -> None:
     """Nới theo TỈ LỆ chiều cao chữ, không nới một số cố định: cỡ chữ khác nhau
-    giữa các video, mà vệt mờ để lại thì tỉ lệ thuận với cỡ chữ."""
-    (nho,) = dung_mask([_vung(h=0.03)], TS)
-    (to,) = dung_mask([_vung(h=0.10)], TS)
+    giữa các video, mà vệt mờ để lại thì tỉ lệ thuận với cỡ chữ.
+
+    Gọi thẳng ``noi_bien``: vùng chữ cao 10% khung sau khi nới vượt trần chiều
+    cao và bị ``dung_mask`` loại — đúng như mong muốn, nhưng đi đường đó thì
+    không kiểm được phép nới.
+    """
+    from src.pipeline.masking.timeline import noi_bien
+
+    nho = noi_bien(_vung(h=0.03), TS)
+    to = noi_bien(_vung(h=0.10), TS)
 
     assert to.h - 0.10 > nho.h - 0.03
 
