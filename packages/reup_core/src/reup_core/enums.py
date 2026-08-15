@@ -50,9 +50,9 @@ M1_STEPS: tuple[PipelineStep, ...] = (
     PipelineStep.TRANSCRIBE,
     PipelineStep.TRANSLATE,
     PipelineStep.FORMAT_SUB,
+    PipelineStep.TTS,
     PipelineStep.DETECT,
     PipelineStep.INPAINT,
-    PipelineStep.TTS,
     PipelineStep.RENDER,
 )
 
@@ -71,17 +71,22 @@ M1_STEPS_TRUOC_DICH: tuple[PipelineStep, ...] = (
 
 #: Nửa sau chỉ chạy khi người dùng bấm Dịch (hoặc khi bật ``auto_translate``
 #: trong ``process_config`` — lối cho chặng M7 luồng tự động).
+#: Chặng 2 — chạy khi người dùng bấm Dịch. Dừng lại sau khi ĐÃ có giọng đọc,
+#: để người dùng đọc lại bản dịch và nghe thử trước khi ghép vào video.
+#:
+#: Cố ý đặt các bước NẶNG (dò rồi xoá chữ cứng, mất hàng chục phút tới hàng
+#: tiếng) ở chặng 3, tức SAU chỗ duyệt: người dùng không ưng bản dịch hay giọng
+#: đọc thì không đốt ngần ấy thời gian máy vào một bản sẽ bỏ đi.
 M1_STEPS_SAU_DICH: tuple[PipelineStep, ...] = (
     PipelineStep.TRANSLATE,
     PipelineStep.FORMAT_SUB,
-    #: M3 nằm ở NỬA SAU chứ không phải nửa đầu, dù nó không phụ thuộc bản dịch.
-    #: Dò rồi xoá chữ trên video một tiếng mất khoảng nửa tiếng; đặt ở nửa đầu
-    #: thì tab Chờ dịch phải đợi ngần ấy mới thấy video, và công đó đổ đi nếu
-    #: người dùng quyết định không xử lý video này. Tắt được bằng cờ
-    #: ``xoa_chu_cung`` trong ``process_config``.
+    PipelineStep.TTS,
+)
+
+#: Chặng 3 — chạy khi người dùng đã duyệt bản dịch và giọng đọc.
+M1_STEPS_SAU_DUYET: tuple[PipelineStep, ...] = (
     PipelineStep.DETECT,
     PipelineStep.INPAINT,
-    PipelineStep.TTS,
     PipelineStep.RENDER,
 )
 

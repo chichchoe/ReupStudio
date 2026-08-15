@@ -224,9 +224,7 @@ def get_subtitles(db: Session, video_id: uuid.UUID, lang: str | None = None) -> 
 def get_job_runs(db: Session, video_id: uuid.UUID) -> list[JobRun]:
     return list(
         db.scalars(
-            sa.select(JobRun)
-            .where(JobRun.video_id == video_id)
-            .order_by(JobRun.started_at.asc())
+            sa.select(JobRun).where(JobRun.video_id == video_id).order_by(JobRun.started_at.asc())
         ).all()
     )
 
@@ -362,3 +360,126 @@ def bulk_action(
         total=len(ids),
     )
     return {"affected": affected, "action": action, "skipped": skipped}
+
+
+def luu_tuy_chon_xu_ly(
+    db: Session,
+    video_id: uuid.UUID,
+    *,
+    xoa_chu_cung: bool,
+    tts_provider: str,
+    giong_doc: str | None,
+    tts_model: str | None,
+) -> Video:
+    """Ghi các lựa chọn xử lý của RIÊNG video này vào ``process_config``.
+
+    Gọi ngay sau ``request_translate`` và TRƯỚC khi router commit — worker chạy
+    gần như tức thì, chậm một nhịp là nó đọc phải cấu hình cũ.
+
+    Ghi cả khi giá trị trùng mặc định: người dùng bỏ tích "xoá chữ cứng" phải
+    có tác dụng, mà mặc định lại là bật, nên không thể chỉ ghi khi khác mặc
+    định.
+    """
+    video = get_video(db, video_id)
+    config = dict(video.process_config or {})
+
+    config["xoa_chu_cung"] = bool(xoa_chu_cung)
+    config["tts_provider"] = tts_provider
+    if giong_doc:
+        config["giong_doc"] = giong_doc
+    if tts_model:
+        config["tts_model"] = tts_model
+
+    video.process_config = config
+    db.flush()
+    return video
+
+
+def duyet_ban_dich(db: Session, video_id: uuid.UUID) -> Video:
+    """Người dùng đã đọc bản dịch và nghe thử giọng — cho chạy tiếp chặng cuối.
+
+    Xoá cờ ``cho_duyet_ban_dich`` và đưa về ``QUEUED`` ngay: còn cờ thì giao
+    diện vẫn hiện video ở tab chờ duyệt dù đã bấm, trông như nút không ăn.
+    """
+    video = get_video(db, video_id)
+
+    flags = dict(video.flags or {})
+    flags.pop("cho_duyet_ban_dich", None)
+    video.flags = flags
+    video.status = VideoStatus.QUEUED.value
+    video.current_step = None
+    db.flush()
+    return video
+
+
+#: Danh sách giọng khai ở tầng API chứ không import từ worker: `apps/api` không
+#: phụ thuộc `apps/worker`, và kéo `tts/gemini.py` vào đây sẽ kéo theo cả nhánh
+#: phụ thuộc của worker.
+_GIONG_EDGE = [
+    {"ma": "vi-VN-HoaiMyNeural", "ten": "Hoài My", "gioi_tinh": "nữ"},
+    {"ma": "vi-VN-NamMinhNeural", "ten": "Nam Minh", "gioi_tinh": "nam"},
+]
+
+_GIONG_GEMINI = [
+    {"ma": "Kore", "ten": "Kore — chắc chắn", "gioi_tinh": "nữ"},
+    {"ma": "Aoede", "ten": "Aoede — nhẹ nhàng", "gioi_tinh": "nữ"},
+    {"ma": "Leda", "ten": "Leda — trẻ trung", "gioi_tinh": "nữ"},
+    {"ma": "Callirrhoe", "ten": "Callirrhoe — thong thả", "gioi_tinh": "nữ"},
+    {"ma": "Autonoe", "ten": "Autonoe — tươi sáng", "gioi_tinh": "nữ"},
+    {"ma": "Despina", "ten": "Despina — mượt", "gioi_tinh": "nữ"},
+    {"ma": "Erinome", "ten": "Erinome — rõ ràng", "gioi_tinh": "nữ"},
+    {"ma": "Laomedeia", "ten": "Laomedeia — sôi nổi", "gioi_tinh": "nữ"},
+    {"ma": "Achernar", "ten": "Achernar — êm", "gioi_tinh": "nữ"},
+    {"ma": "Gacrux", "ten": "Gacrux — chững chạc", "gioi_tinh": "nữ"},
+    {"ma": "Pulcherrima", "ten": "Pulcherrima — dẫn chuyện", "gioi_tinh": "nữ"},
+    {"ma": "Vindemiatrix", "ten": "Vindemiatrix — dịu", "gioi_tinh": "nữ"},
+    {"ma": "Sulafat", "ten": "Sulafat — ấm", "gioi_tinh": "nữ"},
+    {"ma": "Zephyr", "ten": "Zephyr — sáng", "gioi_tinh": "nữ"},
+    {"ma": "Puck", "ten": "Puck — hoạt bát", "gioi_tinh": "nam"},
+    {"ma": "Charon", "ten": "Charon — trầm, kể chuyện", "gioi_tinh": "nam"},
+    {"ma": "Fenrir", "ten": "Fenrir — mạnh", "gioi_tinh": "nam"},
+    {"ma": "Orus", "ten": "Orus — chắc", "gioi_tinh": "nam"},
+    {"ma": "Enceladus", "ten": "Enceladus — thì thầm", "gioi_tinh": "nam"},
+    {"ma": "Iapetus", "ten": "Iapetus — rõ", "gioi_tinh": "nam"},
+    {"ma": "Umbriel", "ten": "Umbriel — thư thái", "gioi_tinh": "nam"},
+    {"ma": "Algieba", "ten": "Algieba — mượt", "gioi_tinh": "nam"},
+    {"ma": "Algenib", "ten": "Algenib — khàn", "gioi_tinh": "nam"},
+    {"ma": "Rasalgethi", "ten": "Rasalgethi — giàu thông tin", "gioi_tinh": "nam"},
+    {"ma": "Alnilam", "ten": "Alnilam — dứt khoát", "gioi_tinh": "nam"},
+    {"ma": "Schedar", "ten": "Schedar — điềm đạm", "gioi_tinh": "nam"},
+    {"ma": "Achird", "ten": "Achird — thân thiện", "gioi_tinh": "nam"},
+    {"ma": "Zubenelgenubi", "ten": "Zubenelgenubi — đời thường", "gioi_tinh": "nam"},
+    {"ma": "Sadachbia", "ten": "Sadachbia — sống động", "gioi_tinh": "nam"},
+    {"ma": "Sadaltager", "ten": "Sadaltager — hiểu biết", "gioi_tinh": "nam"},
+]
+
+
+def cac_giong_doc() -> list[dict[str, Any]]:
+    """Giọng đọc chọn được, nhóm theo nhà cung cấp, kèm đánh đổi."""
+    from ..config import get_settings
+
+    ra: list[dict[str, Any]] = [
+        {
+            "provider": "edge",
+            "ghi_chu": "Miễn phí, không tính lượt. Hợp video dài.",
+            "models": [],
+            "giong": _GIONG_EDGE,
+        }
+    ]
+
+    #: Không có khoá thì KHÔNG liệt kê Gemini: hiện ra rồi bấm vào mới báo lỗi
+    #: là cách chắc chắn nhất làm người dùng tưởng hỏng.
+    if get_settings().llm_api_key:
+        ra.append(
+            {
+                "provider": "gemini",
+                "ghi_chu": "Giọng tự nhiên hơn, NHƯNG mỗi câu tốn một lượt hạn mức.",
+                "models": [
+                    "gemini-2.5-flash-preview-tts",
+                    "gemini-2.5-pro-preview-tts",
+                    "gemini-3.1-flash-tts-preview",
+                ],
+                "giong": _GIONG_GEMINI,
+            }
+        )
+    return ra

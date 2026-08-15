@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.responses import FileResponse
+from reup_core.paths import voice_track
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -18,6 +19,7 @@ from ..schemas.video import (
     JobRunOut,
     SubtitleOut,
     TranslateRequest,
+    TtsOptionsOut,
     VideoDetail,
     VideoOut,
     VideoUpdate,
@@ -52,6 +54,21 @@ def create_from_links(body: CreateFromLinks, db: Session = Depends(get_db)):
         for vid in result["video_ids"]:
             task_bridge.start_processing(vid)
     return result
+
+
+@router.get("/tts-options", response_model=list[TtsOptionsOut])
+def tts_options():
+    """Các giọng đọc chọn được, kèm ĐÁNH ĐỔI của từng nhà cung cấp.
+
+    Khai TRƯỚC ``/{video_id}``: FastAPI khớp route theo THỨ TỰ đăng ký, nên đặt
+    sau thì ``/{video_id}`` nuốt mất và trả về lỗi "tts-options không phải UUID".
+
+    Giấu phần đánh đổi đi thì người dùng chọn Gemini cho video 672 câu rồi hết
+    hạn mức giữa chừng — mỗi câu là một lượt gọi.
+
+    OpenRouter không có mặt: nó định tuyến model ngôn ngữ, không sinh audio.
+    """
+    return video_service.cac_giong_doc()
 
 
 @router.get("/{video_id}", response_model=VideoDetail)
@@ -94,6 +111,14 @@ def translate(video_id: uuid.UUID, body: TranslateRequest, db: Session = Depends
     Celery, endpoint trả 202 chứ không chờ.
     """
     video_service.request_translate(db, video_id, body.llm_model)
+    video_service.luu_tuy_chon_xu_ly(
+        db,
+        video_id,
+        xoa_chu_cung=body.xoa_chu_cung,
+        tts_provider=body.tts_provider,
+        giong_doc=body.giong_doc,
+        tts_model=body.tts_model,
+    )
     # Commit TRƯỚC khi gửi task — worker chạy gần như tức thì, chậm một nhịp
     # là nó đọc phải process_config chưa có model vừa chọn.
     db.commit()
@@ -109,6 +134,30 @@ def approve(video_id: uuid.UUID, db: Session = Depends(get_db)):
 @router.post("/bulk", response_model=BulkResult)
 def bulk(body: BulkAction, db: Session = Depends(get_db)):
     return video_service.bulk_action(db, body.ids, body.action, body.payload)
+
+
+@router.post("/{video_id}/approve-dub", response_model=TaskAccepted, status_code=202)
+def approve_dub(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Duyệt bản dịch và giọng đọc, cho chạy tiếp chặng cuối.
+
+    Chặng cuối là phần nặng nhất (xoá chữ cứng rồi render). Commit TRƯỚC khi
+    gửi task — worker chạy gần như tức thì.
+    """
+    video_service.duyet_ban_dich(db, video_id)
+    db.commit()
+
+    task_id = task_bridge.tiep_tuc_sau_duyet(video_id)
+    return TaskAccepted(task_id=task_id, message="Đã duyệt, đang xử lý hình ảnh")
+
+
+@router.get("/{video_id}/voice-track")
+def voice_track_file(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Dải tiếng Việt đã khớp thời gian, để nghe thử TRƯỚC khi ghép vào video."""
+    video_service.get_video(db, video_id)
+    f = voice_track(str(video_id))
+    if not f.exists() or f.stat().st_size == 0:
+        raise NotFound("Chưa có dải tiếng — bước lồng tiếng chưa chạy xong.")
+    return FileResponse(f, media_type="audio/wav", filename=f"loitieng-{video_id}.wav")
 
 
 @router.get("/{video_id}/subtitles", response_model=list[SubtitleOut])

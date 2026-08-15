@@ -39,6 +39,8 @@ app.conf.update(
         #: "media" cùng các bước ffmpeg — chiếm chỗ hàng "gpu" (concurrency 1)
         #: sẽ chặn mất bước vá vốn mới là chỗ nghẽn thật.
         "reup.tts_video": {"queue": "media"},
+        "reup.tts_video_chain_sau_duyet": {"queue": "download"},
+        "reup.translate_video_chain": {"queue": "download"},
         "reup.render_video": {"queue": "media"},
         "reup.process_video": {"queue": "download"},
         "reup.retry_from_step": {"queue": "download"},

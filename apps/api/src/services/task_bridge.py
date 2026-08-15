@@ -17,6 +17,7 @@ _app: Celery | None = None
 PROCESS_VIDEO = "reup.process_video"
 RETRY_FROM_STEP = "reup.retry_from_step"
 RENDER_VARIANTS = "reup.render_variants"
+TTS_CHAIN_SAU_DUYET = "reup.tts_video_chain_sau_duyet"
 TRANSLATE_VIDEO_CHAIN = "reup.translate_video_chain"
 
 
@@ -34,9 +35,7 @@ def start_processing(video_id: uuid.UUID) -> str:
 
 
 def retry_from(video_id: uuid.UUID, step: str | None) -> str:
-    result = celery().send_task(
-        RETRY_FROM_STEP, args=[str(video_id), step], queue="download"
-    )
+    result = celery().send_task(RETRY_FROM_STEP, args=[str(video_id), step], queue="download")
     return result.id
 
 
@@ -60,4 +59,14 @@ def translate_video(video_id: uuid.UUID) -> str:
     là FFmpeg — đều là việc CPU, không cần GPU.
     """
     result = celery().send_task(TRANSLATE_VIDEO_CHAIN, args=[str(video_id)], queue="media")
+    return result.id
+
+
+def tiep_tuc_sau_duyet(video_id: uuid.UUID) -> str:
+    """Đẩy CHẶNG CUỐI: xoá chữ cứng rồi render, sau khi người dùng đã duyệt.
+
+    Queue ``download`` giống các task điều phối khác — nó chỉ xếp chain rồi
+    thoát, phần nặng nằm ở các task con.
+    """
+    result = celery().send_task(TTS_CHAIN_SAU_DUYET, args=[str(video_id)], queue="download")
     return result.id

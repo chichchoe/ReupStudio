@@ -76,9 +76,7 @@ class WsManager:
         subscriptions = self._clients.setdefault(ws, set())
         for topic in topics:
             if len(subscriptions) >= MAX_SUBSCRIPTIONS_PER_CLIENT:
-                log.warning(
-                    "ws.subscription_limit_reached", limit=MAX_SUBSCRIPTIONS_PER_CLIENT
-                )
+                log.warning("ws.subscription_limit_reached", limit=MAX_SUBSCRIPTIONS_PER_CLIENT)
                 break
             subscriptions.add(topic)
 

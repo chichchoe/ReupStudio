@@ -21,6 +21,7 @@ from contextlib import contextmanager
 import pytest
 from reup_core.enums import (
     M1_STEPS_SAU_DICH,
+    M1_STEPS_SAU_DUYET,
     M1_STEPS_TRUOC_DICH,
     PipelineStep,
     VideoStatus,
@@ -37,7 +38,7 @@ def test_hai_nua_gop_lai_dung_bang_pipeline_cu() -> None:
     """Không được đánh rơi hay lặp bước nào khi tách."""
     from reup_core.enums import M1_STEPS
 
-    assert M1_STEPS_TRUOC_DICH + M1_STEPS_SAU_DICH == M1_STEPS
+    assert M1_STEPS_TRUOC_DICH + M1_STEPS_SAU_DICH + M1_STEPS_SAU_DUYET == M1_STEPS
 
 
 def test_nua_dau_dung_ngay_sau_nhan_dang() -> None:

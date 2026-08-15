@@ -98,8 +98,6 @@ class EdgeTTS:
         """
         import asyncio
 
-        import edge_tts
-
         thu_muc.mkdir(parents=True, exist_ok=True)
         ket_qua: dict[int, Path] = {}
         xong = 0

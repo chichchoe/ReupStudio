@@ -32,8 +32,7 @@ def _validate_scan_interval(scan_interval_min: int) -> None:
     if scan_interval_min not in VALID_SCAN_INTERVAL_MIN:
         allowed = ", ".join(str(v) for v in sorted(VALID_SCAN_INTERVAL_MIN))
         raise ApiError(
-            f"scan_interval_min phải là một trong: {allowed} (phút), "
-            f"nhận được {scan_interval_min}"
+            f"scan_interval_min phải là một trong: {allowed} (phút), nhận được {scan_interval_min}"
         )
 
 

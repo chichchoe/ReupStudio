@@ -14,6 +14,7 @@ from reup_core.db import session_scope
 from reup_core.enums import (
     M1_STEPS,
     M1_STEPS_SAU_DICH,
+    M1_STEPS_SAU_DUYET,
     M1_STEPS_TRUOC_DICH,
     PipelineStep,
     VideoStatus,
@@ -544,9 +545,68 @@ def format_subtitles_task(session, video) -> dict:
 _M3_MAC_DINH_BAT = True
 
 
+def _dung_cho_duyet_ban_dich(session, video) -> bool:
+    """Dừng sau bước lồng tiếng, chờ người dùng duyệt bản dịch và giọng đọc.
+
+    Trả ``True`` nếu ĐÃ dừng. ``auto_duyet`` trong ``process_config`` bật thì
+    chạy thẳng — lối cho luồng tự động, lúc đó không có ai ngồi nghe.
+    """
+    config = video.process_config or {}
+    if config.get("auto_duyet"):
+        tts_video_chain_sau_duyet.delay(str(video.id))
+        return False
+
+    video.status = VideoStatus.REVIEW.value
+    video.current_step = None
+    #: Phân biệt với chỗ dừng thứ nhất (chờ chọn AI) — giao diện phải đưa video
+    #: vào đúng tab, và cả hai đều mang trạng thái REVIEW.
+    video.flags = {**(video.flags or {}), "cho_duyet_ban_dich": True}
+    prog.status_changed(str(video.id), VideoStatus.REVIEW.value, None)
+    log.info("pipeline.dung_cho_duyet_ban_dich", video_id=str(video.id))
+    return True
+
+
+def _doc_tuan_tu(provider, vi_cues, vid: str, giong: str) -> dict[int, Path]:
+    """Đọc từng câu một cho các provider không có đường song song."""
+    thu_muc = voice_parts_dir(vid)
+    ra: dict[int, Path] = {}
+    for i, cue in enumerate(vi_cues):
+        dst = thu_muc / f"cau_{i:05d}.wav"
+        try:
+            provider.doc(cue.text.replace("\n", " "), dst, giong=giong)
+            if dst.exists() and dst.stat().st_size > 0:
+                ra[i] = dst
+        except Exception as exc:
+            log.warning("tts.cau_hong", chi_so=i, error=str(exc)[:120])
+        if vi_cues:
+            prog.progress(vid, PipelineStep.TTS.value, int((i + 1) * 90 / len(vi_cues)))
+    return ra
+
+
 def _bat_m3(video) -> bool:
     config = video.process_config or {}
     return bool(config.get("xoa_chu_cung", _M3_MAC_DINH_BAT))
+
+
+def _cau_hinh_tts(video) -> tuple[str, str, str]:
+    """``(nhà cung cấp, giọng, model)`` cho bước lồng tiếng, đọc từ preset.
+
+    Mặc định edge-tts: miễn phí và không tính lượt. Gemini TTS cho giọng hay
+    hơn nhưng tính hạn mức MỖI CÂU — một video 672 câu đã vượt trần ngày, nên
+    nó phải là lựa chọn có chủ ý, không phải mặc định.
+    """
+    config = video.process_config or {}
+    nha = str(config.get("tts_provider") or "edge")
+    if nha == "gemini":
+        from ..tts.gemini import GIONG_MAC_DINH as GIONG_GEMINI_MD
+        from ..tts.gemini import MODEL_MAC_DINH
+
+        return (
+            nha,
+            str(config.get("giong_doc") or GIONG_GEMINI_MD),
+            str(config.get("tts_model") or MODEL_MAC_DINH),
+        )
+    return (nha, str(config.get("giong_doc") or GIONG_MAC_DINH), "")
 
 
 def _bat_long_tieng(video) -> bool:
@@ -673,15 +733,20 @@ def tts_video_task(session, video) -> dict:
     if not vi_cues:
         return {"cues": 0, "skipped": "không có phụ đề tiếng Việt để đọc"}
 
-    provider = lay_provider()
-    giong = (video.process_config or {}).get("giong_doc", GIONG_MAC_DINH)
+    nha, giong, model = _cau_hinh_tts(video)
+    provider = lay_provider(nha, api_key=get_settings().llm_api_key, model=model)
 
-    files = provider.doc_nhieu(
-        [c.text.replace("\n", " ") for c in vi_cues],
-        voice_parts_dir(vid),
-        giong=giong,
-        progress_cb=lambda p: prog.progress(vid, PipelineStep.TTS.value, int(p * 0.9)),
-    )
+    #: Gemini TTS chưa có đường đọc nhiều câu song song (mỗi câu một lượt hạn
+    #: mức, dội song song là cách nhanh nhất để ăn 429), nên đi đường tuần tự.
+    if not hasattr(provider, "doc_nhieu"):
+        files = _doc_tuan_tu(provider, vi_cues, vid, giong)
+    else:
+        files = provider.doc_nhieu(
+            [c.text.replace("\n", " ") for c in vi_cues],
+            voice_parts_dir(vid),
+            giong=giong,
+            progress_cb=lambda p: prog.progress(vid, PipelineStep.TTS.value, int(p * 0.9)),
+        )
 
     #: Đo độ dài THẬT của từng file thay vì ước theo số chữ: tốc độ đọc của
     #: edge-tts đổi theo dấu câu và chữ số, ước sai thì cả lịch phát lệch theo.
@@ -693,6 +758,13 @@ def tts_video_task(session, video) -> dict:
     prog.progress(vid, PipelineStep.TTS.value, 100)
 
     ep_nhanh = sum(1 for d in lich if d.he_so_toc_do > 1.01)
+
+    #: Chỗ pipeline DỪNG LẠI lần hai: người dùng đọc lại bản dịch và nghe thử
+    #: giọng trước khi ghép vào video. Đặt SAU bước lồng tiếng vì tới đây mới có
+    #: giọng để nghe, và TRƯỚC các bước nặng (xoá chữ cứng) vì không ưng thì
+    #: không nên đốt hàng chục phút máy vào bản sẽ bỏ đi.
+    _dung_cho_duyet_ban_dich(session, video)
+
     return {
         "cues": len(vi_cues),
         "giong_sinh_duoc": len(files),
@@ -886,6 +958,19 @@ def process_video(video_id: str) -> str:
     return video_id
 
 
+@app.task(name="reup.tts_video_chain_sau_duyet")
+def tts_video_chain_sau_duyet(video_id: str) -> str:
+    """Chạy CHẶNG 3: xoá chữ cứng rồi render, sau khi người dùng đã duyệt.
+
+    Tách riêng khỏi chặng 2 vì đây là phần NẶNG nhất — dò rồi xoá chữ trên video
+    một tiếng mất hàng tiếng. Chỉ chạy khi người dùng đã đọc bản dịch và nghe
+    thử giọng, để không đốt ngần ấy thời gian máy vào bản sẽ bỏ đi.
+    """
+    log.info("pipeline.sau_duyet_start", video_id=video_id)
+    _build_chain(video_id, M1_STEPS_SAU_DUYET).apply_async()
+    return video_id
+
+
 @app.task(name="reup.translate_video_chain")
 def translate_video_chain(video_id: str) -> str:
     """Chạy NỬA SAU: dịch, chuẩn hoá phụ đề, render.
@@ -930,6 +1015,10 @@ def _cac_buoc_retry(step, *, tu_dong_dich: bool) -> tuple[PipelineStep, ...]:
             #: Tên bước lạ không được làm hỏng job — chạy lại từ đầu như cũ.
             return nguon
 
+    #: Chạy lại từ một bước ở CHẶNG 3 (xoá chữ, render) thì chỉ chạy chặng 3 —
+    #: người dùng đã duyệt bản dịch rồi, dựng lại giọng là vô ích và tốn hạn mức.
+    if buoc in M1_STEPS_SAU_DUYET:
+        return M1_STEPS_SAU_DUYET[M1_STEPS_SAU_DUYET.index(buoc) :]
     if buoc in M1_STEPS_SAU_DICH:
         return M1_STEPS_SAU_DICH[M1_STEPS_SAU_DICH.index(buoc) :]
     if buoc in nguon:

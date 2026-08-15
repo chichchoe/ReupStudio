@@ -89,6 +89,41 @@ class TranslateRequest(BaseModel):
 
     llm_model: str | None = None
 
+    #: Bật/tắt xoá chữ cứng và watermark cho RIÊNG video này. Bước này nặng
+    #: nhất pipeline (video một tiếng mất hàng tiếng) và không phải video nào
+    #: cũng cần, nên phải chọn được từng cái.
+    xoa_chu_cung: bool = True
+
+    #: ``edge`` miễn phí không tính lượt · ``gemini`` giọng hay hơn nhưng tính
+    #: hạn mức MỖI CÂU.
+    tts_provider: Literal["edge", "gemini"] = "edge"
+    #: Mã giọng của nhà cung cấp đã chọn. Bỏ trống thì worker dùng giọng mặc
+    #: định của nhà cung cấp đó.
+    giong_doc: str | None = None
+    #: Chỉ dùng với ``gemini`` — model TTS cụ thể.
+    tts_model: str | None = None
+
+
+class GiongDocOut(BaseModel):
+    """Một giọng đọc chọn được trên giao diện."""
+
+    ma: str
+    ten: str
+    gioi_tinh: str
+
+
+class TtsOptionsOut(BaseModel):
+    """Các lựa chọn giọng đọc, nhóm theo nhà cung cấp.
+
+    ``ghi_chu`` nói rõ đánh đổi để người dùng chọn đúng — giấu nó đi thì họ
+    chọn Gemini cho video 672 câu rồi hết hạn mức giữa chừng.
+    """
+
+    provider: str
+    ghi_chu: str
+    models: list[str] = Field(default_factory=list)
+    giong: list[GiongDocOut] = Field(default_factory=list)
+
 
 class BulkAction(BaseModel):
     ids: list[uuid.UUID] = Field(min_length=1, max_length=500)

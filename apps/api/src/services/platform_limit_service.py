@@ -69,8 +69,7 @@ def _validate_max_duration_sec(value: Any) -> None:
 def _validate_safe_area(safe_area: Any) -> None:
     if not isinstance(safe_area, dict):
         raise ApiError(
-            f"'safe_area' phải là object đủ 4 khoá {_SAFE_AREA_KEYS!r}, "
-            f"nhận được {safe_area!r}"
+            f"'safe_area' phải là object đủ 4 khoá {_SAFE_AREA_KEYS!r}, nhận được {safe_area!r}"
         )
 
     thieu = [key for key in _SAFE_AREA_KEYS if key not in safe_area]
@@ -84,9 +83,7 @@ def _validate_safe_area(safe_area: Any) -> None:
         value = safe_area[key]
         hop_le = isinstance(value, (int, float)) and not isinstance(value, bool)
         if not hop_le or not (0 <= value < 0.5):
-            raise ApiError(
-                f"safe_area['{key}'] phải trong khoảng [0, 0.5), nhận được {value!r}"
-            )
+            raise ApiError(f"safe_area['{key}'] phải trong khoảng [0, 0.5), nhận được {value!r}")
 
     phan_tram_chua_lai = int(round((1 - _MAX_SAFE_AREA_SUM) * 100))
     if safe_area["top"] + safe_area["bottom"] > _MAX_SAFE_AREA_SUM:
@@ -105,14 +102,10 @@ def _validate_safe_area(safe_area: Any) -> None:
 
 def _validate_aspect_ratios(value: Any) -> None:
     hop_le = (
-        isinstance(value, list)
-        and len(value) > 0
-        and all(isinstance(item, str) for item in value)
+        isinstance(value, list) and len(value) > 0 and all(isinstance(item, str) for item in value)
     )
     if not hop_le:
-        raise ApiError(
-            f"'aspect_ratios' phải là danh sách chuỗi không rỗng, nhận được {value!r}"
-        )
+        raise ApiError(f"'aspect_ratios' phải là danh sách chuỗi không rỗng, nhận được {value!r}")
 
 
 def update_limit(db: Session, platform: str, data: dict[str, Any]) -> PlatformLimit:

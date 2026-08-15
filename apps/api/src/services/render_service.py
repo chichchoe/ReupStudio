@@ -27,16 +27,12 @@ def _validate_target_platforms(db: Session, target_platforms: list[str]) -> None
     """
     co_san = set(
         db.scalars(
-            sa.select(PlatformLimit.platform).where(
-                PlatformLimit.platform.in_(target_platforms)
-            )
+            sa.select(PlatformLimit.platform).where(PlatformLimit.platform.in_(target_platforms))
         ).all()
     )
     thieu = sorted(set(target_platforms) - co_san)
     if thieu:
-        raise UnsupportedSource(
-            f"Chưa cấu hình platform_limits cho nền tảng: {', '.join(thieu)}"
-        )
+        raise UnsupportedSource(f"Chưa cấu hình platform_limits cho nền tảng: {', '.join(thieu)}")
 
 
 def request_render(
