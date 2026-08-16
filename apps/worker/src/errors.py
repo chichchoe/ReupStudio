@@ -45,6 +45,15 @@ class TranslateError(ReupError):
     pass
 
 
+class TtsError(ReupError):
+    """Không dựng được giọng đọc.
+
+    Phải là LỖI chứ không phải cảnh báo: trước đây mọi câu hỏng đều chỉ ghi log
+    rồi chạy tiếp, nên video vẫn ra "xong" với dải tiếng toàn số 0. Người dùng
+    chỉ phát hiện khi mở lên nghe — sau khi đã tốn cả bước xoá chữ cứng.
+    """
+
+
 class LlmQuotaExceededError(ReupError):
     """Đã chạm trần hạn mức LLM — dừng hẳn, chờ người dùng cho phép.
 

@@ -59,6 +59,7 @@ KIEU_SO = {
     "SUB_FONT_SIZE",
     "SUB_MAX_CHARS_PER_LINE",
     "SUB_MIN_DURATION",
+    "DUB_ORIGINAL_VOLUME",
     "MONTHLY_BUDGET_USD",
     "MAX_CONCURRENT_RENDERS",
     "MAX_VIDEO_DURATION_SEC",
@@ -127,6 +128,16 @@ NHOM: list[tuple[str, str, list[tuple[str, str]]]] = [
             ("SUB_MAX_CHARS_PER_LINE", "Chữ to hơn thì số ký tự mỗi dòng phải nhỏ đi"),
             ("SUB_MAX_LINES", "Số dòng tối đa mỗi khung"),
             ("SUB_MIN_DURATION", "Giây tối thiểu mỗi khung phụ đề"),
+        ],
+    ),
+    (
+        MUC_XU_LY,
+        "5 · Lồng tiếng",
+        [
+            (
+                "DUB_ORIGINAL_VOLUME",
+                "Mức âm gốc còn lại khi trộn giọng Việt. 0 = tắt hẳn tiếng gốc",
+            ),
         ],
     ),
     (

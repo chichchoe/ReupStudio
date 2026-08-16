@@ -79,6 +79,12 @@ class Settings(BaseSettings):
     sub_max_lines: int = 2
     sub_min_duration: float = 1.2
 
+    #: Âm GỐC bị hạ xuống mức này khi trộn giọng Việt vào. 0 = tắt hẳn.
+    #: Không tắt mặc định vì nhạc nền và tiếng động hiện trường là một phần nội
+    #: dung; nhưng 0,18 vẫn còn nghe rõ lời gốc chen vào lời Việt, nên hạ xuống
+    #: 0,08 — đủ để còn nhạc nền, không đủ để tranh tiếng với giọng đọc.
+    dub_original_volume: float = 0.08
+
     # --- chống trùng ---
     dedup_enabled: bool = True
     #: Số khung lấy mẫu cho pHash. ĐỔI SỐ NÀY = mọi pHash cũ trong DB hết so

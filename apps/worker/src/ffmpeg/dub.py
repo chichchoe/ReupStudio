@@ -27,9 +27,9 @@ log = get_logger(__name__)
 #: nên không phải resample lần nào.
 TAN_SO = 24000
 
-#: Âm gốc bị hạ xuống mức này khi trộn. Không tắt hẳn: nhạc nền và tiếng động
-#: hiện trường là một phần nội dung, tắt đi thì video nghe như đọc chính tả.
-MUC_AM_GOC = 0.18
+#: Mức âm gốc mặc định khi không truyền gì — giá trị thật đọc từ cấu hình
+#: (``DUB_ORIGINAL_VOLUME``), người dùng đặt 0 là tắt hẳn tiếng gốc.
+MUC_AM_GOC = 0.08
 
 
 def _giai_ma_pcm(src: Path, he_so_toc_do: float) -> Any:
@@ -127,14 +127,39 @@ def dung_dai_tieng(
     return dst
 
 
+def loc_tron(muc_am_goc: float) -> str:
+    """Filtergraph trộn hai dải tiếng.
+
+    ``normalize=0`` là chỗ QUAN TRỌNG. Mặc định ``amix`` chia mỗi đầu vào cho
+    số đầu vào, tức nhân đôi dải nào cũng còn một nửa (−6 dB): giọng Việt tụt
+    xuống 50% dù nó phải là tiếng chính, và cả video nghe nhỏ hẳn. Đo trên bản
+    dựng ngày 16.08.2026: đỉnh chỉ −39 dBFS. Với ``normalize=0`` thì trọng số
+    đúng như viết — giọng Việt giữ nguyên, âm gốc đúng bằng ``muc_am_goc``.
+
+    ``muc_am_goc <= 0`` thì bỏ hẳn dải gốc thay vì nhân 0: nhân 0 vẫn để
+    ``amix`` kéo dài theo nó và vẫn tốn một nhánh lọc.
+    """
+    if muc_am_goc <= 0:
+        return "[1:a]anull[a]"
+    return (
+        f"[0:a]volume={muc_am_goc}[goc];"
+        "[goc][1:a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]"
+    )
+
+
 def tron_tieng_vao_video(
-    video: Path, tieng: Path, dst: Path, *, muc_am_goc: float = MUC_AM_GOC, timeout: int = 3600
+    video: Path, tieng: Path, dst: Path, *, muc_am_goc: float | None = None, timeout: int = 3600
 ) -> Path:
     """Trộn dải tiếng Việt lên trên âm gốc đã hạ nhỏ, giữ nguyên hình.
 
     ``-c:v copy``: không encode lại hình. Video đã qua xoá chữ và burn phụ đề
     rồi, encode thêm một lần nữa chỉ để đổi tiếng là mất chất lượng không công.
     """
+    if muc_am_goc is None:
+        from ..config import get_settings
+
+        muc_am_goc = get_settings().dub_original_volume
+
     dst.parent.mkdir(parents=True, exist_ok=True)
     tam = tmp_sibling(dst)
 
@@ -148,7 +173,7 @@ def tron_tieng_vao_video(
         "-i",
         str(tieng),
         "-filter_complex",
-        f"[0:a]volume={muc_am_goc}[goc];[goc][1:a]amix=inputs=2:duration=first:dropout_transition=0[a]",
+        loc_tron(muc_am_goc),
         "-map",
         "0:v",
         "-map",

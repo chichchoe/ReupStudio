@@ -35,7 +35,7 @@ from sqlalchemy import select
 from .. import progress as prog
 from ..celery_app import app
 from ..config import get_settings
-from ..errors import PlatformLimitNotFoundError, VideoTooLongError
+from ..errors import PlatformLimitNotFoundError, TtsError, VideoTooLongError
 from ..ffmpeg.burn import extract_audio
 from ..ffmpeg.dub import dung_dai_tieng, tron_tieng_vao_video
 from ..ffmpeg.probe import do_dai_am_thanh, probe
@@ -567,18 +567,41 @@ def _dung_cho_duyet_ban_dich(session, video) -> bool:
     return True
 
 
+#: Hỏng liên tiếp quá số này thì dừng đọc. Quan sát ngày 16.08.2026: Gemini
+#: TTS hết hạn mức trả 429 cho CÂU ĐẦU rồi trả tiếp cho cả 183 câu sau — mỗi
+#: câu một lượt gọi mạng, chờ vài phút để nhận đúng một câu trả lời đã biết
+#: từ câu thứ nhất.
+SO_LAN_HONG_LIEN_TIEP_THI_DUNG = 5
+
+
 def _doc_tuan_tu(provider, vi_cues, vid: str, giong: str) -> dict[int, Path]:
     """Đọc từng câu một cho các provider không có đường song song."""
     thu_muc = voice_parts_dir(vid)
     ra: dict[int, Path] = {}
+    hong_lien_tiep = 0
+    loi_cuoi = ""
     for i, cue in enumerate(vi_cues):
         dst = thu_muc / f"cau_{i:05d}.wav"
         try:
             provider.doc(cue.text.replace("\n", " "), dst, giong=giong)
             if dst.exists() and dst.stat().st_size > 0:
                 ra[i] = dst
+                hong_lien_tiep = 0
+            else:
+                hong_lien_tiep += 1
+                loi_cuoi = "nhà cung cấp trả file rỗng"
         except Exception as exc:
-            log.warning("tts.cau_hong", chi_so=i, error=str(exc)[:120])
+            hong_lien_tiep += 1
+            loi_cuoi = str(exc)[:200]
+            log.warning("tts.cau_hong", chi_so=i, error=loi_cuoi[:120])
+
+        if hong_lien_tiep >= SO_LAN_HONG_LIEN_TIEP_THI_DUNG:
+            log.error("tts.dung_som", da_doc=len(ra), tong=len(vi_cues), error=loi_cuoi)
+            raise TtsError(
+                f"Dừng sau {hong_lien_tiep} câu hỏng liên tiếp "
+                f"(đọc được {len(ra)}/{len(vi_cues)} câu). {loi_cuoi}"
+            )
+
         if vi_cues:
             prog.progress(vid, PipelineStep.TTS.value, int((i + 1) * 90 / len(vi_cues)))
     return ra
@@ -790,6 +813,15 @@ def tts_video_task(session, video) -> dict:
             voice_parts_dir(vid),
             giong=giong,
             progress_cb=lambda p: prog.progress(vid, PipelineStep.TTS.value, int(p * 0.9)),
+        )
+
+    #: Không đọc được câu nào thì DỪNG, đừng dựng một dải tiếng toàn số 0.
+    #: Video vẫn ra bình thường, chỉ là câm phần lồng tiếng — người dùng chỉ
+    #: phát hiện khi mở lên nghe, sau khi đã tốn cả bước xoá chữ cứng.
+    if not files:
+        raise TtsError(
+            f"Không đọc được câu nào trong {len(vi_cues)} câu. "
+            "Kiểm tra hạn mức của nhà cung cấp giọng đọc, hoặc đổi sang edge-tts (miễn phí)."
         )
 
     #: Đo độ dài THẬT của từng file thay vì ước theo số chữ: tốc độ đọc của
