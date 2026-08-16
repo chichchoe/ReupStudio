@@ -62,8 +62,40 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Gọi `fetch`, nhưng dịch lỗi ném ra thành câu người dùng hiểu được.
+ *
+ * `fetch` chỉ ném khi CHƯA tới được server (mất mạng, API chưa chạy) — lỗi
+ * HTTP thì vẫn trả về `res`. Nhưng còn một nguồn thứ ba: tiện ích trình duyệt
+ * thay `window.fetch` bằng bản của nó. Gặp thật ngày 2026-08-16: một tiện ích
+ * ném `TypeError: Cannot read properties of undefined (reading 'M_ID')` ngay
+ * tại dòng `fetch` của ta, và Next.js hiện lỗi đó như thể lỗi trong mã của
+ * mình. Mở đúng trang đó trong trình duyệt không tiện ích thì chạy bình thường.
+ */
+async function goiFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (loi) {
+    const tin = loi instanceof Error ? loi.message : String(loi);
+    //: "Failed to fetch" là mất mạng thật — trình duyệt nào cũng dùng câu này.
+    if (tin.includes("Failed to fetch") || tin.includes("NetworkError")) {
+      throw new ApiError(
+        `Không kết nối được API tại ${BASE}. Kiểm tra API đã chạy chưa.`,
+        "KHONG_KET_NOI",
+        0,
+      );
+    }
+    throw new ApiError(
+      `Lời gọi API bị chặn giữa chừng: ${tin}. Thường là do một tiện ích trình duyệt ` +
+        "thay đổi fetch — thử mở lại trang ở cửa sổ ẩn danh để kiểm.",
+      "FETCH_BI_CAN_THIEP",
+      0,
+    );
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${PREFIX}${path}`, {
+  const res = await goiFetch(`${PREFIX}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     cache: "no-store",
