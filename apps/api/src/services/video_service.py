@@ -7,7 +7,7 @@ from typing import Any
 
 import sqlalchemy as sa
 from reup_core.enums import PresetKind, VideoStatus
-from reup_core.llm_models import ModelPurpose, phan_loai
+from reup_core.llm_models import chac_chan_khong_dich_duoc
 from reup_core.logging import get_logger
 from reup_core.models import JobRun, Subtitle, Video
 from reup_core.source_url import parse_source_url
@@ -214,15 +214,15 @@ def request_translate(db: Session, video_id: uuid.UUID, llm_model: str | None) -
     _chan_dich_trung(video)
 
     if llm_model:
-        muc_dich = phan_loai(llm_model)
-        if muc_dich is not ModelPurpose.TRANSLATE:
-            #: Chặn ngay ở API thay vì để worker hỏng sau khi đã đốt hạn mức.
-            #: Danh sách model của Gemini gồm cả sinh ảnh, sinh video và TTS;
-            #: bản TTS chỉ có 3 lượt/phút, 10 lượt/ngày.
+        #: Chỉ chặn thứ CHẮC CHẮN sai, không chặn thứ chỉ vì tên lạ. Danh sách
+        #: model hiện ra dựng từ khai báo khả năng của nhà cung cấp, còn chỗ
+        #: này chỉ biết cái tên — chặt hơn ở đây là từ chối đúng thứ vừa mời
+        #: người dùng chọn.
+        if chac_chan_khong_dich_duoc(llm_model):
             raise ApiError(
-                f"Model '{llm_model}' không dùng để dịch được (phân loại: "
-                f"{muc_dich.value}). Chọn model trong danh sách 'translate' của "
-                "GET /api/v1/llm/models."
+                f"Model '{llm_model}' không dùng để dịch được — nó là model đọc "
+                "thành tiếng hoặc sinh ảnh/video. Chọn model trong danh sách "
+                "'translate' ở ô chọn AI."
             )
         video.process_config = {**(video.process_config or {}), "llm_model": llm_model}
 

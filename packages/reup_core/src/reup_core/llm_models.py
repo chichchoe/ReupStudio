@@ -130,6 +130,33 @@ def phan_loai(model_id: str, *, dau_ra: list[str] | None = None) -> ModelPurpose
     return ModelPurpose.OTHER
 
 
+#: Model chuyên về audio (``openai/gpt-audio``). CHỈ dùng ở chỗ chặn dịch,
+#: KHÔNG đưa vào ``_KHONG_DUNG``: hai chỗ dùng ``_KHONG_DUNG`` là loại model
+#: sinh ảnh/video, mà ``gpt-audio`` lại chính là model TTS ta vừa mời người
+#: dùng chọn — nhét vào đó là nó biến mất khỏi danh sách giọng đọc.
+_MODEL_AUDIO = re.compile(r"-audio\b|-audio-")
+
+
+def chac_chan_khong_dich_duoc(model_id: str) -> bool:
+    """Model này CHẮC CHẮN không dịch được — dùng để CHẶN, khác với để LỌC.
+
+    Hai câu hỏi khác nhau, trước đây trả lời bằng cùng một hàm và sinh ra lỗi:
+
+    - "Hiện model nào cho người dùng chọn?" — cần chắc ăn, tên lạ thì thôi.
+    - "Người dùng vừa chọn cái này, có chặn không?" — chỉ được chặn khi CHẮC
+      CHẮN sai, vì chặn nhầm là người dùng bấm Dịch rồi ăn thông báo lỗi.
+
+    Quan sát ngày 2026-08-16: danh sách chọn dựng từ ``output_modalities`` nên
+    có 397 model, còn chỗ chặn lại đoán theo tên nên từ chối 68 trong số đó.
+    Chọn ``aion-labs/aion-2.0`` xong bấm Dịch là báo "không dùng để dịch được".
+
+    Chỉ chặn thứ nhìn TÊN là biết sai: model đọc thành tiếng (hạn mức 10
+    lượt/ngày, chọn nhầm là hỏng giữa chừng) và model sinh ảnh/video/nhúng.
+    """
+    ten = _chuan_hoa(model_id)
+    return bool(_TTS.search(ten) or _KHONG_DUNG.search(ten) or _MODEL_AUDIO.search(ten))
+
+
 def loc_theo_muc_dich(model_ids: list[str], muc_dich: ModelPurpose) -> list[str]:
     """Lọc danh sách model, GIỮ NGUYÊN thứ tự đầu vào.
 
