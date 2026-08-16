@@ -13,7 +13,20 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
-      <body>
+      {/*
+        `suppressHydrationWarning` cho RIÊNG thẻ body: tiện ích trình duyệt hay
+        gắn thêm thuộc tính vào đây TRƯỚC khi React chạy, và React coi đó là
+        server với client không khớp.
+
+        Gặp thật ngày 16.08.2026: một tiện ích gắn `bis_register="..."` vào
+        body — giải mã ra `{"master":true,"extensionId":"eppiocemhmnlbhjplc..."}`,
+        đúng tiện ích đã làm hỏng `fetch` ở `lib/api.ts`. Màn hình đỏ chỉ vào
+        mã của mình trong khi mình không hề sinh ra thuộc tính đó.
+
+        Chỉ tắt cảnh báo ở ĐÚNG một thẻ. Lệch thật ở bên trong cây vẫn báo bình
+        thường — tắt rộng hơn là tự bịt mắt.
+      */}
+      <body suppressHydrationWarning>
         <Providers>
           <div className="flex flex-col h-screen overflow-hidden">
             <Topbar />
