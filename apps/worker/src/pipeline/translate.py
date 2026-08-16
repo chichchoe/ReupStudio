@@ -121,11 +121,13 @@ def translate_cues(
     #: ít lô (batch nhỏ), theo milestones().
     marks = milestones(total) if progress_cb else set()
     out: list[Cue] = []
+    #: Dòng không dịch được, gom lại để cuối bước còn biết mình vừa làm gì.
+    hong: list[str] = []
 
     for index, batch in enumerate(batches, start=1):
         _cho_cho_vua_nhip(dem_luot_gan_day, settings.llm_max_requests_per_min)
         texts = [c.text for c in batch]
-        translated = _translate_with_guard(translator, texts, tone, merged_glossary)
+        translated = _translate_with_guard(translator, texts, tone, merged_glossary, hong)
         out.extend(
             cue.with_text(text.strip() or cue.text)
             for cue, text in zip(batch, translated, strict=True)
@@ -136,6 +138,19 @@ def translate_cues(
     if len(out) != len(cues):  # chốt chặn cuối — không bao giờ được xảy ra
         raise TranslateError(f"Số dòng sau dịch ({len(out)}) khác đầu vào ({len(cues)})")
 
+    #: Hỏng quá nhiều thì DỪNG, đừng trả về một bản "dịch" vẫn nguyên tiếng
+    #: Trung. Quan sát ngày 2026-08-16: Google gỡ ``gemini-2.5-flash``, mọi
+    #: lượt gọi trả 404, đường lui từng-dòng giữ nguyên cả 133 câu tiếng Trung
+    #: — và bước này vẫn báo XONG. Video đi tiếp qua lồng tiếng, xoá chữ cứng,
+    #: render, rồi người dùng mở lên mới thấy phụ đề vẫn là tiếng Trung.
+    if len(hong) > len(cues) * TI_LE_HONG_COI_LA_CA_BUOC:
+        raise TranslateError(
+            f"Không dịch được {len(hong)}/{len(cues)} câu — bản dịch sẽ vẫn là tiếng "
+            f"gốc nên dừng tại đây. Lỗi cuối: {hong[-1][:300]}"
+        )
+    if hong:
+        log.warning("translate.mot_so_dong_giu_nguyen", so_dong=len(hong), tong=len(cues))
+
     log.info("translate.done", cues=len(out), batches=len(batches))
     return out
 
@@ -145,8 +160,27 @@ def translate_cues(
 LO_NHO_NHAT = 8
 
 
+#: Quá tỉ lệ này số dòng KHÔNG dịch được thì coi như cả bước hỏng, không phải
+#: vài dòng lẻ. Không đặt 0 vì có dòng dịch xong vẫn y nguyên một cách hợp lệ:
+#: số, tên riêng, "OK". Nhưng quá một phần ba là chuyện khác hẳn.
+TI_LE_HONG_COI_LA_CA_BUOC = 0.34
+
+
+#: Mã HTTP mà chia nhỏ lô hay thử lại đều vô ích: model không tồn tại / bị gỡ,
+#: khoá sai, khoá không có quyền. Lô nhỏ hơn cũng hỏng y hệt.
+_LOI_VINH_VIEN = ("HTTP 400", "HTTP 401", "HTTP 403", "HTTP 404")
+
+
+def _khong_the_thu_lai(loi: str) -> bool:
+    return any(ma in loi for ma in _LOI_VINH_VIEN)
+
+
 def _translate_with_guard(
-    translator, texts: list[str], tone: str, glossary: dict[str, str]
+    translator,
+    texts: list[str],
+    tone: str,
+    glossary: dict[str, str],
+    hong: list[str] | None = None,
 ) -> list[str]:
     """Gọi LLM, kiểm số dòng; lệch thì CHIA ĐÔI lô rồi thử lại.
 
@@ -160,11 +194,22 @@ def _translate_with_guard(
     thu hẹp dần vùng hỏng: 100 -> 2x50 -> 4x25 -> ... Chỉ khi lô đã nhỏ hơn
     ``LO_NHO_NHAT`` mới dịch từng dòng.
     """
+    #: Chỗ gọi không quan tâm dòng nào hỏng thì vẫn chạy được — nhưng tầng
+    #: trên PHẢI truyền vào, nếu không mất luôn chốt "hỏng quá nhiều thì dừng".
+    if hong is None:
+        hong = []
+
     for attempt in range(2):
         try:
             result = translator.translate_batch(texts, tone=tone, glossary=glossary)
         except TranslateError as exc:
             log.warning("translate.batch_failed", attempt=attempt, error=str(exc))
+            #: Model bị gỡ hay khoá sai thì chia nhỏ lô cũng hỏng y hệt. Quan
+            #: sát ngày 2026-08-16: một video 133 câu nở ra hàng chục lượt gọi
+            #: 404 mất 40 giây, chỉ để đi tới cùng một kết luận biết từ lượt
+            #: đầu. Ném thẳng lên cho người dùng đổi model.
+            if _khong_the_thu_lai(str(exc)):
+                raise
             continue
 
         if len(result) == len(texts):
@@ -181,8 +226,8 @@ def _translate_with_guard(
         log.warning("translate.chia_doi_lo", tu=len(texts), thanh=giua)
         #: Ghép theo đúng thứ tự nửa đầu rồi nửa sau — đảo là phụ đề lệch hết,
         #: loại lỗi khó thấy nhất vì video vẫn chạy và vẫn có chữ.
-        return _translate_with_guard(translator, texts[:giua], tone, glossary) + (
-            _translate_with_guard(translator, texts[giua:], tone, glossary)
+        return _translate_with_guard(translator, texts[:giua], tone, glossary, hong) + (
+            _translate_with_guard(translator, texts[giua:], tone, glossary, hong)
         )
 
     #: Hết đường chia — dịch từng dòng. Chậm và tốn, nhưng lúc này lô đã nhỏ
@@ -192,7 +237,14 @@ def _translate_with_guard(
     for text in texts:
         try:
             single = translator.translate_batch([text], tone=tone, glossary=glossary)
-            out.append(single[0] if single else text)
-        except TranslateError:
+            if single:
+                out.append(single[0])
+                continue
+            out.append(text)
+        except TranslateError as exc:
             out.append(text)  # giữ nguyên tiếng Trung còn hơn mất dòng
+            hong.append(str(exc))
+            continue
+        #: Trả về rỗng cũng là hỏng — chỉ là hỏng lặng lẽ hơn.
+        hong.append("nhà cung cấp trả về rỗng")
     return out
