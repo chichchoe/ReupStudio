@@ -104,9 +104,18 @@ def _gop_audio_tu_sse(luong) -> tuple[bytes, str]:
     OpenRouter trả từng dòng ``data: {...}``, kết thúc bằng ``data: [DONE]``.
     Dòng nào không phải JSON hợp lệ thì bỏ qua — luồng có cả dòng trống và
     dòng ``: comment`` giữ kết nối.
+
+    DỪNG SỚM khi đã im lặng đủ lâu: ``gpt-audio`` nói xong rồi vẫn đệm thêm
+    hàng trăm giây im lặng. Đo ngày 2026-08-16: một câu 2 giây kéo theo 816
+    giây im lặng, tức 38 MB phải tải về chỉ để vứt đi. Cắt sau khi tải xong
+    sửa được độ dài nhưng không lấy lại được thời gian; đóng luồng ngay khi
+    biết phần còn lại là im lặng thì lấy lại được cả hai.
     """
     manh: list[str] = []
     loi_doc: list[str] = []
+    #: Số mẫu im lặng liên tiếp ở cuối, và đã từng nghe thấy tiếng hay chưa.
+    im_lien_tiep = 0
+    da_co_tieng = False
     for dong_byte in luong:
         dong = dong_byte.decode("utf-8", "replace").strip()
         if not dong.startswith("data:"):
@@ -123,10 +132,16 @@ def _gop_audio_tu_sse(luong) -> tuple[bytes, str]:
             audio = (lua_chon.get("delta") or {}).get("audio") or {}
             if audio.get("data"):
                 manh.append(audio["data"])
+                im_lien_tiep, co_tieng = _do_im_lang(audio["data"], im_lien_tiep)
+                da_co_tieng = da_co_tieng or co_tieng
             #: Chính model nói nó vừa đọc gì — nguyên liệu để bắt lỗi "trả lời
             #: thay vì đọc" mà không phải tự nhận dạng lại.
             if audio.get("transcript"):
                 loi_doc.append(audio["transcript"])
+
+        if da_co_tieng and im_lien_tiep >= IM_LANG_DU_DE_DUNG * TAN_SO:
+            log.info("tts.openrouter.dung_som", im_giay=round(im_lien_tiep / TAN_SO, 1))
+            break
 
     if not manh:
         raise ReupError("OpenRouter không trả về mẩu audio nào trong luồng SSE.")
@@ -160,6 +175,29 @@ def _canh_bao_neu_doc_sai(cau: str, doc_ra: str) -> None:
 
 #: Biên độ dưới mức này coi như im lặng (0,5% toàn thang).
 NGUONG_IM_LANG = 0.005
+#: Im liên tục quá chừng này giây SAU KHI đã có tiếng thì đóng luồng. Đặt rộng
+#: hơn khoảng lặng giữa hai vế câu (thường dưới 0,5s) để không cắt ngang câu.
+IM_LANG_DU_DE_DUNG = 1.5
+
+
+def _do_im_lang(mau_base64: str, im_lien_tiep: int) -> tuple[int, bool]:
+    """Đếm số mẫu im lặng liên tiếp ở cuối, và mẩu này có tiếng hay không."""
+    try:
+        pcm = base64.b64decode(mau_base64, validate=True)
+    except (binascii.Error, ValueError):
+        return im_lien_tiep, False
+
+    mau = np.frombuffer(pcm, dtype=np.int16)
+    if mau.size == 0:
+        return im_lien_tiep, False
+
+    to = np.abs(mau.astype(np.float32) / 32768.0) > NGUONG_IM_LANG
+    if not to.any():
+        return im_lien_tiep + int(mau.size), False
+    #: Có tiếng trong mẩu này — đếm lại từ mẫu to cuối cùng.
+    return int(mau.size - 1 - int(np.argmax(to[::-1]))), True
+
+
 #: Giữ lại chừng này sau tiếng cuối để chữ không bị cụt đuôi.
 DUOI_GIU_LAI_GIAY = 0.15
 

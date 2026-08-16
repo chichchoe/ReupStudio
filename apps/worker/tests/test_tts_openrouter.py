@@ -248,3 +248,66 @@ def test_loi_nhac_boc_cau_vao_menh_lenh() -> None:
 
     assert "nguyên văn" in ra
     assert '"Đi thôi!"' in ra
+
+
+def _mau_pcm(du_lieu: np.ndarray) -> dict:
+    return {
+        "choices": [{"delta": {"audio": {"data": base64.b64encode(du_lieu.tobytes()).decode()}}}]
+    }
+
+
+def test_dung_luong_ngay_khi_da_im_du_lau() -> None:
+    """Không tải hết 816 giây im lặng rồi mới cắt.
+
+    Đo ngày 2026-08-16: một câu 2 giây kéo theo 816 giây im lặng — 38 MB tải về
+    chỉ để vứt đi. Cắt sau khi tải sửa được độ dài nhưng không lấy lại được
+    thời gian; đóng luồng sớm thì lấy lại được cả hai.
+    """
+    tieng = (np.sin(np.arange(TAN_SO) * 0.05) * 8000).astype(np.int16)
+    im_mot_giay = np.zeros(TAN_SO, np.int16)
+    #: 1 giây tiếng, rồi 60 giây im — luồng thật còn dài hơn nhiều.
+    goi = [_mau_pcm(tieng)] + [_mau_pcm(im_mot_giay) for _ in range(60)]
+
+    da_doc = {"n": 0}
+
+    def luong():
+        for g in goi:
+            da_doc["n"] += 1
+            yield f"data: {json.dumps(g)}".encode()
+        yield b"data: [DONE]"
+
+    _gop_audio_tu_sse(luong())
+
+    #: 1 mẩu tiếng + đủ mẩu im để vượt 1,5s, KHÔNG đọc hết 61 mẩu.
+    assert da_doc["n"] < 6, f"đã đọc {da_doc['n']}/61 mẩu, đáng lẽ dừng sớm"
+
+
+def test_khong_dung_som_khi_chua_co_tieng_nao() -> None:
+    """Model im vài mẩu đầu rồi mới nói — dừng lúc đó là mất cả câu."""
+    im = np.zeros(TAN_SO * 2, np.int16)
+    tieng = (np.sin(np.arange(TAN_SO) * 0.05) * 8000).astype(np.int16)
+    luong = [
+        f"data: {json.dumps(_mau_pcm(im))}".encode(),
+        f"data: {json.dumps(_mau_pcm(tieng))}".encode(),
+        b"data: [DONE]",
+    ]
+
+    pcm, _ = _gop_audio_tu_sse(luong)
+
+    assert len(pcm) / 2 / TAN_SO > 2.5  # giữ cả phần im đầu lẫn tiếng
+
+
+def test_khoang_lang_giua_cau_khong_lam_dung_som() -> None:
+    """Nghỉ lấy hơi giữa hai vế câu thường dưới 0,5s — không được cắt ngang."""
+    tieng = (np.sin(np.arange(TAN_SO // 2) * 0.05) * 8000).astype(np.int16)
+    nghi = np.zeros(TAN_SO // 2, np.int16)  # 0,5s
+    luong = [
+        f"data: {json.dumps(_mau_pcm(tieng))}".encode(),
+        f"data: {json.dumps(_mau_pcm(nghi))}".encode(),
+        f"data: {json.dumps(_mau_pcm(tieng))}".encode(),
+        b"data: [DONE]",
+    ]
+
+    pcm, _ = _gop_audio_tu_sse(luong)
+
+    assert len(pcm) / 2 / TAN_SO > 1.4  # cả hai vế còn nguyên
