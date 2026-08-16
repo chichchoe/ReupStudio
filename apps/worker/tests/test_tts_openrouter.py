@@ -118,21 +118,66 @@ def test_lay_provider_biet_ten_openrouter() -> None:
     assert [g.ma for g in provider.cac_giong()][:2] == ["alloy", "echo"]
 
 
-def test_bi_chan_boi_thiet_lap_rieng_tu_thi_chi_duong(monkeypatch, tmp_path) -> None:
-    """404 "data policy" là thiết lập TÀI KHOẢN, không phải model không tồn tại.
+#: Nguyên văn thân lỗi OpenRouter trả về ngày 2026-08-16 (đã rút gọn phần
+#: message, giữ nguyên hình dạng `metadata`).
+_THAN_404 = (
+    b'{"error":{"message":"No allowed providers are available for the selected model. '
+    b"Providers serving openai/gpt-audio: openai, but your account's allowed-providers "
+    b"setting permits only: minimax, fish-audio, google-ai-studio. To change your allowed "
+    b'providers, visit: https://openrouter.ai/settings/privacy.","code":404,'
+    b'"metadata":{"available_providers":["openai"],'
+    b'"requested_providers":["minimax","fish-audio","google-ai-studio"]}}}'
+)
 
-    Gặp thật ngày 2026-08-16: cùng một khoá, gọi model văn bản trả 200, gọi
-    `openai/gpt-audio` trả 404. Thử lại ba lần cũng vô ích — phải nói thẳng chỗ
-    cần sửa.
+
+def _chan_404(*a, **k):
+    raise urllib.error.HTTPError("u", 404, "nf", {}, io.BytesIO(_THAN_404))
+
+
+def test_404_noi_ro_phai_cho_phep_ben_nao(monkeypatch, tmp_path) -> None:
+    """404 ở đây là thiết lập TÀI KHOẢN, không phải model không tồn tại.
+
+    OpenRouter nói sẵn trong `metadata` bên nào phục vụ model và tài khoản cho
+    phép bên nào. Đọc ra và nói thẳng, đừng bắt người dùng mò trong JSON.
     """
-
-    def chan(*a, **k):
-        raise urllib.error.HTTPError(
-            "u", 404, "nf", {}, io.BytesIO(b'{"error":{"message":"... data policy ..."}}')
-        )
-
-    monkeypatch.setattr("urllib.request.urlopen", chan)
+    monkeypatch.setattr("urllib.request.urlopen", _chan_404)
     monkeypatch.setattr("time.sleep", lambda _s: None)
 
-    with pytest.raises(ReupError, match="settings/privacy"):
+    with pytest.raises(ReupError) as loi:
         OpenRouterTTS(api_key="khoa-gia").doc("Xin chào", tmp_path / "c.wav", giong="nova")
+
+    tin = str(loi.value)
+    assert "openai" in tin  # bên PHỤC VỤ model, tức bên cần thêm vào
+    assert "minimax" in tin  # bên tài khoản đang cho phép
+    assert "settings/privacy" in tin
+
+
+def test_404_khong_thu_lai_ba_lan(monkeypatch, tmp_path) -> None:
+    """Thử lại một lỗi thiết lập chỉ tốn thời gian, kết quả y hệt."""
+    so_lan = {"n": 0}
+
+    def dem(*a, **k):
+        so_lan["n"] += 1
+        _chan_404()
+
+    monkeypatch.setattr("urllib.request.urlopen", dem)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+
+    with pytest.raises(ReupError):
+        OpenRouterTTS(api_key="khoa-gia").doc("Xin chào", tmp_path / "d.wav", giong="nova")
+
+    assert so_lan["n"] == 1
+
+
+def test_than_loi_dai_van_doc_duoc_metadata(monkeypatch, tmp_path) -> None:
+    """Cắt thân lỗi TRƯỚC khi đọc là mất khối `metadata` nằm cuối.
+
+    Lỗi thật dài hơn 300 ký tự; bản đầu cắt ở 300 nên rơi về câu chung chung.
+    """
+    monkeypatch.setattr("urllib.request.urlopen", _chan_404)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+
+    assert len(_THAN_404) > 300
+
+    with pytest.raises(ReupError, match="chỉ cho phép"):
+        OpenRouterTTS(api_key="khoa-gia").doc("Xin chào", tmp_path / "e.wav", giong="nova")

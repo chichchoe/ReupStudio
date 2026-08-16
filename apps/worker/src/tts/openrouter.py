@@ -126,6 +126,29 @@ def _ghi_wav(dst: Path, pcm: bytes) -> None:
         f.writeframes(pcm)
 
 
+def _mo_ta_404(than: str, model: str) -> str:
+    """Dịch thân lỗi 404 của OpenRouter thành câu người dùng làm được gì."""
+    try:
+        meta = (json.loads(than).get("error") or {}).get("metadata") or {}
+    except (json.JSONDecodeError, AttributeError):
+        meta = {}
+
+    phuc_vu = meta.get("available_providers") or []
+    cho_phep = meta.get("requested_providers") or []
+    if phuc_vu and cho_phep:
+        return (
+            f"Tài khoản OpenRouter không được dùng {model}: model này do "
+            f"{', '.join(phuc_vu)} phục vụ, mà tài khoản chỉ cho phép "
+            f"{', '.join(cho_phep)}. Vào https://openrouter.ai/settings/privacy thêm "
+            f"{', '.join(phuc_vu)} vào danh sách cho phép, hoặc đổi giọng đọc sang "
+            "edge (miễn phí)."
+        )
+    return (
+        f"OpenRouter từ chối {model} (404). Kiểm thiết lập bên được phép tại "
+        "https://openrouter.ai/settings/privacy, hoặc đổi giọng đọc sang edge."
+    )
+
+
 class OpenRouterTTS:
     ten = "openrouter"
 
@@ -161,19 +184,22 @@ class OpenRouterTTS:
             try:
                 return self._goi_mot_lan(cau, giong)
             except urllib.error.HTTPError as exc:
-                than = exc.read().decode("utf-8", "replace")[:300]
-                loi_cuoi = f"HTTP {exc.code}: {_che_khoa(than, self._key)}"
-                #: 404 kèm "data policy" KHÔNG phải model không tồn tại mà là
-                #: tài khoản đang chặn nhà cung cấp phục vụ model đó. Gặp thật
-                #: ngày 16.08.2026: khoá gọi model văn bản thì 200, gọi
-                #: gpt-audio thì 404. Nói thẳng chỗ phải sửa, đừng để người dùng
-                #: đi tìm trong một chuỗi JSON.
-                if exc.code == 404 and "data policy" in than:
-                    raise ReupError(
-                        "OpenRouter chặn model giọng đọc theo thiết lập quyền riêng tư của "
-                        "tài khoản. Mở https://openrouter.ai/settings/privacy và cho phép "
-                        "nhà cung cấp phục vụ openai/gpt-audio, rồi thử lại."
-                    ) from exc
+                #: Đọc NGUYÊN thân lỗi rồi mới cắt khi hiện ra. Cắt trước là mất
+                #: khối ``metadata`` nằm cuối — đúng chỗ OpenRouter nói bên nào
+                #: phục vụ model và tài khoản cho phép bên nào.
+                than = exc.read().decode("utf-8", "replace")
+                loi_cuoi = f"HTTP {exc.code}: {_che_khoa(than[:300], self._key)}"
+                #: 404 ở đây KHÔNG phải "model không tồn tại" mà gần như luôn
+                #: là tài khoản đang chặn bên phục vụ model đó. Gặp thật ngày
+                #: 16.08.2026: cùng một khoá, gọi model văn bản trả 200, gọi
+                #: gpt-audio trả 404 vì danh sách bên được phép chỉ có
+                #: minimax, fish-audio, google-ai-studio.
+                #:
+                #: Thử lại vô ích — 404 là vĩnh viễn. Và OpenRouter nói SẴN
+                #: trong `metadata` bên nào phục vụ model, bên nào tài khoản
+                #: cho phép; đọc ra và nói thẳng, đừng bắt người dùng mò JSON.
+                if exc.code == 404:
+                    raise ReupError(_mo_ta_404(than, self._model)) from exc
                 #: 429 hết hạn mức, 402 hết tiền — thử lại chỉ tốn thêm lượt.
                 #: Báo ngay để chỗ gọi dừng và đổi sang edge-tts.
                 if exc.code in (402, 429):
