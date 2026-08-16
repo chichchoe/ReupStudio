@@ -60,12 +60,45 @@ def _thoi_gian_cho(response, lan_thu: int) -> float:
     return _BACKOFF_BASE_SEC * (2**lan_thu)
 
 
+def _goi_y_khi_bi_chan(response) -> str:
+    """Câu gợi ý cho lỗi 404 "tài khoản chặn nhà cung cấp". Rỗng nếu không phải."""
+    try:
+        loi = response.json().get("error") or {}
+    except Exception:  # noqa: BLE001 - thân lỗi không phải JSON thì bỏ qua
+        return ""
+
+    meta = loi.get("metadata") or {}
+    cho_phep = meta.get("requested_providers") or []
+    if not cho_phep:
+        return ""
+
+    tin = str(loi.get("message") or "")
+    ten_model = (
+        tin.split("Providers serving ")[-1].split(":")[0] if "Providers serving" in tin else ""
+    )
+    return (
+        f"Tài khoản không được dùng model {ten_model or 'này'}: nó do bên khác phục vụ, "
+        f"mà tài khoản chỉ cho phép {', '.join(cho_phep)}. Chọn model của một trong "
+        "các bên đó, hoặc mở rộng danh sách tại https://openrouter.ai/settings/privacy."
+    )
+
+
 def _mo_ta_loi(response, status: int, lan_thu: int, url: str) -> str:
     """Thông báo lỗi đủ để người dùng tự sửa cấu hình, không phải đoán."""
     try:
         chi_tiet = str(response.json())[:_ERROR_BODY_CHARS]
     except Exception:  # noqa: BLE001 - thân lỗi không phải JSON cũng vẫn hữu ích
         chi_tiet = str(getattr(response, "text", ""))[:_ERROR_BODY_CHARS]
+
+    #: 404 kèm "allowed providers" KHÔNG phải model không tồn tại mà là tài
+    #: khoản chặn bên phục vụ model đó. Gặp thật ngày 2026-08-16 trên
+    #: OpenRouter: thân lỗi liệt kê ~30 tên nhà cung cấp, đọc xong vẫn không
+    #: biết phải làm gì. Rút đúng hai thứ cần: bên nào phục vụ, bên nào được
+    #: phép.
+    if status == 404:
+        goi_y = _goi_y_khi_bi_chan(response)
+        if goi_y:
+            return goi_y
 
     if status == 429:
         return (

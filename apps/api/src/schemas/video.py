@@ -79,6 +79,13 @@ class VideoUpdate(BaseModel):
     hashtags_vi: list[str] | None = None
 
 
+#: MỘT nguồn sự thật cho danh sách bên đọc. Dùng cả ở chỗ nhận yêu cầu
+#: (``TranslateRequest``) lẫn chỗ liệt kê cho giao diện
+#: (``video_service.cac_giong_doc``).
+BEN_DOC_HOP_LE = ("edge", "gemini", "openrouter")
+BenDoc = Literal["edge", "gemini", "openrouter"]
+
+
 class TranslateRequest(BaseModel):
     """Body của ``POST /videos/{id}/translate``.
 
@@ -97,13 +104,16 @@ class TranslateRequest(BaseModel):
     #: cũng cần, nên phải chọn được từng cái.
     xoa_chu_cung: bool = True
 
-    #: ``edge`` miễn phí không tính lượt · ``gemini`` giọng hay hơn nhưng tính
-    #: hạn mức MỖI CÂU.
-    tts_provider: Literal["edge", "gemini"] = "edge"
+    #: Bên đọc. Danh sách lấy từ ``BEN_DOC`` để KHÔNG lệch với danh sách mà
+    #: ``GET /videos/tts-options`` mời người dùng chọn — thêm bên mới mà quên
+    #: sửa chỗ này thì giao diện gửi lên bị 422, và màn hình chỉ hiện "lỗi" chứ
+    #: không nói tên trường nào sai. Xảy ra thật ngày 2026-08-16 với
+    #: ``openrouter``: mọi lượt bấm Dịch đều 422.
+    tts_provider: BenDoc = "edge"
     #: Mã giọng của nhà cung cấp đã chọn. Bỏ trống thì worker dùng giọng mặc
     #: định của nhà cung cấp đó.
     giong_doc: str | None = None
-    #: Chỉ dùng với ``gemini`` — model TTS cụ thể.
+    #: Chỉ dùng với ``gemini`` và ``openrouter`` — model TTS cụ thể.
     tts_model: str | None = None
 
 
