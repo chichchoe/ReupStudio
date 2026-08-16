@@ -483,7 +483,20 @@ _GIONG_GEMINI = [
 ]
 
 
-def cac_giong_doc() -> list[dict[str, Any]]:
+#: Giọng của ``openai/gpt-audio`` — khai đúng bằng danh sách bên worker
+#: (``tts/openrouter.py::GIONG_GPT_AUDIO``). Không import từ worker: `apps/api`
+#: không phụ thuộc `apps/worker`, kéo sang là kéo cả nhánh phụ thuộc của nó.
+_GIONG_OPENROUTER = [
+    {"ma": "nova", "ten": "Nova — sáng, nhanh", "gioi_tinh": "nữ"},
+    {"ma": "shimmer", "ten": "Shimmer — nhẹ, ấm", "gioi_tinh": "nữ"},
+    {"ma": "alloy", "ten": "Alloy — trung tính, đều", "gioi_tinh": "trung tính"},
+    {"ma": "fable", "ten": "Fable — kể chuyện", "gioi_tinh": "trung tính"},
+    {"ma": "echo", "ten": "Echo — trầm, chắc", "gioi_tinh": "nam"},
+    {"ma": "onyx", "ten": "Onyx — trầm, dày", "gioi_tinh": "nam"},
+]
+
+
+def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
     """Giọng đọc chọn được, nhóm theo nhà cung cấp, kèm đánh đổi."""
     from ..config import get_settings
 
@@ -511,4 +524,21 @@ def cac_giong_doc() -> list[dict[str, Any]]:
                 "giong": _GIONG_GEMINI,
             }
         )
+
+    #: OpenRouter chỉ hiện khi ĐÃ dán khoá — cùng lý do với Gemini. Nó là
+    #: đường lui khi Gemini hết hạn mức, nhưng tính TIỀN chứ không có bậc miễn
+    #: phí, nên phải nói rõ ngay trên nhãn.
+    if db is not None:
+        from . import ai_provider_service
+
+        if ai_provider_service.lay_khoa(db, "openrouter"):
+            ra.append(
+                {
+                    "provider": "openrouter",
+                    "ghi_chu": "Trả tiền theo lượt, KHÔNG có bậc miễn phí. "
+                    "Dùng khi Gemini hết hạn mức.",
+                    "models": ["openai/gpt-audio", "openai/gpt-audio-mini"],
+                    "giong": _GIONG_OPENROUTER,
+                }
+            )
     return ra

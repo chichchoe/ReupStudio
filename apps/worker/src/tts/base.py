@@ -37,12 +37,11 @@ class TTSProvider(Protocol):
 
 
 #: Các nhà cung cấp giọng dùng được, kèm đánh đổi để người dùng chọn đúng.
-#:
-#: OpenRouter KHÔNG có mặt ở đây vì nó không làm TTS — đó là dịch vụ định tuyến
-#: model ngôn ngữ, không sinh audio. Ghi lại để lần sau khỏi đi tìm.
 NHA_CUNG_CAP = {
     "edge": "edge-tts — miễn phí, không tính lượt, 2 giọng Việt",
     "gemini": "Gemini TTS — 30 giọng, ngữ điệu tự nhiên hơn, NHƯNG tính hạn mức mỗi câu",
+    "openrouter": "OpenRouter (openai/gpt-audio) — 6 giọng, TRẢ TIỀN theo lượt, "
+    "dùng khi Gemini hết hạn mức",
 }
 
 
@@ -56,6 +55,11 @@ def lay_provider(ten: str = "edge", *, api_key: str = "", model: str = "") -> TT
         from .gemini import MODEL_MAC_DINH, GeminiTTS
 
         return GeminiTTS(api_key=api_key, model=model or MODEL_MAC_DINH)
+    if ten == "openrouter":
+        from .openrouter import MODEL_MAC_DINH as MODEL_OR
+        from .openrouter import OpenRouterTTS
+
+        return OpenRouterTTS(api_key=api_key, model=model or MODEL_OR)
     raise ValueError(
         f"Không có nhà cung cấp giọng đọc tên '{ten}' — dùng được: {sorted(NHA_CUNG_CAP)}"
     )

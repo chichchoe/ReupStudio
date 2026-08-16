@@ -673,7 +673,41 @@ def _cau_hinh_tts(video) -> tuple[str, str, str]:
             str(config.get("giong_doc") or GIONG_GEMINI_MD),
             str(config.get("tts_model") or MODEL_MAC_DINH),
         )
+    if nha == "openrouter":
+        from ..tts.openrouter import GIONG_MAC_DINH as GIONG_OR
+        from ..tts.openrouter import MODEL_MAC_DINH as MODEL_OR
+
+        return (
+            nha,
+            str(config.get("giong_doc") or GIONG_OR),
+            str(config.get("tts_model") or MODEL_OR),
+        )
     return (nha, str(config.get("giong_doc") or GIONG_MAC_DINH), "")
+
+
+def _khoa_tts(nha: str) -> str:
+    """Khoá API cho nhà cung cấp giọng đọc.
+
+    KHÔNG dùng chung ``LLM_API_KEY`` cho mọi bên: khoá Gemini không gọi được
+    OpenRouter, mà lỗi thì hiện ra dưới dạng "HTTP 401" giữa chừng video.
+    edge-tts không cần khoá nào.
+    """
+    if nha == "edge":
+        return ""
+    if nha == "openrouter":
+        from reup_core.models import AiProvider
+        from reup_core.settings_store import fernet
+
+        with session_scope() as db:
+            row = db.get(AiProvider, "openrouter")
+            if row is None or not row.api_key_encrypted:
+                return ""
+            try:
+                return fernet().decrypt(row.api_key_encrypted.encode()).decode()
+            except Exception as exc:  # noqa: BLE001 - đổi SETTINGS_KEY là hỏng giải mã
+                log.warning("tts.khoa_khong_giai_ma_duoc", nha=nha, error=str(exc)[:120])
+                return ""
+    return get_settings().llm_api_key
 
 
 def _bat_long_tieng(video) -> bool:
@@ -801,7 +835,7 @@ def tts_video_task(session, video) -> dict:
         return {"cues": 0, "skipped": "không có phụ đề tiếng Việt để đọc"}
 
     nha, giong, model = _cau_hinh_tts(video)
-    provider = lay_provider(nha, api_key=get_settings().llm_api_key, model=model)
+    provider = lay_provider(nha, api_key=_khoa_tts(nha), model=model)
 
     #: Gemini TTS chưa có đường đọc nhiều câu song song (mỗi câu một lượt hạn
     #: mức, dội song song là cách nhanh nhất để ăn 429), nên đi đường tuần tự.

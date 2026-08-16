@@ -57,7 +57,7 @@ def create_from_links(body: CreateFromLinks, db: Session = Depends(get_db)):
 
 
 @router.get("/tts-options", response_model=list[TtsOptionsOut])
-def tts_options():
+def tts_options(db: Session = Depends(get_db)):
     """Các giọng đọc chọn được, kèm ĐÁNH ĐỔI của từng nhà cung cấp.
 
     Khai TRƯỚC ``/{video_id}``: FastAPI khớp route theo THỨ TỰ đăng ký, nên đặt
@@ -66,9 +66,10 @@ def tts_options():
     Giấu phần đánh đổi đi thì người dùng chọn Gemini cho video 672 câu rồi hết
     hạn mức giữa chừng — mỗi câu là một lượt gọi.
 
-    OpenRouter không có mặt: nó định tuyến model ngôn ngữ, không sinh audio.
+    OpenRouter chỉ hiện khi đã dán khoá: nó có ``openai/gpt-audio`` đọc được
+    tiếng nhưng tính TIỀN theo lượt, không có bậc miễn phí.
     """
-    return video_service.cac_giong_doc()
+    return video_service.cac_giong_doc(db)
 
 
 @router.get("/{video_id}", response_model=VideoDetail)
