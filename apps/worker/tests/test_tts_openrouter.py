@@ -17,11 +17,19 @@ import json
 import urllib.error
 import wave
 
+import numpy as np
 import pytest
 
 from src.errors import ReupError
 from src.tts import lay_provider
-from src.tts.openrouter import OpenRouterTTS, _gop_audio_tu_sse
+from src.tts.openrouter import (
+    TAN_SO,
+    OpenRouterTTS,
+    _canh_bao_neu_doc_sai,
+    _gop_audio_tu_sse,
+    _loi_nhac_doc,
+    cat_im_lang,
+)
 
 
 def _sse(*goi: dict) -> list[bytes]:
@@ -37,7 +45,7 @@ def test_noi_het_cac_mau_chu_khong_lay_mau_dau() -> None:
     """Lấy mẩu đầu là ra file cụt — lỗi chỉ nghe mới biết."""
     luong = _sse(_mau_audio(b"AAAA"), _mau_audio(b"BBBB"), _mau_audio(b"CCCC"))
 
-    assert _gop_audio_tu_sse(luong) == b"AAAABBBBCCCC"
+    assert _gop_audio_tu_sse(luong)[0] == b"AAAABBBBCCCC"
 
 
 def test_bo_qua_dong_khong_phai_json_va_dung_o_DONE() -> None:
@@ -50,7 +58,7 @@ def test_bo_qua_dong_khong_phai_json_va_dung_o_DONE() -> None:
         f"data: {json.dumps(_mau_audio(b'SAU-DONE'))}".encode(),
     ]
 
-    assert _gop_audio_tu_sse(luong) == b"XY"
+    assert _gop_audio_tu_sse(luong)[0] == b"XY"
 
 
 def test_luong_khong_co_audio_thi_bao_loi() -> None:
@@ -181,3 +189,62 @@ def test_than_loi_dai_van_doc_duoc_metadata(monkeypatch, tmp_path) -> None:
 
     with pytest.raises(ReupError, match="chỉ cho phép"):
         OpenRouterTTS(api_key="khoa-gia").doc("Xin chào", tmp_path / "e.wav", giong="nova")
+
+
+def test_cat_duoi_im_lang_cua_gpt_audio() -> None:
+    """`gpt-audio` nói vài giây rồi ĐỆM THÊM rất nhiều im lặng.
+
+    Đo thật ngày 2026-08-16: câu "Bạn định nấu món gì hôm nay?" nói 2 giây rồi
+    im lặng **816 giây** (file 38 MB). Không cắt thì `do_dai_am_thanh` đo ra
+    818 giây cho một câu 2 giây, `lap_lich_long_tieng` ép tốc độ và đẩy lệch
+    mọi câu sau — chính là "lồng tiếng không khớp lời nói".
+    """
+    im_dau = np.zeros(int(0.5 * TAN_SO), np.int16)
+    tieng = (np.sin(np.arange(TAN_SO) * 0.05) * 8000).astype(np.int16)
+    im_duoi = np.zeros(int(8 * TAN_SO), np.int16)
+
+    ra = cat_im_lang(np.concatenate([im_dau, tieng, im_duoi]).tobytes())
+
+    giay = len(ra) / 2 / TAN_SO
+    assert 1.1 < giay < 1.2, f"cắt xong còn {giay:.2f}s, mong đợi ~1,15s"
+
+
+def test_giu_lai_duoi_ngan_de_chu_khong_cut() -> None:
+    """Cắt sát tiếng cuối là chữ nghe cụt đuôi."""
+    tieng = (np.sin(np.arange(TAN_SO) * 0.05) * 8000).astype(np.int16)
+
+    ra = cat_im_lang(np.concatenate([tieng, np.zeros(TAN_SO, np.int16)]).tobytes())
+
+    assert len(ra) / 2 / TAN_SO > 1.0
+
+
+def test_ca_doan_im_lang_thi_tra_ve_rong() -> None:
+    """Rỗng để bước xếp lịch bỏ qua, thay vì cắm một khoảng câm vào dải tiếng."""
+    assert cat_im_lang(np.zeros(TAN_SO, np.int16).tobytes()) == b""
+
+
+def test_model_tra_loi_thay_vi_doc_thi_bao_loi() -> None:
+    """Gửi một câu, model đọc ra cả đoạn tán gẫu — phải dừng, đừng ghép vào video."""
+    with pytest.raises(ReupError, match="TRẢ LỜI thay vì"):
+        _canh_bao_neu_doc_sai(
+            "Hôm nay trời rất đẹp.",
+            "Chào bạn! Nghe có vẻ thú vị đấy. Hôm nay trời quả là rất đẹp, và nấu ăn "
+            "cùng nhau chắc chắn sẽ rất vui. Bạn muốn thử nấu món gì hôm nay?",
+        )
+
+
+def test_doc_dung_cau_thi_khong_bao_gi() -> None:
+    """Máy đọc hay đọc số thành chữ nên dài ra chút là bình thường."""
+    _canh_bao_neu_doc_sai("Tiêu hết 2000 tệ.", "Tiêu hết hai nghìn tệ.")
+
+
+def test_loi_nhac_boc_cau_vao_menh_lenh() -> None:
+    """Gửi câu trần thì model coi đó là lượt trò chuyện và trả lời.
+
+    Đo thật: lời nhắc hệ thống mạnh THÔI không đủ; phải bọc vào mệnh lệnh ngay
+    trong lượt của người dùng.
+    """
+    ra = _loi_nhac_doc("Đi thôi!")
+
+    assert "nguyên văn" in ra
+    assert '"Đi thôi!"' in ra
