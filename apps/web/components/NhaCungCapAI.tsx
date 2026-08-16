@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { HopXacNhan } from "@/components/HopXacNhan";
+import { TheGiaiThich } from "@/components/TheGiaiThich";
 import { api, ApiError } from "@/lib/api";
 import type { NhaCungCapAI as Nha } from "@/lib/types";
 
@@ -94,6 +95,7 @@ function TheNhaCungCap({ nha }: { nha: Nha }) {
         >
           {sanSang ? "sẵn sàng" : "chưa có khoá"}
         </span>
+        {nha.ghi_chu && <TheGiaiThich nhan="Bên này thế nào?">{nha.ghi_chu}</TheGiaiThich>}
         {nha.trang_lay_khoa && (
           <a
             href={nha.trang_lay_khoa}
@@ -106,8 +108,6 @@ function TheNhaCungCap({ nha }: { nha: Nha }) {
         )}
       </div>
 
-      {nha.ghi_chu && <p className="mt-1 text-[11.5px] text-muted">{nha.ghi_chu}</p>}
-
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {nha.can_khoa && (
           <input
@@ -119,12 +119,15 @@ function TheNhaCungCap({ nha }: { nha: Nha }) {
             onChange={(e) => setKhoa(e.target.value)}
           />
         )}
+        {/* Lời nhắc về địa chỉ gốc nằm NGAY TRONG ô nó nói về, không phải một
+            dòng chữ lặp y hệt dưới cả sáu thẻ nhà cung cấp. */}
         <input
           className="input w-64 py-1"
           placeholder={nha.base_url_mac_dinh}
           value={baseUrl}
           onChange={(e) => setBaseUrl(e.target.value)}
           aria-label={`Địa chỉ gốc của ${nha.ten}`}
+          title="Để trống là dùng địa chỉ mặc định — chỉ điền khi chạy qua proxy hoặc bản tự dựng."
         />
         <button
           className="btn btn-primary btn-sm"
@@ -152,10 +155,6 @@ function TheNhaCungCap({ nha }: { nha: Nha }) {
           </button>
         )}
       </div>
-
-      <p className="mt-1.5 text-[11px] text-muted">
-        Địa chỉ gốc để trống là dùng mặc định — chỉ điền khi chạy qua proxy hoặc bản tự dựng.
-      </p>
 
       {hoiGo && (
         <HopXacNhan
