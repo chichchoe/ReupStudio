@@ -73,21 +73,23 @@ export default function SettingsPage() {
   const nhomDangXem = data?.nhom.find((n) => n.ten === dangXem);
 
   return (
-    <div>
-      <header className="mb-4">
+    //: `h-full` + `min-h-0` để cột phải tự cuộn. Không có nó, cả trang cuộn và
+    //: cột mục bên trái trôi mất khỏi màn hình.
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="mb-3 flex items-center gap-3">
         <h1 className="text-xl font-semibold">Cấu hình</h1>
-        <p className="mt-0.5 max-w-[70ch] text-[13px] text-muted">
+        <TheGiaiThich nhan="Vì sao không để trong .env?">
           Mọi thiết lập lưu trong database, không nằm trong file <code>.env</code> nữa — file
           đó nằm cạnh mã nguồn nên rất dễ bị đẩy nhầm lên GitHub. Khoá API được mã hoá trước
           khi lưu và không bao giờ hiện lại.
-        </p>
+        </TheGiaiThich>
       </header>
 
       {isLoading && <p className="py-10 text-center text-[13px] text-muted">Đang tải…</p>}
 
       {data && (
-        <div className="flex gap-5">
-          <nav className="w-56 shrink-0">
+        <div className="flex min-h-0 flex-1 gap-5">
+          <nav className="w-56 shrink-0 overflow-y-auto">
             <MucNav
               ten={MUC_KHOA_AI}
               dangXem={dangXem === MUC_KHOA_AI}
@@ -112,26 +114,33 @@ export default function SettingsPage() {
             />
           </nav>
 
-          <div className="min-w-0 flex-1">
+          {/* CHỈ cột phải cuộn. Mục "Nhà cung cấp AI" có sáu thẻ chồng nhau,
+              để cả trang cuộn thì cột mục bên trái trôi mất và không biết mình
+              đang ở đâu nữa. */}
+          <div className="min-w-0 flex-1 overflow-y-auto pr-1">
             {dangXem === MUC_KHOA_AI && (
               <>
-                <h2 className="text-[15px] font-semibold">{MUC_KHOA_AI}</h2>
-                <p className="mb-3 mt-1 max-w-[65ch] text-[12.5px] text-muted">
-                  Dán khoá của bên nào bạn có; lúc dịch sẽ chọn bên và model. Mỗi bên mạnh một
-                  kiểu và có hạn mức riêng, nên dán sẵn nhiều bên rồi chọn theo từng video là
-                  cách rẻ nhất.
-                </p>
+                <div className="mb-3 flex items-center gap-3">
+                  <h2 className="text-[15px] font-semibold">{MUC_KHOA_AI}</h2>
+                  <TheGiaiThich nhan="Nên dán mấy bên?">
+                    Dán khoá của bên nào bạn có; lúc dịch sẽ chọn bên và model. Mỗi bên mạnh
+                    một kiểu và có hạn mức riêng, nên dán sẵn nhiều bên rồi chọn theo từng
+                    video là cách rẻ nhất.
+                  </TheGiaiThich>
+                </div>
                 <NhaCungCapAI />
               </>
             )}
 
             {dangXem === MUC_ENV && (
               <>
-                <h2 className="text-[15px] font-semibold">{MUC_ENV}</h2>
-                <p className="mb-3 mt-1 max-w-[65ch] text-[12.5px] text-muted">
-                  Ba biến này cần <em>trước</em> khi chạm được database nên không chuyển vào
-                  đây được. Sửa chúng trong file <code>.env</code> rồi khởi động lại API.
-                </p>
+                <div className="mb-3 flex items-center gap-3">
+                  <h2 className="text-[15px] font-semibold">{MUC_ENV}</h2>
+                  <TheGiaiThich nhan="Vì sao ba biến này ở ngoài?">
+                    Ba biến này cần <em>trước</em> khi chạm được database nên không chuyển
+                    vào đây được. Sửa chúng trong file <code>.env</code> rồi khởi động lại API.
+                  </TheGiaiThich>
+                </div>
                 <div className="rounded-xl border border-border bg-panel p-4">
                   <ul className="font-mono text-[12px]">
                     {data.khoa_bootstrap.map((k) => (
@@ -208,6 +217,38 @@ export default function SettingsPage() {
   );
 }
 
+/**
+ * Đoạn giải thích thu lại thành một thẻ nhỏ, bấm mới mở.
+ *
+ * Mấy đoạn này chỉ cần đọc MỘT lần — lần đầu vào trang. Để nguyên dạng đoạn
+ * văn thì lần thứ hai mươi vào sửa cỡ chữ phụ đề vẫn phải lướt qua chúng.
+ */
+function TheGiaiThich({ nhan, children }: { nhan: string; children: React.ReactNode }) {
+  const [mo, setMo] = useState(false);
+
+  return (
+    <span className="relative">
+      <button
+        className={clsx(
+          "rounded-full border px-2.5 py-[3px] text-[11.5px] transition-colors",
+          mo
+            ? "border-accent/45 bg-accent/15 text-fg"
+            : "border-border bg-panel text-muted hover:text-fg",
+        )}
+        onClick={() => setMo((v) => !v)}
+        aria-expanded={mo}
+      >
+        ⓘ {nhan}
+      </button>
+      {mo && (
+        <span className="absolute left-0 top-[calc(100%+6px)] z-20 block w-[46ch] rounded-lg border border-border bg-panel2 p-3 text-[12.5px] leading-relaxed text-muted shadow-lg">
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
+
 interface MucNavProps {
   ten: string;
   soO?: number;
@@ -218,11 +259,17 @@ interface MucNavProps {
 
 function MucNav({ ten, soO, coThayDoi, dangXem, onChon }: MucNavProps) {
   return (
+    //: Mục đang chọn phải NHÌN LÀ BIẾT: nền mờ không đủ, thêm vạch màu bên
+    //: trái và mũi tên bên phải — giống hệt cách sidebar chính đánh dấu trang
+    //: đang mở, nên không phải học thêm quy ước mới.
     <button
       onClick={onChon}
+      aria-current={dangXem ? "true" : undefined}
       className={clsx(
-        "flex w-full items-center gap-2 rounded-lg px-3 py-[7px] text-left text-[13px] transition-colors",
-        dangXem ? "bg-accent/12 font-medium text-fg" : "text-muted hover:bg-panel2 hover:text-fg",
+        "flex w-full items-center gap-2 rounded-lg border-l-2 px-3 py-[7px] text-left text-[13px] transition-colors",
+        dangXem
+          ? "border-accent bg-accent/12 font-medium text-fg"
+          : "border-transparent text-muted hover:bg-panel2 hover:text-fg",
       )}
     >
       <span className="flex-1 truncate">{ten}</span>
@@ -231,6 +278,9 @@ function MucNav({ ten, soO, coThayDoi, dangXem, onChon }: MucNavProps) {
       ) : (
         soO != null && <span className="shrink-0 text-[11px] text-muted/70">{soO}</span>
       )}
+      <span className={clsx("shrink-0 text-[11px]", dangXem ? "text-accent" : "text-transparent")}>
+        ›
+      </span>
     </button>
   );
 }
