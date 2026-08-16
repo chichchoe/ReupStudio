@@ -537,9 +537,11 @@ def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
             ra.append(
                 {
                     "provider": "openrouter",
-                    "ghi_chu": "Trả tiền theo lượt, KHÔNG có bậc miễn phí. "
-                    "Dùng khi Gemini hết hạn mức.",
-                    "models": ["openai/gpt-audio", "openai/gpt-audio-mini"],
+                    "ghi_chu": "Trả tiền theo lượt (bản mini ~0,7 xu mỗi câu), "
+                    "KHÔNG có bậc miễn phí.",
+                    #: Bản rẻ ĐỨNG TRƯỚC — token audio $0,60/1M so với $32/1M,
+                    #: đắt gấp 53 lần. Ai bấm nhanh cũng phải rơi vào bản rẻ.
+                    "models": ["openai/gpt-audio-mini", "openai/gpt-audio"],
                     "giong": _GIONG_OPENROUTER,
                 }
             )
