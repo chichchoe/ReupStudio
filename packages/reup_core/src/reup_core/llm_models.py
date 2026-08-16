@@ -91,13 +91,40 @@ def _chuan_hoa(model_id: str) -> str:
     return ten.split("/", 1)[1] if "/" in ten else ten
 
 
-def phan_loai(model_id: str) -> ModelPurpose:
-    """Model này dùng được vào việc gì trong dự án."""
+def phan_loai(model_id: str, *, dau_ra: list[str] | None = None) -> ModelPurpose:
+    """Model này dùng được vào việc gì trong dự án.
+
+    ``dau_ra`` là danh sách kiểu dữ liệu model SINH RA, do chính nhà cung cấp
+    khai (OpenRouter trả ``architecture.output_modalities``). Có nó thì tin
+    nó — đoán qua tên chỉ là đường lui cho nhà cung cấp không khai gì.
+
+    Vì sao quan trọng: đoán qua tên là quy tắc đẻ ra từ danh mục Gemini, nơi
+    model đọc thành tiếng đều có đuôi ``-tts``. OpenRouter đặt tên khác hẳn —
+    ``openai/gpt-audio`` đọc thành tiếng thật mà trong tên không có chữ "tts"
+    nào. Đếm ngày 2026-08-16: chỉ soi tên thì kết luận OpenRouter có 0 model
+    đọc tiếng, trong khi họ khai rõ 4 model sinh ra audio.
+    """
     ten = _chuan_hoa(model_id)
+
+    #: Tên nói rõ là TTS thì khỏi cần xét gì thêm (đường của Gemini).
     if _TTS.search(ten):
         return ModelPurpose.TTS
+    #: Chặn theo tên đi TRƯỚC modality: ``lyria`` cũng sinh ra audio nhưng là
+    #: NHẠC, không phải giọng đọc — nhận nhầm là lồng tiếng bằng nhạc nền.
     if _KHONG_DUNG.search(ten):
         return ModelPurpose.OTHER
+
+    if dau_ra:
+        ra = {m.lower() for m in dau_ra}
+        if "audio" in ra:
+            return ModelPurpose.TTS
+        if "image" in ra or "video" in ra:
+            return ModelPurpose.OTHER
+        if ra == {"text"}:
+            #: Nhà cung cấp khai "chỉ sinh ra văn bản" — đó là bằng chứng chắc
+            #: hơn mọi suy đoán từ tên, kể cả với họ model chưa từng thấy.
+            return ModelPurpose.TRANSLATE
+
     if _VAN_BAN.match(ten):
         return ModelPurpose.TRANSLATE
     return ModelPurpose.OTHER

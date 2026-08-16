@@ -46,7 +46,7 @@ DANH_MUC: dict[str, NhaCungCap] = {
         ten="OpenRouter",
         base_url="https://openrouter.ai/api/v1",
         trang_lay_khoa="https://openrouter.ai/keys",
-        ghi_chu="Một khoá dùng được model của nhiều hãng. Không có TTS.",
+        ghi_chu="Một khoá dùng được model của nhiều hãng. Có vài model đọc thành tiếng (openai/gpt-audio) nhưng ReupStudio chưa gọi được.",
         model_goi_y=["deepseek/deepseek-chat", "google/gemini-flash-1.5"],
     ),
     "anthropic": NhaCungCap(
@@ -84,6 +84,18 @@ DANH_MUC: dict[str, NhaCungCap] = {
 }
 
 
+@dataclass(frozen=True)
+class ModelInfo:
+    """Một model kèm thứ nhà cung cấp KHAI về nó.
+
+    ``dau_ra`` rỗng nghĩa là nhà cung cấp không khai gì (Gemini, Anthropic) —
+    lúc đó chỗ phân loại phải quay về đoán theo tên.
+    """
+
+    ma: str
+    dau_ra: list[str]
+
+
 def _header(nha: NhaCungCap, api_key: str) -> dict[str, str]:
     if nha.kieu_xac_thuc == "x-api-key":
         return {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
@@ -106,6 +118,10 @@ def hoi_danh_sach_model(
     Lỗi mạng hay khoá sai thì ném ``ValueError`` với thông báo ĐÃ CHE KHOÁ —
     chỗ gọi bắt và hiện lên giao diện.
     """
+    return [m.ma for m in _lay_model(_tai_json(ma, api_key, base_url, timeout=timeout))]
+
+
+def _tai_json(ma: str, api_key: str, base_url: str, *, timeout: int) -> object:
     nha = DANH_MUC.get(ma)
     if nha is None:
         raise ValueError(f"Không biết nhà cung cấp '{ma}'")
@@ -118,18 +134,28 @@ def hoi_danh_sach_model(
 
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
-            data = json.load(r)
+            return json.load(r)
     except urllib.error.HTTPError as exc:
         than = exc.read().decode("utf-8", "replace")[:200]
         raise ValueError(f"HTTP {exc.code}: {che_khoa(than, api_key)}") from exc
     except Exception as exc:
         raise ValueError(che_khoa(str(exc), api_key)) from exc
 
-    return _lay_ten_model(data)
+
+def hoi_model_chi_tiet(
+    ma: str, api_key: str, base_url: str = "", *, timeout: int = 20
+) -> list[ModelInfo]:
+    """Như ``hoi_danh_sach_model`` nhưng giữ lại phần khai báo khả năng.
+
+    Tách hàm riêng thay vì đổi kiểu trả về của hàm cũ: hàm cũ đang được dùng ở
+    vài chỗ chỉ cần tên, đổi kiểu là phải sửa hết mà không được gì.
+    """
+    data = _tai_json(ma, api_key, base_url, timeout=timeout)
+    return _lay_model(data)
 
 
-def _lay_ten_model(data: object) -> list[str]:
-    """Rút tên model từ nhiều hình dạng JSON khác nhau.
+def _lay_model(data: object) -> list[ModelInfo]:
+    """Rút tên model và khả năng model từ nhiều hình dạng JSON khác nhau.
 
     OpenAI và tương thích trả ``{"data": [{"id": ...}]}``; Anthropic cũng vậy
     nhưng đôi khi kèm ``display_name``. Chấp nhận cả ``{"models": [...]}`` để
@@ -142,13 +168,17 @@ def _lay_ten_model(data: object) -> list[str]:
     else:
         return []
 
-    ra: list[str] = []
+    ra: dict[str, list[str]] = {}
     for m in muc:
         if isinstance(m, str):
-            ra.append(m)
+            ra.setdefault(m, [])
         elif isinstance(m, dict):
             ten = m.get("id") or m.get("name") or m.get("model")
-            if ten:
-                #: Gemini trả về "models/gemini-..." — bỏ tiền tố cho gọn.
-                ra.append(str(ten).removeprefix("models/"))
-    return sorted(set(ra))
+            if not ten:
+                continue
+            #: Gemini trả về "models/gemini-..." — bỏ tiền tố cho gọn.
+            ten = str(ten).removeprefix("models/")
+            kien_truc = m.get("architecture") or {}
+            dau_ra = kien_truc.get("output_modalities") or []
+            ra[ten] = [str(x) for x in dau_ra] if isinstance(dau_ra, list) else []
+    return [ModelInfo(ma=k, dau_ra=v) for k, v in sorted(ra.items())]

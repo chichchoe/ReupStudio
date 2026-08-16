@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from reup_core.ai_providers import DANH_MUC, hoi_danh_sach_model
+from reup_core.ai_providers import DANH_MUC, hoi_model_chi_tiet
 from reup_core.llm_models import ModelPurpose, phan_loai
 from reup_core.models import AiProvider
 from reup_core.settings_store import fernet
@@ -107,12 +107,16 @@ def models(db: Session, ma: str, muc_dich: str = "translate") -> list[str]:
         raise ApiError(f"Chưa dán khoá cho {DANH_MUC[ma].ten}.")
 
     try:
-        tat_ca = hoi_danh_sach_model(ma, khoa, (row.base_url if row else "") or "")
+        #: Hỏi bản CHI TIẾT để lấy cả phần nhà cung cấp khai về khả năng model.
+        #: Đoán qua tên là quy tắc đẻ ra từ danh mục Gemini; OpenRouter khai rõ
+        #: ``output_modalities`` nên đoán tên ở đó vừa thừa vừa sai.
+        chi_tiet = hoi_model_chi_tiet(ma, khoa, (row.base_url if row else "") or "")
     except ValueError as exc:
         raise ApiError(f"Không hỏi được danh sách model: {exc}") from exc
 
+    tat_ca = [m.ma for m in chi_tiet]
     dich = ModelPurpose(muc_dich) if muc_dich in {"translate", "tts"} else ModelPurpose.TRANSLATE
-    loc = [m for m in tat_ca if phan_loai(m) is dich]
+    loc = [m.ma for m in chi_tiet if phan_loai(m.ma, dau_ra=m.dau_ra) is dich]
 
     #: Lọc rỗng thì XỬ LÝ KHÁC NHAU tuỳ việc, không dùng chung một đường lui.
     #:
@@ -121,10 +125,9 @@ def models(db: Session, ma: str, muc_dich: str = "translate") -> list[str]:
     #: vẫn dịch được, thà hiện thừa còn hơn hiện ô rỗng.
     #:
     #: Giọng đọc: TRẢ RỖNG. Một model văn bản không bao giờ đọc thành tiếng
-    #: được, nên đường lui kia biến "bên này không có TTS" thành "đây, 413 giọng
-    #: cho bạn chọn". Đo ngày 2026-08-16: OpenRouter có 0 model TTS mà endpoint
-    #: trả về đủ 413. Chọn phải một cái là bước lồng tiếng hỏng — đúng kiểu hỏng
-    #: vừa làm mất trắng một video.
+    #: được, nên đường lui kia biến "bên này không có model đọc tiếng" thành
+    #: "đây, 413 giọng cho bạn chọn". Chọn phải một cái là bước lồng tiếng
+    #: hỏng — đúng kiểu hỏng vừa làm mất trắng một video.
     if dich is ModelPurpose.TTS:
         return loc
     return loc or tat_ca

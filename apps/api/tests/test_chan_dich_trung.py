@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 from reup_core.enums import VideoStatus
+
 from src.errors import ApiError
 from src.services import video_service
 
