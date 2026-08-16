@@ -113,7 +113,18 @@ def models(db: Session, ma: str, muc_dich: str = "translate") -> list[str]:
 
     dich = ModelPurpose(muc_dich) if muc_dich in {"translate", "tts"} else ModelPurpose.TRANSLATE
     loc = [m for m in tat_ca if phan_loai(m) is dich]
-    #: Không lọc ra cái nào thì trả nguyên danh sách: bộ phân loại dựa trên tên
-    #: model, mà nhà cung cấp mới có thể đặt tên theo kiểu nó chưa biết. Thà
-    #: hiện thừa còn hơn hiện ô rỗng làm người dùng tưởng hỏng.
+
+    #: Lọc rỗng thì XỬ LÝ KHÁC NHAU tuỳ việc, không dùng chung một đường lui.
+    #:
+    #: Dịch: trả nguyên danh sách. Bộ phân loại dựa trên tên, mà nhà cung cấp
+    #: mới có thể đặt tên theo kiểu nó chưa biết; một model văn bản lạ thường
+    #: vẫn dịch được, thà hiện thừa còn hơn hiện ô rỗng.
+    #:
+    #: Giọng đọc: TRẢ RỖNG. Một model văn bản không bao giờ đọc thành tiếng
+    #: được, nên đường lui kia biến "bên này không có TTS" thành "đây, 413 giọng
+    #: cho bạn chọn". Đo ngày 2026-08-16: OpenRouter có 0 model TTS mà endpoint
+    #: trả về đủ 413. Chọn phải một cái là bước lồng tiếng hỏng — đúng kiểu hỏng
+    #: vừa làm mất trắng một video.
+    if dich is ModelPurpose.TTS:
+        return loc
     return loc or tat_ca
