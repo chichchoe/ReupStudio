@@ -218,33 +218,32 @@ export default function SettingsPage() {
 }
 
 /**
- * Đoạn giải thích thu lại thành một thẻ nhỏ, bấm mới mở.
+ * Đoạn giải thích thu lại thành một thẻ nhỏ, rê chuột vào là hiện.
  *
  * Mấy đoạn này chỉ cần đọc MỘT lần — lần đầu vào trang. Để nguyên dạng đoạn
  * văn thì lần thứ hai mươi vào sửa cỡ chữ phụ đề vẫn phải lướt qua chúng.
+ *
+ * Hiện bằng CSS chứ không giữ state: rê vào hiện, rời ra ẩn, không phải bấm
+ * mở rồi bấm đóng. `group-focus-within` để bàn phím cũng đọc được — thẻ là
+ * `button` nên tab tới được, không phải chuột mới xem được.
  */
 function TheGiaiThich({ nhan, children }: { nhan: string; children: React.ReactNode }) {
-  const [mo, setMo] = useState(false);
-
   return (
-    <span className="relative">
+    <span className="group relative">
       <button
-        className={clsx(
-          "rounded-full border px-2.5 py-[3px] text-[11.5px] transition-colors",
-          mo
-            ? "border-accent/45 bg-accent/15 text-fg"
-            : "border-border bg-panel text-muted hover:text-fg",
-        )}
-        onClick={() => setMo((v) => !v)}
-        aria-expanded={mo}
+        type="button"
+        className="cursor-help rounded-full border border-border bg-panel px-2.5 py-[3px] text-[11.5px] text-muted transition-colors group-hover:border-accent/45 group-hover:bg-accent/15 group-hover:text-fg group-focus-within:border-accent/45 group-focus-within:bg-accent/15 group-focus-within:text-fg"
       >
         ⓘ {nhan}
       </button>
-      {mo && (
-        <span className="absolute left-0 top-[calc(100%+6px)] z-20 block w-[46ch] rounded-lg border border-border bg-panel2 p-3 text-[12.5px] leading-relaxed text-muted shadow-lg">
-          {children}
-        </span>
-      )}
+      {/* `pointer-events-none` để bong bóng không che mất thứ nằm dưới nó —
+          đây là chữ để đọc, không có gì bấm vào trong. */}
+      <span
+        role="tooltip"
+        className="pointer-events-none invisible absolute left-0 top-[calc(100%+6px)] z-20 block w-[46ch] rounded-lg border border-border bg-panel2 p-3 text-[12.5px] leading-relaxed text-muted opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+      >
+        {children}
+      </span>
     </span>
   );
 }
