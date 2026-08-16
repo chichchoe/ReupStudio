@@ -89,7 +89,8 @@ export interface paths {
          *     Giấu phần đánh đổi đi thì người dùng chọn Gemini cho video 672 câu rồi hết
          *     hạn mức giữa chừng — mỗi câu là một lượt gọi.
          *
-         *     OpenRouter không có mặt: nó định tuyến model ngôn ngữ, không sinh audio.
+         *     OpenRouter chỉ hiện khi đã dán khoá: nó có ``openai/gpt-audio`` đọc được
+         *     tiếng nhưng tính TIỀN theo lượt, không có bậc miễn phí.
          */
         get: operations["tts_options_api_v1_videos_tts_options_get"];
         put?: never;
@@ -986,6 +987,16 @@ export interface components {
             enabled: boolean;
             /** Model Goi Y */
             model_goi_y?: string[];
+            /**
+             * Mac Dinh
+             * @default false
+             */
+            mac_dinh: boolean;
+            /**
+             * Model Mac Dinh
+             * @default
+             */
+            model_mac_dinh: string;
         };
         /** NhomCauHinhOut */
         NhomCauHinhOut: {
@@ -1461,6 +1472,16 @@ export interface components {
             models?: string[];
             /** Giong */
             giong?: components["schemas"]["GiongDocOut"][];
+            /**
+             * Mac Dinh
+             * @default false
+             */
+            mac_dinh: boolean;
+            /**
+             * Giong Mac Dinh
+             * @default
+             */
+            giong_mac_dinh: string;
         };
         /** ValidationError */
         ValidationError: {

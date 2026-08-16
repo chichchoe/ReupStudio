@@ -500,6 +500,8 @@ def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
     """Giọng đọc chọn được, nhóm theo nhà cung cấp, kèm đánh đổi."""
     from ..config import get_settings
 
+    settings = get_settings()
+
     ra: list[dict[str, Any]] = [
         {
             "provider": "edge",
@@ -511,7 +513,7 @@ def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
 
     #: Không có khoá thì KHÔNG liệt kê Gemini: hiện ra rồi bấm vào mới báo lỗi
     #: là cách chắc chắn nhất làm người dùng tưởng hỏng.
-    if get_settings().llm_api_key:
+    if settings.llm_api_key:
         ra.append(
             {
                 "provider": "gemini",
@@ -541,4 +543,13 @@ def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
                     "giong": _GIONG_OPENROUTER,
                 }
             )
+
+    #: Bên nào được chọn sẵn — do BACKEND quyết (``TTS_PROVIDER`` trong Cấu
+    #: hình), không nhét cứng trong React. Bên mặc định mà chưa dán khoá thì
+    #: không có trong danh sách này, lúc đó giao diện tự rơi về mục đầu.
+    for nhom in ra:
+        nhom["mac_dinh"] = nhom["provider"] == settings.tts_provider
+        nhom["giong_mac_dinh"] = (
+            settings.tts_giong if nhom["provider"] == settings.tts_provider else ""
+        )
     return ra

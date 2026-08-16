@@ -27,9 +27,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # --- dịch thuật ---
-    llm_provider: str = "mock"  # anthropic | openai | mock
+    #: Bên và model dùng khi video chưa chọn riêng. Người dùng vẫn đổi được cho
+    #: từng video ở tab Chờ dịch; đây chỉ là cái được chọn sẵn.
+    llm_provider: str = "openrouter"
     llm_api_key: str = ""
-    llm_model: str = "claude-sonnet-5"
+    llm_model: str = "deepseek/deepseek-v4-flash-0731"
     llm_batch_size: int = 25
     #: Địa chỉ gốc của API tương thích OpenAI. Gemini, Groq, OpenRouter,
     #: DeepSeek và Ollama đều nói đúng giao thức ``/chat/completions`` này, nên
@@ -79,6 +81,13 @@ class Settings(BaseSettings):
     sub_max_lines: int = 2
     sub_min_duration: float = 1.2
 
+    # --- lồng tiếng ---
+    #: Bên đọc và giọng mặc định. ``edge`` miễn phí; ``openrouter`` và
+    #: ``gemini`` tính tiền/hạn mức nên đổi mặc định sang chúng là quyết định
+    #: có chủ ý, không phải mặc định an toàn.
+    tts_provider: str = "openrouter"
+    tts_giong: str = ""
+    tts_model: str = ""
     #: Âm GỐC bị hạ xuống mức này khi trộn giọng Việt vào. 0 = tắt hẳn.
     #: Không tắt mặc định vì nhạc nền và tiếng động hiện trường là một phần nội
     #: dung; nhưng 0,18 vẫn còn nghe rõ lời gốc chen vào lời Việt, nên hạ xuống

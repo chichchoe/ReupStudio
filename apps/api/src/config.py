@@ -36,7 +36,14 @@ class Settings(BaseSettings):
     #: Model mặc định. API chỉ đọc để trả về cho giao diện CHỌN SẴN trong ô
     #: chọn — việc dịch là của worker. Tên khớp ``apps/worker/src/config.py``
     #: để hai app đọc chung một dòng trong ``.env``.
-    llm_model: str = ""
+    llm_model: str = "deepseek/deepseek-v4-flash-0731"
+    #: Bên dịch chọn sẵn ở tab Chờ dịch. API chỉ đọc để trả cho giao diện;
+    #: worker mới là chỗ thật sự gọi. Tên khớp ``apps/worker/src/config.py``.
+    llm_provider: str = "openrouter"
+    #: Bên đọc và giọng chọn sẵn — cùng lý do như trên.
+    tts_provider: str = "openrouter"
+    tts_giong: str = ""
+    tts_model: str = ""
     #: Trần hạn mức tự đặt — nhà cung cấp không trả header hạn mức nào nên phải
     #: tự khai và tự đếm. 0 = không giới hạn.
     llm_max_requests_per_min: int = 0

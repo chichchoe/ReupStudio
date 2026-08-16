@@ -66,8 +66,12 @@ export function PendingVideoRow({
   // Chỉ hiện những bên ĐÃ dán khoá — hiện cả bên chưa có khoá rồi báo lỗi lúc
   // bấm Dịch là cách chắc chắn nhất làm người dùng tưởng hỏng.
   const sanSang = nhaCungCap.filter((n) => n.da_dat_khoa || !n.can_khoa);
-  const [provider, setProvider] = useState(sanSang[0]?.ma ?? "");
-  const maNhaCungCap = provider || sanSang[0]?.ma || "";
+  //: Bên được chọn sẵn do BACKEND quyết (`LLM_PROVIDER` trong Cấu hình), không
+  //: phải "cái đầu danh sách". Nhét cứng ở đây thì đổi trong Cấu hình xong
+  //: giao diện vẫn chọn bên cũ, mà không ai hiểu vì sao.
+  const benMacDinh = sanSang.find((n) => n.mac_dinh)?.ma ?? sanSang[0]?.ma ?? "";
+  const [provider, setProvider] = useState("");
+  const maNhaCungCap = provider || benMacDinh;
 
   // Hỏi THẲNG nhà cung cấp xem khoá này dùng được model nào. Hỏi trực tiếp thay
   // vì để người dùng gõ tay: gõ sai một ký tự thì lỗi chỉ hiện ra lúc dịch, sau
@@ -82,15 +86,24 @@ export function PendingVideoRow({
   });
 
   const [chosen, setChosen] = useState("");
-  const model = chosen || models[0] || "";
+  //: Model chọn sẵn của bên mặc định (`LLM_MODEL`). Chỉ dùng khi nó THẬT SỰ có
+  //: trong danh sách model của bên đang chọn — đổi bên mà vẫn giữ model của
+  //: bên cũ là bấm Dịch xong ăn lỗi.
+  const modelMacDinh = sanSang.find((n) => n.ma === maNhaCungCap)?.model_mac_dinh ?? "";
+  const model = chosen || (models.includes(modelMacDinh) ? modelMacDinh : models[0] || "");
 
-  const [ttsProvider, setTtsProvider] = useState(ttsOptions[0]?.provider ?? "edge");
+  const [ttsProvider, setTtsProvider] = useState("");
   const [giong, setGiong] = useState("");
 
-  const nhomGiong = ttsOptions.find((o) => o.provider === ttsProvider);
-  const giongDaChon = giong || nhomGiong?.giong?.[0]?.ma || "";
+  const benDocMacDinh =
+    ttsOptions.find((o) => o.mac_dinh)?.provider ?? ttsOptions[0]?.provider ?? "edge";
+  const benDoc = ttsProvider || benDocMacDinh;
+  const nhomGiong = ttsOptions.find((o) => o.provider === benDoc);
+  const giongMacDinh = nhomGiong?.giong_mac_dinh ?? "";
+  const coGiongMacDinh = nhomGiong?.giong?.some((g) => g.ma === giongMacDinh) ?? false;
+  const giongDaChon = giong || (coGiongMacDinh ? giongMacDinh : nhomGiong?.giong?.[0]?.ma || "");
   const quaNhieuCauChoGemini =
-    ttsProvider === "gemini" && cueCount != null && cueCount > CAU_TOI_DA_CHO_GEMINI;
+    benDoc === "gemini" && cueCount != null && cueCount > CAU_TOI_DA_CHO_GEMINI;
 
   const title = video.title_vi || video.title_original || video.source_video_id;
 
@@ -160,7 +173,7 @@ export function PendingVideoRow({
               llmProvider: maNhaCungCap,
               llmModel: model,
               xoaChuCung,
-              ttsProvider,
+              ttsProvider: benDoc,
               giongDoc: giongDaChon,
             })
           }
@@ -225,7 +238,7 @@ export function PendingVideoRow({
           <span className="text-muted">Giọng</span>
           <select
             className="input w-28 py-1"
-            value={ttsProvider}
+            value={benDoc}
             onChange={(e) => doiGiongProvider(e.target.value)}
             aria-label="Chọn nhà cung cấp giọng đọc"
           >

@@ -658,20 +658,23 @@ def _khoa_llm_cho_translate(video) -> dict[str, str]:
 def _cau_hinh_tts(video) -> tuple[str, str, str]:
     """``(nhà cung cấp, giọng, model)`` cho bước lồng tiếng, đọc từ preset.
 
-    Mặc định edge-tts: miễn phí và không tính lượt. Gemini TTS cho giọng hay
-    hơn nhưng tính hạn mức MỖI CÂU — một video 672 câu đã vượt trần ngày, nên
-    nó phải là lựa chọn có chủ ý, không phải mặc định.
+    Video chưa chọn riêng thì rơi về cấu hình chung (``TTS_PROVIDER``,
+        ``TTS_GIONG``, ``TTS_MODEL``) — sửa được ở trang Cấu hình, mục Lồng tiếng.
+
+        edge-tts miễn phí và không tính lượt; Gemini và OpenRouter cho giọng hay
+        hơn nhưng tính hạn mức/tiền MỖI CÂU — một video 672 câu đủ vượt trần ngày.
     """
+    settings = get_settings()
     config = video.process_config or {}
-    nha = str(config.get("tts_provider") or "edge")
+    nha = str(config.get("tts_provider") or settings.tts_provider or "edge")
     if nha == "gemini":
         from ..tts.gemini import GIONG_MAC_DINH as GIONG_GEMINI_MD
         from ..tts.gemini import MODEL_MAC_DINH
 
         return (
             nha,
-            str(config.get("giong_doc") or GIONG_GEMINI_MD),
-            str(config.get("tts_model") or MODEL_MAC_DINH),
+            str(config.get("giong_doc") or settings.tts_giong or GIONG_GEMINI_MD),
+            str(config.get("tts_model") or settings.tts_model or MODEL_MAC_DINH),
         )
     if nha == "openrouter":
         from ..tts.openrouter import GIONG_MAC_DINH as GIONG_OR
@@ -679,10 +682,10 @@ def _cau_hinh_tts(video) -> tuple[str, str, str]:
 
         return (
             nha,
-            str(config.get("giong_doc") or GIONG_OR),
-            str(config.get("tts_model") or MODEL_OR),
+            str(config.get("giong_doc") or settings.tts_giong or GIONG_OR),
+            str(config.get("tts_model") or settings.tts_model or MODEL_OR),
         )
-    return (nha, str(config.get("giong_doc") or GIONG_MAC_DINH), "")
+    return (nha, str(config.get("giong_doc") or settings.tts_giong or GIONG_MAC_DINH), "")
 
 
 def _khoa_tts(nha: str) -> str:

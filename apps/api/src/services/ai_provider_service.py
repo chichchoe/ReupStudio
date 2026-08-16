@@ -20,7 +20,13 @@ from ..errors import ApiError, NotFound
 
 def danh_sach(db: Session) -> list[dict[str, Any]]:
     """Mọi nhà cung cấp trong danh mục, kèm trạng thái đã cấu hình hay chưa."""
+    from ..config import get_settings
+
     da_luu = {r.ma: r for r in db.scalars(select(AiProvider))}
+    #: Bên và model được chọn sẵn ở tab Chờ dịch. Để BACKEND quyết chứ không
+    #: nhét cứng trong React: hai chỗ cùng giữ một mặc định thì sớm muộn lệch
+    #: nhau, và người dùng đổi trong Cấu hình mà giao diện không đổi theo.
+    settings = get_settings()
 
     ra: list[dict[str, Any]] = []
     for ma, nha in DANH_MUC.items():
@@ -39,6 +45,10 @@ def danh_sach(db: Session) -> list[dict[str, Any]]:
                 "da_dat_khoa": bool(row and row.api_key_encrypted),
                 "enabled": bool(row.enabled) if row else False,
                 "model_goi_y": nha.model_goi_y,
+                "mac_dinh": ma == settings.llm_provider,
+                #: Chỉ điền cho bên mặc định — model mặc định của bên khác là
+                #: vô nghĩa, và điền bừa thì giao diện chọn nhầm.
+                "model_mac_dinh": settings.llm_model if ma == settings.llm_provider else "",
             }
         )
     return ra

@@ -18,6 +18,10 @@ class NhaCungCapOut(BaseModel):
     da_dat_khoa: bool
     enabled: bool
     model_goi_y: list[str] = Field(default_factory=list)
+    #: Bên được chọn sẵn ở tab Chờ dịch, theo ``LLM_PROVIDER`` trong Cấu hình.
+    mac_dinh: bool = False
+    #: Model chọn sẵn — CHỈ điền cho bên mặc định, bên khác luôn rỗng.
+    model_mac_dinh: str = ""
 
 
 class SuaNhaCungCapIn(BaseModel):

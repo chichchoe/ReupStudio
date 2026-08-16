@@ -49,6 +49,8 @@ LUA_CHON: dict[str, list[str]] = {
     "DEDUP_ENABLED": ["true", "false"],
     "SUB_MAX_LINES": ["1", "2", "3"],
     "YTDLP_COOKIES_FROM_BROWSER": ["", "chrome", "firefox", "edge", "safari"],
+    "LLM_PROVIDER": ["gemini", "openrouter", "anthropic", "deepseek", "openai", "ollama"],
+    "TTS_PROVIDER": ["edge", "gemini", "openrouter"],
 }
 
 #: Ô số — giao diện hiện bàn phím số và chặn chữ ngay tại chỗ nhập.
@@ -114,6 +116,8 @@ NHOM: list[tuple[str, str, list[tuple[str, str]]]] = [
         [
             #: Khoá và địa chỉ của từng nhà cung cấp KHÔNG nằm ở đây — chúng có
             #: mục riêng vì người dùng cấu hình nhiều bên cùng lúc.
+            ("LLM_PROVIDER", "Bên dịch chọn sẵn ở tab Chờ dịch"),
+            ("LLM_MODEL", "Model dịch chọn sẵn, VD deepseek/deepseek-v4-flash-0731"),
             ("LLM_BATCH_SIZE", "Số câu gửi mỗi lượt gọi"),
             ("LLM_MAX_REQUESTS_PER_MIN", "Trần lượt/phút tự khai. 0 = không giới hạn"),
             ("LLM_MAX_REQUESTS_PER_DAY", "Trần lượt/ngày tự khai. 0 = không giới hạn"),
@@ -138,6 +142,9 @@ NHOM: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "DUB_ORIGINAL_VOLUME",
                 "Mức âm gốc còn lại khi trộn giọng Việt. 0 = tắt hẳn tiếng gốc",
             ),
+            ("TTS_PROVIDER", "Bên đọc chọn sẵn: edge (miễn phí) · gemini · openrouter"),
+            ("TTS_GIONG", "Mã giọng chọn sẵn. Để trống = giọng đầu của bên đó"),
+            ("TTS_MODEL", "Model đọc, chỉ dùng cho gemini và openrouter"),
         ],
     ),
     (

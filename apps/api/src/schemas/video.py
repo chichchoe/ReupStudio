@@ -126,6 +126,10 @@ class TtsOptionsOut(BaseModel):
     ghi_chu: str
     models: list[str] = Field(default_factory=list)
     giong: list[GiongDocOut] = Field(default_factory=list)
+    #: Bên được chọn sẵn, theo ``TTS_PROVIDER`` trong Cấu hình.
+    mac_dinh: bool = False
+    #: Giọng chọn sẵn — CHỈ điền cho bên mặc định.
+    giong_mac_dinh: str = ""
 
 
 class BulkAction(BaseModel):
