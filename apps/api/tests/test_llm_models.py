@@ -101,3 +101,43 @@ def test_model_hieu_video_khong_phai_model_dich() -> None:
     tự nghĩ ra.
     """
     assert phan_loai("gemini-3.7-flash-video-understanding-eap") is ModelPurpose.OTHER
+
+
+#: OpenRouter đặt tên theo ``hãng/model``. Mã cũ neo ``^`` vào cả chuỗi nên
+#: 319 trên 413 model bị giấu đi (đếm ngày 2026-08-16) — kể cả ``google/gemini``
+#: và toàn bộ model miễn phí. Người dùng chọn OpenRouter chỉ thấy một phần tư
+#: danh mục mà không hiểu vì sao.
+OPENROUTER_DICH = [
+    "google/gemini-3.7-flash",
+    "google/gemma-4-31b-it:free",
+    "anthropic/claude-sonnet-5",
+    "meta-llama/llama-4-maverick",
+    "openai/gpt-oss-20b:free",
+    "x-ai/grok-4.6",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "deepseek/deepseek-v3.2",
+    "qwen/qwen3-max",
+    "mistralai/mistral-large-2512",
+]
+
+OPENROUTER_KHAC = [
+    "google/gemini-3-pro-image",
+    "google/lyria-3-pro-preview",
+    "openai/gpt-5.4-image-2",
+]
+
+
+@pytest.mark.parametrize("model_id", OPENROUTER_DICH)
+def test_bo_tien_to_hang_cua_openrouter(model_id: str) -> None:
+    assert phan_loai(model_id) is ModelPurpose.TRANSLATE
+
+
+@pytest.mark.parametrize("model_id", OPENROUTER_KHAC)
+def test_model_sinh_anh_cua_openrouter_van_bi_loai(model_id: str) -> None:
+    """Bỏ tiền tố hãng KHÔNG được làm lọt model sinh ảnh vào danh sách dịch."""
+    assert phan_loai(model_id) is ModelPurpose.OTHER
+
+
+def test_ten_la_van_khong_duoc_doan_bua() -> None:
+    """Bỏ tiền tố hãng không có nghĩa là nhận bừa mọi thứ có dấu gạch chéo."""
+    assert phan_loai("hang-la/mo-hinh-khong-ai-biet") is ModelPurpose.OTHER

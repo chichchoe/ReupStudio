@@ -64,12 +64,31 @@ _KHONG_DUNG = re.compile(
 )
 
 #: Họ model có khả năng nhận và trả văn bản theo lô.
-_VAN_BAN = re.compile(r"^(gemini|gemma|gpt|claude|llama|qwen|mistral|deepseek)")
+#:
+#: Danh sách này CHỈ mở rộng khi có bằng chứng: mỗi tên ở đây đều có mặt thật
+#: trong danh mục OpenRouter (đếm ngày 16.08.2026). Không thêm theo cảm tính —
+#: tên lạ vẫn xếp vào "khác", vì mời người dùng chọn một model không dịch được
+#: chỉ để họ mất một lượt gọi rồi đọc thông báo lỗi khó hiểu.
+_VAN_BAN = re.compile(
+    r"^(gemini|gemma|gpt|o[34]\b|claude|llama|qwen|mistral|ministral|magistral"
+    r"|deepseek|grok|nemotron|glm|kimi|minimax|command|sonar|hermes|phi|yi"
+    r"|solar|seed|nova|ling|olmo|granite|jamba|exaone|ernie|reka|arcee|apriel)"
+)
 
 
 def _chuan_hoa(model_id: str) -> str:
-    """API Gemini trả ``models/gemini-...``; phần đầu đó không phải tên model."""
-    return model_id.strip().removeprefix("models/").lower()
+    """Bỏ những phần KHÔNG phải tên model ra khỏi mã.
+
+    Hai kiểu tiền tố phải bỏ:
+
+    - ``models/gemini-...`` — API Gemini trả kèm.
+    - ``google/gemini-...`` — OpenRouter đặt tên theo ``hãng/model``. Không bỏ
+      thì ``_VAN_BAN`` neo ``^`` không bao giờ khớp, và 319 trên 413 model của
+      OpenRouter bị giấu đi (đếm ngày 16.08.2026) — kể cả ``google/gemini``,
+      ``x-ai/grok`` và toàn bộ model miễn phí.
+    """
+    ten = model_id.strip().removeprefix("models/").lower()
+    return ten.split("/", 1)[1] if "/" in ten else ten
 
 
 def phan_loai(model_id: str) -> ModelPurpose:
