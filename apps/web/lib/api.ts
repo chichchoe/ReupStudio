@@ -23,6 +23,7 @@ import type {
   Video,
   CauHinh,
   NhaCungCapAI,
+  ThongTinMay,
   TtsOptions,
   TuyChonDich,
 } from "./types";
@@ -251,6 +252,13 @@ export const api = {
     request<{ khoa: string; huong_dan: string }>("/settings/sinh-khoa-ma-hoa", {
       method: "POST",
     }),
+
+  /** Máy đang chạy là máy nào, và còn thiếu gì để chạy được. */
+  thongTinMay: () => request<ThongTinMay>("/settings/may"),
+
+  /** Làm hộ những bước dựng máy mới mà API tự làm được. */
+  caiDatNhanh: () =>
+    request<{ da_lam: string[] }>("/settings/cai-dat-nhanh", { method: "POST" }),
 
   /** URL dải tiếng Việt để nghe thử trong thẻ `<audio>`. */
   voiceTrackUrl: (id: string) => `${PREFIX}/videos/${id}/voice-track`,

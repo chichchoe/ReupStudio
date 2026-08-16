@@ -52,6 +52,8 @@ export type CauHinh = S["CauHinhOut"];
 export type NhomCauHinh = S["NhomCauHinhOut"];
 export type MucCauHinh = S["MucCauHinhOut"];
 export type NhaCungCapAI = S["NhaCungCapOut"];
+export type ThongTinMay = S["ThongTinMayOut"];
+export type MucKiemTra = S["MucKiemTraOut"];
 export type GiongDoc = S["GiongDocOut"];
 
 /**

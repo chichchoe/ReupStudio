@@ -44,3 +44,29 @@ class SuaCauHinhIn(BaseModel):
 class KhoaMoiOut(BaseModel):
     khoa: str
     huong_dan: str
+
+
+class MucKiemTraOut(BaseModel):
+    ma: str
+    ten: str
+    ok: bool
+    chi_tiet: str = ""
+    cach_sua: str = ""
+    tu_sua_duoc: bool = False
+
+
+class ThongTinMayOut(BaseModel):
+    """Tình trạng máy đang chạy — dùng cho mục "Cài đặt" ở trang Cấu hình."""
+
+    ten_may: str
+    he_dieu_hanh: str
+    kien_truc: str
+    python: str
+    thu_muc_du_an: str
+    thu_muc_media: str
+    dung_luong_trong_gb: float
+    muc: list[MucKiemTraOut]
+
+
+class KetQuaCaiDatOut(BaseModel):
+    da_lam: list[str]

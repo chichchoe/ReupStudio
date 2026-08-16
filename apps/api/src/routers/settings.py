@@ -28,11 +28,14 @@ from ..db import get_db
 from ..errors import ApiError
 from ..schemas.settings import (
     CauHinhOut,
+    KetQuaCaiDatOut,
     KhoaMoiOut,
     MucCauHinhOut,
     NhomCauHinhOut,
     SuaCauHinhIn,
+    ThongTinMayOut,
 )
+from ..services import he_thong
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -222,3 +225,15 @@ def sinh_khoa_ma_hoa():
         huong_dan="Dán vào .env dòng SETTINGS_KEY=... rồi khởi động lại. "
         "Đổi khoá này sẽ làm mọi bí mật đang lưu không giải mã được nữa.",
     )
+
+
+@router.get("/may", response_model=ThongTinMayOut)
+def thong_tin_may(db: Session = Depends(get_db)):
+    """Máy đang chạy là máy nào, và còn thiếu gì để chạy được."""
+    return he_thong.kiem_tra_may(db)
+
+
+@router.post("/cai-dat-nhanh", response_model=KetQuaCaiDatOut)
+def cai_dat_nhanh(db: Session = Depends(get_db)):
+    """Làm hộ những bước dựng máy mới mà API tự làm được."""
+    return KetQuaCaiDatOut(da_lam=he_thong.cai_dat_nhanh(db))

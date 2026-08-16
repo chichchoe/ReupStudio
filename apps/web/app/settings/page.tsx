@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { NhaCungCapAI } from "@/components/NhaCungCapAI";
 import { TheGiaiThich } from "@/components/TheGiaiThich";
-import type { MucCauHinh } from "@/lib/types";
+import type { MucCauHinh, MucKiemTra } from "@/lib/types";
 
 /**
  * Trang Cấu hình — thay cho việc sửa tay file `.env`.
@@ -27,7 +27,7 @@ import type { MucCauHinh } from "@/lib/types";
 
 /** Hai mục không đến từ API: một mục khoá AI, một mục biến `.env`. */
 const MUC_KHOA_AI = "Nhà cung cấp AI";
-const MUC_ENV = "Biến trong .env";
+const MUC_ENV = "Cài đặt";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -35,6 +35,7 @@ export default function SettingsPage() {
   const [loi, setLoi] = useState<string | null>(null);
   const [daLuu, setDaLuu] = useState(false);
   const [khoaMoi, setKhoaMoi] = useState<{ khoa: string; huong_dan: string } | null>(null);
+  const [daCaiDat, setDaCaiDat] = useState<string[] | null>(null);
   const [dangXem, setDangXem] = useState(MUC_KHOA_AI);
 
   const { data, isLoading } = useQuery({ queryKey: ["cau-hinh"], queryFn: api.cauHinh });
@@ -57,6 +58,23 @@ export default function SettingsPage() {
   const sinhKhoa = useMutation({
     mutationFn: api.sinhKhoaMaHoa,
     onSuccess: setKhoaMoi,
+  });
+
+  //: Chỉ hỏi khi đang mở mục Cài đặt — mỗi lần hỏi là một loạt kiểm tra thật
+  //: (ping worker, gọi ffmpeg), không đáng chạy nền suốt cả phiên.
+  const { data: may, refetch: hoiLaiMay } = useQuery({
+    queryKey: ["thong-tin-may"],
+    queryFn: api.thongTinMay,
+    enabled: dangXem === MUC_ENV,
+  });
+
+  const caiDat = useMutation({
+    mutationFn: api.caiDatNhanh,
+    onSuccess: (kq) => {
+      setDaCaiDat(kq.da_lam);
+      hoiLaiMay();
+      queryClient.invalidateQueries({ queryKey: ["cau-hinh"] });
+    },
   });
 
   const soThayDoi = Object.keys(sua).length;
@@ -136,36 +154,77 @@ export default function SettingsPage() {
             {dangXem === MUC_ENV && (
               <>
                 <div className="mb-3 flex items-center gap-3">
-                  <h2 className="text-[15px] font-semibold">{MUC_ENV}</h2>
-                  <TheGiaiThich nhan="Vì sao ba biến này ở ngoài?">
-                    Ba biến này cần <em>trước</em> khi chạm được database nên không chuyển
-                    vào đây được. Sửa chúng trong file <code>.env</code> rồi khởi động lại API.
+                  <h2 className="text-[15px] font-semibold">Cài đặt máy này</h2>
+                  <TheGiaiThich nhan="Chuyển sang máy khác thì làm gì?">
+                    Chép cả thư mục dự án sang máy mới, dựng PostgreSQL và Redis, rồi mở trang
+                    này bấm <b className="text-fg">Cài đặt nhanh</b>. Nó tạo thư mục media,
+                    sinh khoá mã hoá và chạy migration. Những thứ phải cài bằng tay (FFmpeg,
+                    Docker) thì hiện lệnh sẵn để dán.
                   </TheGiaiThich>
                 </div>
-                <div className="rounded-xl border border-border bg-panel p-4">
-                  <ul className="font-mono text-[12px]">
-                    {data.khoa_bootstrap.map((k) => (
-                      <li key={k} className="border-b border-border py-1.5 last:border-0">
-                        {k}
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    className="btn btn-sm mt-3"
-                    disabled={sinhKhoa.isPending}
-                    onClick={() => sinhKhoa.mutate()}
-                  >
-                    Sinh khoá mã hoá mới
-                  </button>
-                  {khoaMoi && (
-                    <div className="mt-2.5 rounded-lg border border-warn/30 bg-warn/[0.07] p-2.5 text-[12px]">
-                      <code className="block break-all font-mono text-[11.5px]">
-                        {khoaMoi.khoa}
-                      </code>
-                      <p className="mt-1.5 text-warn">{khoaMoi.huong_dan}</p>
+
+                {may && (
+                  <>
+                    <div className="mb-3 grid grid-cols-2 gap-x-6 gap-y-1.5 rounded-xl border border-border bg-panel p-3.5 text-[12px]">
+                      <ThongSo nhan="Máy" giaTri={may.ten_may} />
+                      <ThongSo nhan="Hệ điều hành" giaTri={`${may.he_dieu_hanh} · ${may.kien_truc}`} />
+                      <ThongSo nhan="Python" giaTri={may.python} />
+                      <ThongSo nhan="Ổ đĩa còn trống" giaTri={`${may.dung_luong_trong_gb} GB`} />
+                      <ThongSo nhan="Thư mục dự án" giaTri={may.thu_muc_du_an} rong />
+                      <ThongSo nhan="Thư mục media" giaTri={may.thu_muc_media} rong />
                     </div>
-                  )}
-                </div>
+
+                    <div className="rounded-xl border border-border bg-panel">
+                      {may.muc.map((m, i) => (
+                        <DongKiemTra key={m.ma} muc={m} dauTien={i === 0} />
+                      ))}
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        className="btn btn-primary"
+                        disabled={caiDat.isPending}
+                        onClick={() => caiDat.mutate()}
+                      >
+                        {caiDat.isPending ? "Đang cài…" : "⚡ Cài đặt nhanh cho máy này"}
+                      </button>
+                      <button className="btn btn-sm" onClick={() => hoiLaiMay()}>
+                        Kiểm tra lại
+                      </button>
+                      <button
+                        className="btn btn-sm ml-auto"
+                        disabled={sinhKhoa.isPending}
+                        onClick={() => sinhKhoa.mutate()}
+                      >
+                        Sinh khoá mã hoá mới
+                      </button>
+                    </div>
+
+                    {daCaiDat && (
+                      <ul className="mt-3 rounded-lg border border-ok/25 bg-ok/[0.06] p-3 text-[12.5px]">
+                        {daCaiDat.map((v) => (
+                          <li key={v} className="py-0.5">
+                            ✓ {v}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {khoaMoi && (
+                      <div className="mt-3 rounded-lg border border-warn/30 bg-warn/[0.07] p-2.5 text-[12px]">
+                        <code className="block break-all font-mono text-[11.5px]">
+                          {khoaMoi.khoa}
+                        </code>
+                        <p className="mt-1.5 text-warn">{khoaMoi.huong_dan}</p>
+                      </div>
+                    )}
+
+                    <p className="mt-3 text-[11.5px] text-muted">
+                      Ba biến <code>{data.khoa_bootstrap.join("</code>, <code>")}</code> phải nằm
+                      trong <code>.env</code> vì chúng cần <em>trước</em> khi chạm được database.
+                    </p>
+                  </>
+                )}
               </>
             )}
 
@@ -214,6 +273,49 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ThongSo({ nhan, giaTri, rong }: { nhan: string; giaTri: string; rong?: boolean }) {
+  return (
+    <div className={clsx("flex gap-2", rong && "col-span-2")}>
+      <span className="w-[7.5rem] shrink-0 text-muted">{nhan}</span>
+      <span className="min-w-0 truncate font-mono text-[11.5px]" title={giaTri}>
+        {giaTri}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Một mục trong danh sách kiểm.
+ *
+ * Mục hỏng phải nói NGAY cách sửa ở cùng chỗ. Bắt người dùng đọc "FFmpeg:
+ * thiếu" rồi tự đi tra lệnh cài là để họ dừng lại giữa chừng.
+ */
+function DongKiemTra({ muc, dauTien }: { muc: MucKiemTra; dauTien: boolean }) {
+  return (
+    <div className={clsx("flex gap-3 p-3", dauTien || "border-t border-border")}>
+      <span
+        className={clsx("mt-[3px] h-2 w-2 shrink-0 rounded-full", muc.ok ? "bg-ok" : "bg-err")}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12.5px] font-medium">{muc.ten}</span>
+          {!muc.ok && muc.tu_sua_duoc && (
+            <span className="rounded-full border border-accent/40 px-2 py-0.5 text-[10.5px] text-accent">
+              nút bấm tự sửa được
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 break-words text-[11.5px] text-muted">{muc.chi_tiet}</div>
+        {!muc.ok && muc.cach_sua && (
+          <div className="mt-1 rounded bg-bg px-2 py-1 font-mono text-[11px] text-[#E8D4A8]">
+            {muc.cach_sua}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

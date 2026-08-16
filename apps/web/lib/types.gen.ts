@@ -575,6 +575,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/may": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Thong Tin May
+         * @description Máy đang chạy là máy nào, và còn thiếu gì để chạy được.
+         */
+        get: operations["thong_tin_may_api_v1_settings_may_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/cai-dat-nhanh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cai Dat Nhanh
+         * @description Làm hộ những bước dựng máy mới mà API tự làm được.
+         */
+        post: operations["cai_dat_nhanh_api_v1_settings_cai_dat_nhanh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai-providers": {
         parameters: {
             query?: never;
@@ -797,6 +837,11 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** KetQuaCaiDatOut */
+        KetQuaCaiDatOut: {
+            /** Da Lam */
+            da_lam: string[];
+        };
         /** KhoaMoiOut */
         KhoaMoiOut: {
             /** Khoa */
@@ -889,6 +934,30 @@ export interface components {
             is_secret: boolean;
             /** Da Dat */
             da_dat: boolean;
+        };
+        /** MucKiemTraOut */
+        MucKiemTraOut: {
+            /** Ma */
+            ma: string;
+            /** Ten */
+            ten: string;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Chi Tiet
+             * @default
+             */
+            chi_tiet: string;
+            /**
+             * Cach Sua
+             * @default
+             */
+            cach_sua: string;
+            /**
+             * Tu Sua Duoc
+             * @default false
+             */
+            tu_sua_duoc: boolean;
         };
         /** NhaCungCapOut */
         NhaCungCapOut: {
@@ -1321,6 +1390,28 @@ export interface components {
             message: string;
         };
         /**
+         * ThongTinMayOut
+         * @description Tình trạng máy đang chạy — dùng cho mục "Cài đặt" ở trang Cấu hình.
+         */
+        ThongTinMayOut: {
+            /** Ten May */
+            ten_may: string;
+            /** He Dieu Hanh */
+            he_dieu_hanh: string;
+            /** Kien Truc */
+            kien_truc: string;
+            /** Python */
+            python: string;
+            /** Thu Muc Du An */
+            thu_muc_du_an: string;
+            /** Thu Muc Media */
+            thu_muc_media: string;
+            /** Dung Luong Trong Gb */
+            dung_luong_trong_gb: number;
+            /** Muc */
+            muc: components["schemas"]["MucKiemTraOut"][];
+        };
+        /**
          * TranslateRequest
          * @description Body của ``POST /videos/{id}/translate``.
          *
@@ -1331,6 +1422,8 @@ export interface components {
         TranslateRequest: {
             /** Llm Model */
             llm_model?: string | null;
+            /** Llm Provider */
+            llm_provider?: string | null;
             /**
              * Xoa Chu Cung
              * @default true
@@ -2545,6 +2638,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KhoaMoiOut"];
+                };
+            };
+        };
+    };
+    thong_tin_may_api_v1_settings_may_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThongTinMayOut"];
+                };
+            };
+        };
+    };
+    cai_dat_nhanh_api_v1_settings_cai_dat_nhanh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KetQuaCaiDatOut"];
                 };
             };
         };
