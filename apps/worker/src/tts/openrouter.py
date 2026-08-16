@@ -39,7 +39,9 @@ from .base import GiongDoc
 
 log = get_logger(__name__)
 
-MODEL_MAC_DINH = "openai/gpt-audio"
+#: ``gpt-audio-mini`` chứ KHÔNG phải ``gpt-audio``: token audio giá $0,60/1M
+#: so với $32/1M — đắt gấp 53 lần cho cùng một câu đọc. Đo ngày 2026-08-16.
+MODEL_MAC_DINH = "openai/gpt-audio-mini"
 _URL = "https://openrouter.ai/api/v1/chat/completions"
 
 #: Giọng của gpt-audio. Đều đọc được tiếng Việt (model đa ngữ), giới tính ghi
@@ -75,6 +77,34 @@ LOI_NHAC_HE_THONG = (
 def _loi_nhac_doc(cau: str) -> str:
     """Bọc câu thoại thành một mệnh lệnh, không để nó thành lượt trò chuyện."""
     return f'Đọc to nguyên văn đoạn giữa hai dấu ngoặc kép, không nói gì thêm:\n"{cau}"'
+
+
+#: Token audio mỗi giây, đo thật: 250 token ra 11,0 giây, 400 token ra 18,6
+#: giây — chừng 22-23 token/giây.
+TOKEN_MOI_GIAY = 23
+#: Tiếng Việt đọc chừng 15 ký tự mỗi giây.
+KY_TU_MOI_GIAY = 15
+#: Nhân đôi cho dư, rồi kẹp hai đầu. Sàn để câu một hai chữ vẫn đủ chỗ; trần
+#: để một câu bất thường không kéo theo cả hoá đơn.
+HE_SO_DU = 2.0
+TOKEN_TOI_THIEU = 150
+TOKEN_TOI_DA = 600
+
+
+def _tran_token(cau: str) -> int:
+    """Trần token cho MỘT câu đọc.
+
+    VÌ SAO BẮT BUỘC CÓ: không đặt trần thì ``gpt-audio`` sinh audio tới khi
+    chạm trần mặc định 16.384 token — MỖI CÂU. Đo ngày 2026-08-16 với một câu
+    57 ký tự: 16.355 token audio, 817,8 giây tiếng (gần hết là im lặng),
+    $0,0394 một câu trên bản rẻ. Trên ``gpt-audio`` đắt gấp 53 lần thì một
+    video 133 câu tốn cỡ 70 đô.
+
+    Đặt trần rồi: cùng câu đó 250 token, $0,0007 — rẻ đi 56 lần, và vẫn đọc
+    đúng nguyên văn.
+    """
+    giay = max(1.0, len(cau) / KY_TU_MOI_GIAY)
+    return int(min(TOKEN_TOI_DA, max(TOKEN_TOI_THIEU, giay * TOKEN_MOI_GIAY * HE_SO_DU)))
 
 
 #: Đọc dài hơn câu gốc quá mức này là dấu hiệu model đã trả lời thay vì đọc.
@@ -345,6 +375,9 @@ class OpenRouterTTS:
             "audio": {"voice": giong, "format": DINH_DANG},
             #: 0 để nó bám sát chữ được đưa, đừng "sáng tạo" thêm.
             "temperature": 0,
+            #: Trần token — xem ``_tran_token``. Thiếu dòng này là mỗi câu chạy
+            #: tới 16.384 token và hoá đơn nở ra hàng chục lần.
+            "max_tokens": _tran_token(cau),
             "messages": [
                 {"role": "system", "content": LOI_NHAC_HE_THONG},
                 {"role": "user", "content": _loi_nhac_doc(cau)},

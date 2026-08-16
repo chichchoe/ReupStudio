@@ -23,11 +23,15 @@ import pytest
 from src.errors import ReupError
 from src.tts import lay_provider
 from src.tts.openrouter import (
+    MODEL_MAC_DINH,
     TAN_SO,
+    TOKEN_TOI_DA,
+    TOKEN_TOI_THIEU,
     OpenRouterTTS,
     _canh_bao_neu_doc_sai,
     _gop_audio_tu_sse,
     _loi_nhac_doc,
+    _tran_token,
     cat_im_lang,
 )
 
@@ -311,3 +315,43 @@ def test_khoang_lang_giua_cau_khong_lam_dung_som() -> None:
     pcm, _ = _gop_audio_tu_sse(luong)
 
     assert len(pcm) / 2 / TAN_SO > 1.4  # cả hai vế còn nguyên
+
+
+def test_luon_dat_tran_token(monkeypatch, tmp_path) -> None:
+    """Thiếu trần là mỗi câu chạy tới 16.384 token — hoá đơn nở ra hàng chục lần.
+
+    Đo ngày 2026-08-16, câu 57 ký tự: không trần → 16.355 token audio, 817,8
+    giây tiếng, $0,0394 MỘT CÂU trên bản rẻ. Đặt trần → 250 token, $0,0007.
+    Trên `gpt-audio` (đắt gấp 53 lần) thì một video 133 câu tốn cỡ 70 đô.
+    """
+    da_gui: dict = {}
+
+    class TraLoiGia:
+        def __enter__(self):
+            return _sse(_mau_audio(b"tieng123"))
+
+        def __exit__(self, *a):
+            return False
+
+    def gia_lap(req, timeout=0):
+        da_gui.update(json.loads(req.data))
+        return TraLoiGia()
+
+    monkeypatch.setattr("urllib.request.urlopen", gia_lap)
+    OpenRouterTTS(api_key="khoa-gia").doc("Đi thôi!", tmp_path / "tran.wav", giong="nova")
+
+    assert da_gui["max_tokens"] == TOKEN_TOI_THIEU
+    assert da_gui["temperature"] == 0
+
+
+def test_tran_token_co_gian_theo_do_dai_cau() -> None:
+    ngan, dai = _tran_token("Đi thôi!"), _tran_token("x" * 300)
+
+    assert ngan == TOKEN_TOI_THIEU  # câu ngắn vẫn đủ chỗ
+    assert dai == TOKEN_TOI_DA  # câu bất thường không kéo cả hoá đơn
+    assert _tran_token("y" * 60) > ngan  # ở giữa thì co giãn
+
+
+def test_mac_dinh_dung_ban_re() -> None:
+    """`gpt-audio` tính $32/1M token audio, `gpt-audio-mini` $0,60/1M."""
+    assert MODEL_MAC_DINH == "openai/gpt-audio-mini"
