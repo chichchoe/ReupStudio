@@ -81,12 +81,17 @@ def _kieu_o(key: str) -> tuple[str, list[str]]:
 #: Gom theo nhóm và kèm mô tả để người dùng không phải đoán ý nghĩa từng biến.
 #: Giữ nguyên tên biến làm khoá — đó vẫn là thứ ``.env`` và mã nguồn dùng.
 #:
-#: Thứ tự nhóm đi THEO ĐÚNG THỨ TỰ PIPELINE — tải → nghe → dịch → phụ đề →
-#: chống trùng → giới hạn → đăng. Sắp theo chủ đề trừu tượng thì người dùng
-#: phải nhớ biến nào thuộc chủ đề nào; sắp theo thứ tự chạy thì chỉ cần nhớ
-#: bước nào đang sai.
-NHOM = [
+#: Sáu chặng của pipeline nằm CHUNG một mục "Xử lý video": tách thành sáu mục
+#: riêng thì mỗi mục chỉ 2–5 ô, và sửa một video là phải nhảy qua bốn mục. Thứ
+#: tự bên trong vẫn đi theo đúng thứ tự chạy — tải → nghe → dịch → phụ đề —
+#: và mỗi chặng có một dòng phân cách, nên vẫn tìm được bằng mắt.
+MUC_XU_LY = "Xử lý video"
+
+#: ``(mục, phần, [(khoá, mô tả)])``. "Phần" chỉ là dòng phân cách bên trong
+#: mục, không phải một mục riêng ở cột trái.
+NHOM: list[tuple[str, str, list[tuple[str, str]]]] = [
     (
+        MUC_XU_LY,
         "1 · Tải video",
         [
             ("YTDLP_COOKIES_FROM_BROWSER", "chrome · firefox · edge · safari"),
@@ -94,6 +99,7 @@ NHOM = [
         ],
     ),
     (
+        MUC_XU_LY,
         "2 · Nhận dạng giọng nói",
         [
             ("WHISPER_MODEL", "tiny · base · small · medium · large-v3"),
@@ -102,6 +108,7 @@ NHOM = [
         ],
     ),
     (
+        MUC_XU_LY,
         "3 · Dịch thuật",
         [
             #: Khoá và địa chỉ của từng nhà cung cấp KHÔNG nằm ở đây — chúng có
@@ -112,6 +119,7 @@ NHOM = [
         ],
     ),
     (
+        MUC_XU_LY,
         "4 · Phụ đề",
         [
             ("SUB_FONT", "Tên font"),
@@ -122,6 +130,7 @@ NHOM = [
         ],
     ),
     (
+        MUC_XU_LY,
         "Chống trùng",
         [
             ("DEDUP_ENABLED", "true · false"),
@@ -131,6 +140,7 @@ NHOM = [
         ],
     ),
     (
+        MUC_XU_LY,
         "Giới hạn an toàn",
         [
             ("MONTHLY_BUDGET_USD", "Trần chi tiêu tháng. 0 = không giới hạn"),
@@ -142,6 +152,7 @@ NHOM = [
     ),
     (
         "Nền tảng đăng",
+        "",
         [
             ("TIKTOK_CLIENT_KEY", "Lưu mã hoá"),
             ("TIKTOK_CLIENT_SECRET", "Lưu mã hoá"),
@@ -157,16 +168,18 @@ def doc_cau_hinh(db: Session = Depends(get_db)):
     """Toàn bộ cấu hình, nhóm theo chủ đề. Bí mật luôn bị che."""
     da_luu = {m.key: m for m in doc_de_hien(db)}
 
-    nhom = []
-    for ten, cac_khoa in NHOM:
-        muc = []
+    #: Nhiều "phần" cùng một "mục" thì dồn vào cùng một ``NhomCauHinhOut`` —
+    #: cột trái chỉ hiện một dòng, phần chỉ là chỗ ngắt bên trong.
+    theo_muc: dict[str, list[MucCauHinhOut]] = {}
+    for ten, phan, cac_khoa in NHOM:
         for key, mo_ta in cac_khoa:
             row = da_luu.get(key)
             kieu, lua_chon = _kieu_o(key)
-            muc.append(
+            theo_muc.setdefault(ten, []).append(
                 MucCauHinhOut(
                     key=key,
                     mo_ta=mo_ta,
+                    phan=phan,
                     kieu=kieu,
                     lua_chon=lua_chon,
                     value=row.value if row else "",
@@ -174,7 +187,8 @@ def doc_cau_hinh(db: Session = Depends(get_db)):
                     da_dat=bool(row and row.da_dat),
                 )
             )
-        nhom.append(NhomCauHinhOut(ten=ten, muc=muc))
+
+    nhom = [NhomCauHinhOut(ten=ten, muc=muc) for ten, muc in theo_muc.items()]
 
     return CauHinhOut(nhom=nhom, khoa_bootstrap=sorted(KHOA_BOOTSTRAP))
 

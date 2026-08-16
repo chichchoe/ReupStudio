@@ -231,16 +231,34 @@ export default function SettingsPage() {
             {nhomDangXem && (
               <>
                 <h2 className="mb-3 text-[15px] font-semibold">{nhomDangXem.ten}</h2>
+                {/* Sáu chặng pipeline nằm chung một mục, phân cách bằng tiêu đề
+                    nhỏ. Tách thành sáu mục riêng thì mỗi mục chỉ 2–5 ô và sửa
+                    một video là phải nhảy qua bốn mục; dồn thành một danh sách
+                    phẳng 22 ô thì lại không biết ô nào thuộc bước nào. */}
                 <div className="rounded-xl border border-border bg-panel">
-                  {nhomDangXem.muc.map((muc, i) => (
-                    <Dong
-                      key={muc.key}
-                      muc={muc}
-                      dauTien={i === 0}
-                      giaTri={sua[muc.key]}
-                      onDoi={(v) => setSua((cu) => ({ ...cu, [muc.key]: v }))}
-                    />
-                  ))}
+                  {nhomDangXem.muc.map((muc, i) => {
+                    const phanMoi = muc.phan && muc.phan !== nhomDangXem.muc[i - 1]?.phan;
+                    return (
+                      <div key={muc.key}>
+                        {phanMoi && (
+                          <div
+                            className={clsx(
+                              "bg-panel2/60 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted",
+                              i > 0 && "border-t border-border",
+                            )}
+                          >
+                            {muc.phan}
+                          </div>
+                        )}
+                        <Dong
+                          muc={muc}
+                          dauTien={i === 0 || Boolean(phanMoi)}
+                          giaTri={sua[muc.key]}
+                          onDoi={(v) => setSua((cu) => ({ ...cu, [muc.key]: v }))}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}

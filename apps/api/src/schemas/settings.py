@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 class MucCauHinhOut(BaseModel):
     key: str
     mo_ta: str
+    #: Dòng phân cách bên trong một mục, VD "2 · Nhận dạng giọng nói". Rỗng
+    #: nghĩa là mục đó không chia phần.
+    phan: str = ""
     #: ``select`` · ``number`` · ``text``. Ô nào chỉ có vài giá trị hợp lệ thì
     #: phải cho CHỌN, không cho gõ tay — gõ "smal" thay vì "small" là hỏng bước
     #: nhận dạng, mà lỗi chỉ hiện ra sau khi đã tải xong video.

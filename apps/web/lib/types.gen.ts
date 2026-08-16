@@ -922,6 +922,11 @@ export interface components {
             /** Mo Ta */
             mo_ta: string;
             /**
+             * Phan
+             * @default
+             */
+            phan: string;
+            /**
              * Kieu
              * @default text
              */
