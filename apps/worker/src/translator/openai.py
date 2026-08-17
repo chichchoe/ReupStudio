@@ -177,7 +177,9 @@ class OpenAITranslator(BaseTranslator):
 
             con_thu_duoc = status in _RETRY_STATUS and lan_thu < _MAX_RETRIES
             if not con_thu_duoc:
-                raise TranslateError(che_khoa(_mo_ta_loi(response, status, lan_thu, url)))
+                raise TranslateError(
+                    che_khoa(_mo_ta_loi(response, status, lan_thu, url)), status=status
+                )
 
             _sleep(_thoi_gian_cho(response, lan_thu))
 

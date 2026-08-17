@@ -113,12 +113,13 @@ class TranslatorModelBiGo:
 
     on_usage = None
 
-    def __init__(self) -> None:
+    def __init__(self, tin: str = "LLM trả HTTP 404 ... no longer available") -> None:
         self.so_lan_goi = 0
+        self._tin = tin
 
     def translate_batch(self, texts, *, tone, glossary):
         self.so_lan_goi += 1
-        raise TranslateError("LLM trả HTTP 404 từ ... model is no longer available")
+        raise TranslateError(self._tin, status=404)
 
 
 def test_model_bi_go_thi_dung_ngay_khong_chia_nho_lo(monkeypatch) -> None:
@@ -193,3 +194,34 @@ def test_loi_404_khac_thi_khong_doan_bua() -> None:
     from src.translator.openai import _goi_y_khi_bi_chan
 
     assert _goi_y_khi_bi_chan(_TraLoi404({"error": {"message": "No such model"}})) == ""
+
+
+def test_thong_bao_doi_chu_van_phai_dung_ngay(monkeypatch) -> None:
+    """Chốt "404 thì dừng" phải xét MÃ, không dò chữ trong thông báo.
+
+    Gặp thật ngày 2026-08-17: bản đầu dò chuỗi "HTTP 404"; sau đó thông báo 404
+    được viết lại cho dễ hiểu ("Tài khoản OpenRouter không được dùng model
+    này…"), mất chuỗi đó, và chốt im lặng thôi ăn — video 111 câu nở ra 111
+    lượt gọi đều hỏng y hệt trước khi dừng.
+    """
+    tr = TranslatorModelBiGo(
+        "Tài khoản OpenRouter không được dùng model này: thiết lập quyền riêng tư "
+        "đang chặn nhà cung cấp phục vụ nó."
+    )
+    monkeypatch.setattr("src.pipeline.translate.get_translator", lambda *a, **k: tr)
+
+    with pytest.raises(TranslateError):
+        translate_cues(_cues(111))
+
+    assert tr.so_lan_goi <= 2, (
+        f"gọi {tr.so_lan_goi} lượt cho một lỗi vĩnh viễn — chốt dừng sớm không ăn"
+    )
+
+
+def test_loi_khong_co_ma_thi_van_thu_lai(monkeypatch) -> None:
+    """Lỗi mạng chập chờn (status 0) phải đi hết đường lui, đừng dừng oan."""
+    from src.pipeline.translate import _khong_the_thu_lai
+
+    assert _khong_the_thu_lai(TranslateError("timeout")) is False
+    assert _khong_the_thu_lai(TranslateError("x", status=500)) is False
+    assert _khong_the_thu_lai(TranslateError("x", status=404)) is True

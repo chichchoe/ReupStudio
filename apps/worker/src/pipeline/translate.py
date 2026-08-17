@@ -167,12 +167,21 @@ TI_LE_HONG_COI_LA_CA_BUOC = 0.34
 
 
 #: Mã HTTP mà chia nhỏ lô hay thử lại đều vô ích: model không tồn tại / bị gỡ,
-#: khoá sai, khoá không có quyền. Lô nhỏ hơn cũng hỏng y hệt.
-_LOI_VINH_VIEN = ("HTTP 400", "HTTP 401", "HTTP 403", "HTTP 404")
+#: khoá sai, khoá không có quyền, tài khoản chặn nhà cung cấp. Lô nhỏ hơn cũng
+#: hỏng y hệt.
+_MA_VINH_VIEN = frozenset({400, 401, 403, 404})
 
 
-def _khong_the_thu_lai(loi: str) -> bool:
-    return any(ma in loi for ma in _LOI_VINH_VIEN)
+def _khong_the_thu_lai(loi: TranslateError) -> bool:
+    """Xét MÃ HTTP, không dò chữ trong thông báo.
+
+    Bản đầu dò chuỗi "HTTP 404". Sau đó thông báo 404 được viết lại cho người
+    dùng dễ hiểu ("Tài khoản OpenRouter không được dùng model này…"), mất chuỗi
+    đó, và chốt này im lặng thôi ăn — video 111 câu nở ra 111 lượt gọi đều hỏng
+    y hệt trước khi dừng. Thông báo là thứ để NGƯỜI đọc và sẽ còn đổi; mã số
+    mới là thứ để MÁY xét.
+    """
+    return getattr(loi, "status", 0) in _MA_VINH_VIEN
 
 
 def _translate_with_guard(
@@ -208,7 +217,7 @@ def _translate_with_guard(
             #: sát ngày 2026-08-16: một video 133 câu nở ra hàng chục lượt gọi
             #: 404 mất 40 giây, chỉ để đi tới cùng một kết luận biết từ lượt
             #: đầu. Ném thẳng lên cho người dùng đổi model.
-            if _khong_the_thu_lai(str(exc)):
+            if _khong_the_thu_lai(exc):
                 raise
             continue
 

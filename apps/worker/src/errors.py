@@ -42,7 +42,18 @@ class TranscribeError(ReupError):
 
 
 class TranslateError(ReupError):
-    pass
+    """Dịch hỏng.
+
+    ``status`` là mã HTTP nhà cung cấp trả về, 0 nếu chưa tới được server. Chỗ
+    gọi dựa vào SỐ này để biết có đáng thử lại không — KHÔNG dò chữ trong thông
+    báo. Bài học ngày 17.08.2026: chốt "404 thì dừng ngay" dò chuỗi "HTTP 404";
+    sau đó thông báo 404 được viết lại cho dễ hiểu, mất chuỗi đó, và chốt im
+    lặng thôi ăn — một video 111 câu nở ra 111 lượt gọi đều hỏng y hệt.
+    """
+
+    def __init__(self, message: str, status: int = 0) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 class TtsError(ReupError):
