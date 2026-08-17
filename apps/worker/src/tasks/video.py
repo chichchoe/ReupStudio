@@ -676,15 +676,6 @@ def _cau_hinh_tts(video) -> tuple[str, str, str]:
             str(config.get("giong_doc") or settings.tts_giong or GIONG_GEMINI_MD),
             str(config.get("tts_model") or settings.tts_model or MODEL_MAC_DINH),
         )
-    if nha == "voicestudio":
-        from ..tts.voicestudio import GIONG_MAC_DINH as GIONG_VS
-        from ..tts.voicestudio import MODEL_MAC_DINH as MODEL_VS
-
-        return (
-            nha,
-            str(config.get("giong_doc") or settings.tts_giong or GIONG_VS),
-            str(config.get("tts_model") or settings.tts_model or MODEL_VS),
-        )
     if nha == "openrouter":
         from ..tts.openrouter import GIONG_MAC_DINH as GIONG_OR
         from ..tts.openrouter import MODEL_MAC_DINH as MODEL_OR
@@ -704,8 +695,8 @@ def _khoa_tts(nha: str) -> str:
     OpenRouter, mà lỗi thì hiện ra dưới dạng "HTTP 401" giữa chừng video.
     edge-tts không cần khoá nào.
     """
-    if nha in ("edge", "voicestudio"):
-        return ""  # chạy tại máy, không có khoá
+    if nha == "edge":
+        return ""
     if nha == "openrouter":
         from reup_core.models import AiProvider
         from reup_core.settings_store import fernet
@@ -847,13 +838,7 @@ def tts_video_task(session, video) -> dict:
         return {"cues": 0, "skipped": "không có phụ đề tiếng Việt để đọc"}
 
     nha, giong, model = _cau_hinh_tts(video)
-    provider = lay_provider(
-        nha,
-        api_key=_khoa_tts(nha),
-        model=model,
-        #: Chỉ VoiceStudio cần địa chỉ — nó chạy tại máy, không có khoá.
-        base_url=get_settings().voicestudio_base_url if nha == "voicestudio" else "",
-    )
+    provider = lay_provider(nha, api_key=_khoa_tts(nha), model=model)
 
     #: Gemini TTS chưa có đường đọc nhiều câu song song (mỗi câu một lượt hạn
     #: mức, dội song song là cách nhanh nhất để ăn 429), nên đi đường tuần tự.

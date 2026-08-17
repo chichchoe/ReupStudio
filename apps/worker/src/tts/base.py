@@ -42,14 +42,10 @@ NHA_CUNG_CAP = {
     "gemini": "Gemini TTS — 30 giọng, ngữ điệu tự nhiên hơn, NHƯNG tính hạn mức mỗi câu",
     "openrouter": "OpenRouter (openai/gpt-audio) — 6 giọng, TRẢ TIỀN theo lượt, "
     "dùng khi Gemini hết hạn mức",
-    "voicestudio": "VoiceStudio chạy tại máy — miễn phí, không hạn mức, nhân bản "
-    "được giọng; đổi lại tốc độ phụ thuộc phần cứng",
 }
 
 
-def lay_provider(
-    ten: str = "edge", *, api_key: str = "", model: str = "", base_url: str = ""
-) -> TTSProvider:
+def lay_provider(ten: str = "edge", *, api_key: str = "", model: str = "") -> TTSProvider:
     """Chọn nhà cung cấp theo tên. Import muộn để không kéo phụ thuộc khi không dùng."""
     if ten == "edge":
         from .edge import EdgeTTS
@@ -64,12 +60,6 @@ def lay_provider(
         from .openrouter import OpenRouterTTS
 
         return OpenRouterTTS(api_key=api_key, model=model or MODEL_OR)
-    if ten == "voicestudio":
-        from .voicestudio import VoiceStudioTTS
-
-        #: Chạy tại máy nên KHÔNG có khoá; chỗ ``api_key`` dùng để truyền địa
-        #: chỉ máy chủ, vì hợp đồng ``lay_provider`` chỉ có sẵn hai ô đó.
-        return VoiceStudioTTS(base_url=base_url, model=model)
     raise ValueError(
         f"Không có nhà cung cấp giọng đọc tên '{ten}' — dùng được: {sorted(NHA_CUNG_CAP)}"
     )

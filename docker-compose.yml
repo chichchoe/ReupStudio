@@ -62,28 +62,5 @@ services:
     ports: ["3000:3000"]
     depends_on: [api]
 
-  #: VoiceStudio — máy đọc chạy tại chỗ (github.com/debpalash/VoiceStudio).
-  #: Nằm sau `profiles` nên `docker compose up -d` thường ngày KHÔNG kéo nó
-  #: lên: image 4,7 GB và còn tải thêm ~2,4 GB trọng số ở lần chạy đầu, không
-  #: đáng bắt mọi người tải nếu chỉ dùng edge hay OpenRouter.
-  #:
-  #:   docker compose --profile voicestudio up -d
-  #:
-  #: `platform` khai TƯỜNG MINH: image chỉ có bản amd64 (kiểm cả bốn tag ngày
-  #: 17.08.2026). Trên Apple Silicon nó chạy qua giả lập — thiếu dòng này thì
-  #: Docker báo lỗi kiến trúc khó hiểu thay vì tự dịch.
-  voicestudio:
-    image: ghcr.io/debpalash/omnivoice-studio:stable
-    platform: linux/amd64
-    profiles: [voicestudio]
-    ports: ["127.0.0.1:3900:3900"]
-    volumes:
-      - voicestudio-data:/app/omnivoice_data
-      #: Dùng chung cache Hugging Face của máy để khỏi tải lại trọng số mỗi
-      #: lần dựng lại container.
-      - ~/.cache/huggingface:/root/.cache/huggingface
-    restart: unless-stopped
-
 volumes:
   pgdata:
-  voicestudio-data:

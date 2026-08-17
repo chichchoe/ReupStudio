@@ -50,7 +50,7 @@ LUA_CHON: dict[str, list[str]] = {
     "SUB_MAX_LINES": ["1", "2", "3"],
     "YTDLP_COOKIES_FROM_BROWSER": ["", "chrome", "firefox", "edge", "safari"],
     "LLM_PROVIDER": ["gemini", "openrouter", "anthropic", "deepseek", "openai", "ollama"],
-    "TTS_PROVIDER": ["edge", "gemini", "openrouter", "voicestudio"],
+    "TTS_PROVIDER": ["edge", "gemini", "openrouter"],
 }
 
 #: Ô số — giao diện hiện bàn phím số và chặn chữ ngay tại chỗ nhập.
@@ -144,8 +144,7 @@ NHOM: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
             ("TTS_PROVIDER", "Bên đọc chọn sẵn: edge (miễn phí) · gemini · openrouter"),
             ("TTS_GIONG", "Mã giọng chọn sẵn. Để trống = giọng đầu của bên đó"),
-            ("TTS_MODEL", "Model đọc, chỉ dùng cho gemini · openrouter · voicestudio"),
-            ("VOICESTUDIO_BASE_URL", "Địa chỉ VoiceStudio. Trống = http://localhost:3900/v1"),
+            ("TTS_MODEL", "Model đọc, chỉ dùng cho gemini và openrouter"),
         ],
     ),
     (

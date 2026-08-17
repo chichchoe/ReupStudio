@@ -88,9 +88,6 @@ class Settings(BaseSettings):
     tts_provider: str = "openrouter"
     tts_giong: str = ""
     tts_model: str = ""
-    #: Địa chỉ VoiceStudio chạy tại máy. Để trống là dùng cổng mặc định của nó
-    #: (http://localhost:3900/v1). Đổi khi chạy trên máy khác trong mạng.
-    voicestudio_base_url: str = ""
     #: Âm GỐC bị hạ xuống mức này khi trộn giọng Việt vào. 0 = tắt hẳn.
     #: Không tắt mặc định vì nhạc nền và tiếng động hiện trường là một phần nội
     #: dung; nhưng 0,18 vẫn còn nghe rõ lời gốc chen vào lời Việt, nên hạ xuống

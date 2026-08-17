@@ -82,8 +82,8 @@ class VideoUpdate(BaseModel):
 #: MỘT nguồn sự thật cho danh sách bên đọc. Dùng cả ở chỗ nhận yêu cầu
 #: (``TranslateRequest``) lẫn chỗ liệt kê cho giao diện
 #: (``video_service.cac_giong_doc``).
-BEN_DOC_HOP_LE = ("edge", "gemini", "openrouter", "voicestudio")
-BenDoc = Literal["edge", "gemini", "openrouter", "voicestudio"]
+BEN_DOC_HOP_LE = ("edge", "gemini", "openrouter")
+BenDoc = Literal["edge", "gemini", "openrouter"]
 
 
 class TranslateRequest(BaseModel):
