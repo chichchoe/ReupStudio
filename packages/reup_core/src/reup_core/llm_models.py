@@ -116,7 +116,10 @@ def phan_loai(model_id: str, *, dau_ra: list[str] | None = None) -> ModelPurpose
 
     if dau_ra:
         ra = {m.lower() for m in dau_ra}
-        if "audio" in ra:
+        #: ``speech`` là nhãn OpenRouter dùng cho model TTS THUẦN (Fish Audio),
+        #: khác ``audio`` của model vừa nói vừa trả chữ (gpt-audio). Chỉ nhận
+        #: mỗi ``audio`` là bỏ sót cả một họ máy đọc.
+        if ra & {"audio", "speech"}:
             return ModelPurpose.TTS
         if "image" in ra or "video" in ra:
             return ModelPurpose.OTHER

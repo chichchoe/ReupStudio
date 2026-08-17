@@ -118,6 +118,16 @@ DINH_DANG = "pcm16"
 #: ``ffmpeg/dub.py`` đang dùng nên không phải resample lần nào.
 TAN_SO = 24000
 
+#: Fish Audio đi ĐƯỜNG KHÁC HẲN gpt-audio: endpoint TTS chuẩn
+#: ``/audio/speech`` (không SSE, không chat completions), trả thẳng mp3.
+#: Đo ngày 17.08.2026 — ba chỗ bắt buộc, sai một cái là HTTP 400:
+#:   - ``response_format`` chỉ nhận ``mp3`` hoặc ``pcm``, KHÔNG có ``wav``
+#:   - KHÔNG được gửi ``voice``: Fish Audio dùng hệ giọng riêng, gửi lên là
+#:     "Provider returned 400"
+#:   - ``modalities``/``stream`` của gpt-audio thì nó không hiểu
+TIEN_TO_FISH = "fish-audio/"
+_URL_SPEECH = "https://openrouter.ai/api/v1/audio/speech"
+
 SO_LAN_THU = 3
 CHO_BAN_DAU_GIAY = 2.0
 TIMEOUT_GIAY = 120
@@ -315,6 +325,13 @@ class OpenRouterTTS:
             return dst
 
         pcm, doc_ra = self._goi_co_thu_lai(sach, giong)
+
+        #: Fish Audio trả mp3 đã hoàn chỉnh — ghi thẳng. Cắt im lặng và bọc WAV
+        #: chỉ đúng cho PCM thô của gpt-audio.
+        if self._model.startswith(TIEN_TO_FISH):
+            dst.write_bytes(pcm)
+            return dst
+
         _canh_bao_neu_doc_sai(sach, doc_ra)
 
         goc = len(pcm)
@@ -366,7 +383,32 @@ class OpenRouterTTS:
 
         raise ReupError(f"OpenRouter TTS hỏng sau {SO_LAN_THU} lần: {loi_cuoi}")
 
+    def _goi_fish_audio(self, cau: str) -> tuple[bytes, str]:
+        """Đường riêng cho Fish Audio — xem ``TIEN_TO_FISH``.
+
+        Trả mp3 chứ không phải PCM, nên KHÔNG đi qua ``cat_im_lang`` và
+        ``_ghi_wav``; ffmpeg ở bước dựng dải tiếng giải mã mp3 bình thường.
+        """
+        req = urllib.request.Request(
+            _URL_SPEECH,
+            data=json.dumps({"model": self._model, "input": cau, "response_format": "mp3"}).encode(
+                "utf-8"
+            ),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self._key}",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=TIMEOUT_GIAY) as r:
+            am = r.read()
+        if not am or am[:1] == b"{":
+            raise ReupError(f"Fish Audio không trả về audio: {am[:200].decode('utf-8', 'replace')}")
+        return am, ""
+
     def _goi_mot_lan(self, cau: str, giong: str) -> tuple[bytes, str]:
+        if self._model.startswith(TIEN_TO_FISH):
+            return self._goi_fish_audio(cau)
+
         body = {
             "model": self._model,
             #: BẮT BUỘC — OpenRouter chỉ trả audio qua luồng SSE.

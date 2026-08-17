@@ -355,3 +355,72 @@ def test_tran_token_co_gian_theo_do_dai_cau() -> None:
 def test_mac_dinh_dung_ban_re() -> None:
     """`gpt-audio` tính $32/1M token audio, `gpt-audio-mini` $0,60/1M."""
     assert MODEL_MAC_DINH == "openai/gpt-audio-mini"
+
+
+def test_fish_audio_di_duong_khac_han(monkeypatch, tmp_path) -> None:
+    """Fish Audio dùng `/audio/speech` (mp3 thẳng), KHÔNG phải chat completions.
+
+    Đo ngày 2026-08-17, ba chỗ sai một cái là HTTP 400:
+      - `response_format` chỉ nhận mp3/pcm, không có wav
+      - KHÔNG được gửi `voice` — Fish Audio dùng hệ giọng riêng
+      - `modalities`/`stream` của gpt-audio thì nó không hiểu
+    """
+    da_gui: dict = {}
+
+    class TraLoi:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"\xff\xfbmp3-that"
+
+    def gia_lap(req, timeout=0):
+        da_gui["url"] = req.full_url
+        da_gui["body"] = json.loads(req.data)
+        return TraLoi()
+
+    monkeypatch.setattr("urllib.request.urlopen", gia_lap)
+    dst = tmp_path / "fish.mp3"
+    OpenRouterTTS(api_key="khoa-gia", model="fish-audio/s2.1-pro").doc(
+        "Xin chào", dst, giong="nova"
+    )
+
+    assert da_gui["url"].endswith("/audio/speech")
+    assert da_gui["body"]["response_format"] == "mp3"
+    assert "voice" not in da_gui["body"]
+    assert "modalities" not in da_gui["body"]
+    #: Ghi THẲNG mp3 — cắt im lặng và bọc WAV chỉ đúng cho PCM thô.
+    assert dst.read_bytes() == b"\xff\xfbmp3-that"
+
+
+def test_fish_audio_tra_json_loi_thi_bao(monkeypatch, tmp_path) -> None:
+    """OpenRouter trả 200 kèm thân JSON lỗi — ghi ra file .mp3 thì bước sau mới vỡ."""
+
+    class TraLoiJson:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"error":{"message":"Provider returned 400"}}'
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: TraLoiJson())
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+
+    with pytest.raises(ReupError, match="không trả về audio"):
+        OpenRouterTTS(api_key="khoa-gia", model="fish-audio/s2-pro").doc(
+            "Xin chào", tmp_path / "x.mp3", giong=""
+        )
+
+
+def test_model_khai_speech_cung_la_tts() -> None:
+    """OpenRouter dùng nhãn `speech` cho model TTS THUẦN, khác `audio` của
+    gpt-audio (vừa nói vừa trả chữ). Chỉ nhận mỗi `audio` là bỏ sót cả họ này."""
+    from reup_core.llm_models import ModelPurpose, phan_loai
+
+    assert phan_loai("fish-audio/s2.1-pro", dau_ra=["speech"]) is ModelPurpose.TTS

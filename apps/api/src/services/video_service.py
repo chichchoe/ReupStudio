@@ -581,7 +581,17 @@ def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
                     "KHÔNG có bậc miễn phí.",
                     #: Bản rẻ ĐỨNG TRƯỚC — token audio $0,60/1M so với $32/1M,
                     #: đắt gấp 53 lần. Ai bấm nhanh cũng phải rơi vào bản rẻ.
-                    "models": ["openai/gpt-audio-mini", "openai/gpt-audio"],
+                    #:
+                    #: Fish Audio KHÔNG có trong ``/v1/models`` của OpenRouter
+                    #: (đếm ngày 17.08.2026: 414 model, không cái nào của họ) —
+                    #: chỉ truy được qua ``/models/{slug}/endpoints``. Nên phải
+                    #: khai tay ở đây, hỏi danh mục là không bao giờ thấy.
+                    "models": [
+                        "openai/gpt-audio-mini",
+                        "fish-audio/s2.1-pro",
+                        "fish-audio/s2-pro",
+                        "openai/gpt-audio",
+                    ],
                     "giong": _GIONG_OPENROUTER,
                 }
             )
