@@ -67,12 +67,23 @@ def _goi_y_khi_bi_chan(response) -> str:
     except Exception:  # noqa: BLE001 - thân lỗi không phải JSON thì bỏ qua
         return ""
 
+    tin = str(loi.get("message") or "")
     meta = loi.get("metadata") or {}
     cho_phep = meta.get("requested_providers") or []
-    if not cho_phep:
-        return ""
 
-    tin = str(loi.get("message") or "")
+    #: Biến thể THỨ HAI của 404, KHÔNG kèm metadata: tài khoản chặn theo chính
+    #: sách dữ liệu chứ không theo danh sách nhà cung cấp. Gặp thật ngày
+    #: 17.08.2026 với `google/gemini-3.7-flash`. Không bắt riêng thì người dùng
+    #: nhận nguyên khối JSON và không biết phải bấm gì.
+    if not cho_phep:
+        if "data policy" in tin or "guardrail" in tin:
+            return (
+                "Tài khoản OpenRouter không được dùng model này: thiết lập quyền riêng "
+                "tư đang chặn nhà cung cấp phục vụ nó. Mở "
+                "https://openrouter.ai/settings/privacy để nới, hoặc chọn model khác — "
+                "các model openai/* (VD openai/gpt-4.1-nano) đang dùng được."
+            )
+        return ""
     ten_model = (
         tin.split("Providers serving ")[-1].split(":")[0] if "Providers serving" in tin else ""
     )

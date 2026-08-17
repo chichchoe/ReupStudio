@@ -134,3 +134,62 @@ def test_model_bi_go_thi_dung_ngay_khong_chia_nho_lo(monkeypatch) -> None:
 
     #: Hai lượt của lô đầu là đủ; chia đôi rồi từng dòng là hàng chục lượt.
     assert tr.so_lan_goi <= 2, f"gọi {tr.so_lan_goi} lượt cho một lỗi vĩnh viễn"
+
+
+class _TraLoi404:
+    """Thân lỗi 404 thật của OpenRouter — hai biến thể khác hẳn nhau."""
+
+    def __init__(self, than: dict) -> None:
+        self._than = than
+
+    def json(self) -> dict:
+        return self._than
+
+
+def test_404_chinh_sach_du_lieu_noi_ro_phai_lam_gi() -> None:
+    """Biến thể KHÔNG kèm metadata — gặp thật ngày 2026-08-17 với
+    `google/gemini-3.7-flash`. Không bắt riêng thì người dùng nhận nguyên khối
+    JSON và không biết phải bấm gì."""
+    from src.translator.openai import _goi_y_khi_bi_chan
+
+    goi_y = _goi_y_khi_bi_chan(
+        _TraLoi404(
+            {
+                "error": {
+                    "message": "No endpoints available matching your guardrail "
+                    "restrictions and data policy. Configure: "
+                    "https://openrouter.ai/settings/privacy",
+                    "code": 404,
+                }
+            }
+        )
+    )
+
+    assert "settings/privacy" in goi_y
+    assert "openai/" in goi_y  # chỉ luôn model thay thế dùng được
+
+
+def test_404_chan_nha_cung_cap_liet_ke_ben_duoc_phep() -> None:
+    """Biến thể CÓ metadata — nói rõ bên nào phục vụ, bên nào tài khoản cho phép."""
+    from src.translator.openai import _goi_y_khi_bi_chan
+
+    goi_y = _goi_y_khi_bi_chan(
+        _TraLoi404(
+            {
+                "error": {
+                    "message": "No allowed providers... Providers serving "
+                    "deepseek/deepseek-v3.2: deepseek, fireworks...",
+                    "metadata": {"requested_providers": ["openai", "minimax"]},
+                }
+            }
+        )
+    )
+
+    assert "openai, minimax" in goi_y
+
+
+def test_loi_404_khac_thi_khong_doan_bua() -> None:
+    """404 vì lý do khác (model gõ sai tên) thì đừng bịa ra lời khuyên sai."""
+    from src.translator.openai import _goi_y_khi_bi_chan
+
+    assert _goi_y_khi_bi_chan(_TraLoi404({"error": {"message": "No such model"}})) == ""
