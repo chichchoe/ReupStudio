@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from reup_core.source_url import parse_source_url  # noqa: E402
+
 from src.ffmpeg.probe import probe  # noqa: E402
 from src.pipeline.download import download_video  # noqa: E402
 

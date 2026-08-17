@@ -33,3 +33,19 @@ def test_moi_dinh_tuyen_deu_tro_toi_hang_co_nguoi_nghe() -> None:
     }
 
     assert not lac, f"hàng đợi không có worker nào nghe: {lac}"
+
+
+def test_task_doc_lai_sau_khi_sua_co_hang_doi() -> None:
+    """Task không khai hàng đợi thì rơi vào hàng mặc định không worker nào nghe:
+    người dùng bấm "Lưu và đọc lại", API trả 202, và giọng KHÔNG BAO GIỜ được
+    đọc lại — không lỗi, không log, chỉ im lặng."""
+    assert "reup.doc_lai_sau_khi_sua" in (app.conf.task_routes or {})
+
+
+def test_task_doc_lai_goi_dung_ten_task_that() -> None:
+    """`tts_video` không tồn tại — tên thật là `tts_video_task`. Gọi sai tên chỉ
+    vỡ lúc CHẠY, mà lúc đó người dùng đã bấm nút và đang chờ."""
+    from src.tasks import video as m
+
+    assert hasattr(m, "tts_video_task")
+    assert not hasattr(m, "tts_video")

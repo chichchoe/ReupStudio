@@ -236,6 +236,19 @@ export const api = {
       }),
     }),
 
+  /**
+   * Lưu bản dịch người dùng sửa tay ở bảng đối chiếu.
+   *
+   * Chỉ gửi CHỮ; mốc thời gian backend giữ nguyên theo chỉ số câu. `docLai`
+   * bật thì đọc lại giọng ngay — worker chỉ gọi nhà cung cấp cho những câu
+   * đã đổi chữ, câu không đụng tới thì dùng lại mẩu cũ.
+   */
+  suaBanDich: (id: string, cues: { i: number; text: string }[], docLai = true) =>
+    request<Subtitle>(`/videos/${id}/subtitles/vi`, {
+      method: "PUT",
+      body: JSON.stringify({ cues, doc_lai: docLai }),
+    }),
+
   /** Duyệt bản dịch và giọng đọc — cho chạy tiếp chặng xoá chữ cứng và render. */
   approveDub: (id: string) =>
     request<TranslateAccepted>(`/videos/${id}/approve-dub`, { method: "POST" }),

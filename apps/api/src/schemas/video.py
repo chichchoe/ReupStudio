@@ -122,6 +122,20 @@ class TranslateRequest(BaseModel):
     tts_model: str | None = None
 
 
+class CauSuaIn(BaseModel):
+    """Một câu người dùng vừa sửa. CHỈ chữ — mốc thời gian không cho đổi."""
+
+    i: int
+    text: str = Field(min_length=1)
+
+
+class SuaBanDichIn(BaseModel):
+    cues: list[CauSuaIn] = Field(min_length=1)
+    #: Đọc lại giọng ngay sau khi lưu. Tắt khi còn muốn sửa tiếp vài câu nữa —
+    #: mỗi lần đọc lại là một lượt gọi nhà cung cấp cho từng câu đã đổi.
+    doc_lai: bool = True
+
+
 class GiongDocOut(BaseModel):
     """Một giọng đọc chọn được trên giao diện."""
 

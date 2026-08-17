@@ -239,6 +239,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/videos/{video_id}/subtitles/vi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Sua Ban Dich
+         * @description Lưu bản dịch người dùng sửa tay, rồi đọc lại giọng cho câu đã đổi.
+         *
+         *     Commit TRƯỚC khi gửi task — worker chạy gần như tức thì, chậm một nhịp là
+         *     nó đọc phải bản dịch cũ.
+         */
+        put: operations["sua_ban_dich_api_v1_videos__video_id__subtitles_vi_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/videos/{video_id}/subtitles": {
         parameters: {
             query?: never;
@@ -769,6 +792,16 @@ export interface components {
             nhom: components["schemas"]["NhomCauHinhOut"][];
             /** Khoa Bootstrap */
             khoa_bootstrap: string[];
+        };
+        /**
+         * CauSuaIn
+         * @description Một câu người dùng vừa sửa. CHỈ chữ — mốc thời gian không cho đổi.
+         */
+        CauSuaIn: {
+            /** I */
+            i: number;
+            /** Text */
+            text: string;
         };
         /** CreateFromLinks */
         CreateFromLinks: {
@@ -1346,6 +1379,16 @@ export interface components {
          * @enum {string}
          */
         SourcePlatform: "douyin" | "bilibili" | "kuaishou" | "xiaohongshu" | "weibo" | "youtube" | "tiktok" | "instagram" | "facebook" | "twitter" | "other";
+        /** SuaBanDichIn */
+        SuaBanDichIn: {
+            /** Cues */
+            cues: components["schemas"]["CauSuaIn"][];
+            /**
+             * Doc Lai
+             * @default true
+             */
+            doc_lai: boolean;
+        };
         /**
          * SuaCauHinhIn
          * @description Chỉ gửi những khoá thật sự đổi.
@@ -2038,6 +2081,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sua_ban_dich_api_v1_videos__video_id__subtitles_vi_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuaBanDichIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubtitleOut"];
                 };
             };
             /** @description Validation Error */

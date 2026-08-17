@@ -243,6 +243,46 @@ def get_subtitles(db: Session, video_id: uuid.UUID, lang: str | None = None) -> 
     return list(db.scalars(stmt).all())
 
 
+def sua_ban_dich(db: Session, video_id: uuid.UUID, cues: list[dict[str, Any]]) -> Subtitle:
+    """Ghi đè lời thoại tiếng Việt bằng bản người dùng vừa sửa.
+
+    CHỈ nhận chữ. Mốc thời gian giữ nguyên của bản cũ theo chỉ số câu: giờ giấc
+    do bước nhận dạng và bước chuẩn hoá phụ đề tính ra, người dùng sửa chữ chứ
+    không nắn nhịp — cho sửa mốc ở đây là mở đường cho phụ đề chồng lên nhau.
+
+    ``edited_by_user`` bật lên để worker KHÔNG ghi đè khi chạy lại
+    (xem ``tasks/video.py::_save_subtitle``).
+    """
+    video = get_video(db, video_id)
+    if video.status != VideoStatus.REVIEW.value:
+        raise ApiError("Chỉ sửa được bản dịch khi video đang chờ duyệt.")
+
+    row = db.scalar(sa.select(Subtitle).where(Subtitle.video_id == video_id, Subtitle.lang == "vi"))
+    if row is None:
+        raise NotFound(f"Video {video_id} chưa có bản dịch tiếng Việt.")
+
+    cu = {int(c["i"]): c for c in row.cues}
+    moi = []
+    for c in cues:
+        i = int(c["i"])
+        goc = cu.get(i)
+        if goc is None:
+            raise ApiError(f"Không có câu số {i} trong bản dịch.")
+        chu = str(c.get("text", "")).strip()
+        if not chu:
+            raise ApiError(f"Câu số {i} bị để trống — xoá câu thì phụ đề hụt một đoạn.")
+        moi.append({**goc, "text": chu})
+
+    #: Giữ nguyên những câu người dùng KHÔNG gửi lên — giao diện có thể chỉ gửi
+    #: phần đã sửa, và mất câu là mất luôn một đoạn lời thoại.
+    da_sua = {c["i"]: c for c in moi}
+    row.cues = [da_sua.get(int(c["i"]), c) for c in row.cues]
+    row.edited_by_user = True
+    db.flush()
+    log.info("subtitle.nguoi_dung_sua", video_id=str(video_id), so_cau=len(moi))
+    return row
+
+
 def get_job_runs(db: Session, video_id: uuid.UUID) -> list[JobRun]:
     return list(
         db.scalars(

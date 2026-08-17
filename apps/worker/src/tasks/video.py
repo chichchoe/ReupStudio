@@ -7,6 +7,7 @@ với cùng input phải cho cùng kết quả và không hỏng gì.
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from celery import chain
@@ -574,18 +575,105 @@ def _dung_cho_duyet_ban_dich(session, video) -> bool:
 SO_LAN_HONG_LIEN_TIEP_THI_DUNG = 5
 
 
-def _doc_tuan_tu(provider, vi_cues, vid: str, giong: str) -> dict[int, Path]:
-    """Đọc từng câu một cho các provider không có đường song song."""
+def _van_tay_cau(text: str, giong: str, nha: str, model: str) -> str:
+    """Dấu vân tay của MỘT mẩu giọng: đổi bất kỳ thứ nào cũng phải đọc lại."""
+    goc = "\x00".join((text, giong, nha, model))
+    return hashlib.sha256(goc.encode("utf-8")).hexdigest()[:16]
+
+
+def _con_dung_duoc(dst: Path, van_tay: str) -> bool:
+    """Mẩu giọng cũ còn dùng lại được không.
+
+    VÌ SAO CẦN: người dùng sửa vài câu trong bảng đối chiếu rồi bấm đọc lại.
+    Không có chốt này thì đọc lại CẢ 137 câu — mất vài phút và tốn tiền cho
+    134 câu chẳng đổi chữ nào. Luật số 4 CLAUDE.md: bước nào cũng phải
+    idempotent, chạy lại lần hai cho cùng kết quả và bỏ qua thứ đã có.
+    """
+    dau = dst.with_suffix(".vantay")
+    if not (dst.exists() and dst.stat().st_size > 0 and dau.exists()):
+        return False
+    return dau.read_text(encoding="utf-8").strip() == van_tay
+
+
+def _mau_con_dung_duoc(
+    vi_cues, vid: str, giong: str, nha: str, model: str, duoi: str
+) -> dict[int, Path]:
+    """Những câu đã có mẩu giọng đúng vân tay — khỏi đọc lại.
+
+    ``duoi`` khác nhau giữa hai đường đọc: đường tuần tự ghi ``.wav``, đường
+    song song của edge-tts ghi ``.mp3``. Dò nhầm đuôi là không thấy mẩu nào và
+    đọc lại sạch.
+    """
+    thu_muc = voice_parts_dir(vid)
+    ra: dict[int, Path] = {}
+    for i, cue in enumerate(vi_cues):
+        dst = thu_muc / f"cau_{i:05d}{duoi}"
+        van_tay = _van_tay_cau(cue.text.replace("\n", " "), giong, nha, model)
+        if _con_dung_duoc(dst, van_tay):
+            ra[i] = dst
+    return ra
+
+
+def _doc_song_song(provider, vi_cues, vid: str, giong: str, model: str) -> dict[int, Path]:
+    """Đường đọc song song (edge-tts), có bỏ qua câu chưa đổi chữ.
+
+    ``doc_nhieu`` đặt tên file THEO VỊ TRÍ trong danh sách, nên không cắt bớt
+    danh sách được — cắt là lệch tên file của mọi câu phía sau. Thay vào đó
+    đưa chuỗi RỖNG cho câu không cần đọc: nó tự bỏ qua (xem ``edge.py``), file
+    cũ còn nguyên, và ta ghép lại ở dưới.
+    """
+    thu_muc = voice_parts_dir(vid)
+    nha = getattr(provider, "ten", "")
+    dung_lai = _mau_con_dung_duoc(vi_cues, vid, giong, nha, model, ".mp3")
+
+    can_doc = ["" if i in dung_lai else c.text.replace("\n", " ") for i, c in enumerate(vi_cues)]
+    if any(can_doc):
+        moi = provider.doc_nhieu(
+            can_doc,
+            thu_muc,
+            giong=giong,
+            progress_cb=lambda p: prog.progress(vid, PipelineStep.TTS.value, int(p * 0.9)),
+        )
+        for i, dst in moi.items():
+            dst.with_suffix(".vantay").write_text(
+                _van_tay_cau(can_doc[i], giong, nha, model), encoding="utf-8"
+            )
+    else:
+        moi = {}
+
+    if dung_lai:
+        log.info("tts.dung_lai_mau_cu", dung_lai=len(dung_lai), doc_moi=len(moi))
+    return {**dung_lai, **moi}
+
+
+def _doc_tuan_tu(provider, vi_cues, vid: str, giong: str, model: str = "") -> dict[int, Path]:
+    """Đọc từng câu một cho các provider không có đường song song.
+
+    Câu nào đã có mẩu giọng đúng vân tay thì DÙNG LẠI, không gọi nhà cung cấp.
+    """
     thu_muc = voice_parts_dir(vid)
     ra: dict[int, Path] = {}
     hong_lien_tiep = 0
     loi_cuoi = ""
+    dung_lai = 0
     for i, cue in enumerate(vi_cues):
         dst = thu_muc / f"cau_{i:05d}.wav"
+        cau = cue.text.replace("\n", " ")
+        van_tay = _van_tay_cau(cau, giong, getattr(provider, "ten", ""), model)
+
+        if _con_dung_duoc(dst, van_tay):
+            ra[i] = dst
+            dung_lai += 1
+            hong_lien_tiep = 0
+            if vi_cues:
+                prog.progress(vid, PipelineStep.TTS.value, int((i + 1) * 90 / len(vi_cues)))
+            continue
+
         try:
-            provider.doc(cue.text.replace("\n", " "), dst, giong=giong)
+            provider.doc(cau, dst, giong=giong)
             if dst.exists() and dst.stat().st_size > 0:
                 ra[i] = dst
+                dst.with_suffix(".vantay").write_text(van_tay, encoding="utf-8")
                 hong_lien_tiep = 0
             else:
                 hong_lien_tiep += 1
@@ -604,6 +692,9 @@ def _doc_tuan_tu(provider, vi_cues, vid: str, giong: str) -> dict[int, Path]:
 
         if vi_cues:
             prog.progress(vid, PipelineStep.TTS.value, int((i + 1) * 90 / len(vi_cues)))
+
+    if dung_lai:
+        log.info("tts.dung_lai_mau_cu", dung_lai=dung_lai, doc_moi=len(vi_cues) - dung_lai)
     return ra
 
 
@@ -843,14 +934,9 @@ def tts_video_task(session, video) -> dict:
     #: Gemini TTS chưa có đường đọc nhiều câu song song (mỗi câu một lượt hạn
     #: mức, dội song song là cách nhanh nhất để ăn 429), nên đi đường tuần tự.
     if not hasattr(provider, "doc_nhieu"):
-        files = _doc_tuan_tu(provider, vi_cues, vid, giong)
+        files = _doc_tuan_tu(provider, vi_cues, vid, giong, model)
     else:
-        files = provider.doc_nhieu(
-            [c.text.replace("\n", " ") for c in vi_cues],
-            voice_parts_dir(vid),
-            giong=giong,
-            progress_cb=lambda p: prog.progress(vid, PipelineStep.TTS.value, int(p * 0.9)),
-        )
+        files = _doc_song_song(provider, vi_cues, vid, giong, model)
 
     #: Không đọc được câu nào thì DỪNG, đừng dựng một dải tiếng toàn số 0.
     #: Video vẫn ra bình thường, chỉ là câm phần lồng tiếng — người dùng chỉ
@@ -1081,6 +1167,22 @@ def tts_video_chain_sau_duyet(video_id: str) -> str:
     """
     log.info("pipeline.sau_duyet_start", video_id=video_id)
     _build_chain(video_id, M1_STEPS_SAU_DUYET).apply_async()
+    return video_id
+
+
+@app.task(name="reup.doc_lai_sau_khi_sua")
+def doc_lai_sau_khi_sua(video_id: str) -> str:
+    """Đọc lại giọng sau khi người dùng sửa bản dịch trong bảng đối chiếu.
+
+    Chỉ chạy MỘT bước TTS, không chạy lại cả chặng: bản dịch vừa do người dùng
+    sửa tay, dịch lại là xoá sạch công họ vừa bỏ ra (và ``edited_by_user`` cũng
+    chặn ghi đè).
+
+    Bên trong, ``_doc_tuan_tu`` đối chiếu vân tay từng câu nên chỉ gọi nhà cung
+    cấp cho những câu ĐÃ ĐỔI CHỮ — sửa 3 câu trong 137 thì tốn đúng 3 lượt.
+    """
+    tts_video_task.delay(video_id)
+    log.info("pipeline.doc_lai_sau_khi_sua", video_id=video_id)
     return video_id
 
 

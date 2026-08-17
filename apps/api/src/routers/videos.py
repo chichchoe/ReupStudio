@@ -17,6 +17,7 @@ from ..schemas.video import (
     CreateFromLinks,
     CreateFromLinksResult,
     JobRunOut,
+    SuaBanDichIn,
     SubtitleOut,
     TranslateRequest,
     TtsOptionsOut,
@@ -160,6 +161,20 @@ def voice_track_file(video_id: uuid.UUID, db: Session = Depends(get_db)):
     if not f.exists() or f.stat().st_size == 0:
         raise NotFound("Chưa có dải tiếng — bước lồng tiếng chưa chạy xong.")
     return FileResponse(f, media_type="audio/wav", filename=f"loitieng-{video_id}.wav")
+
+
+@router.put("/{video_id}/subtitles/vi", response_model=SubtitleOut)
+def sua_ban_dich(video_id: uuid.UUID, body: SuaBanDichIn, db: Session = Depends(get_db)):
+    """Lưu bản dịch người dùng sửa tay, rồi đọc lại giọng cho câu đã đổi.
+
+    Commit TRƯỚC khi gửi task — worker chạy gần như tức thì, chậm một nhịp là
+    nó đọc phải bản dịch cũ.
+    """
+    row = video_service.sua_ban_dich(db, video_id, [c.model_dump() for c in body.cues])
+    db.commit()
+    if body.doc_lai:
+        task_bridge.doc_lai_sau_khi_sua(video_id)
+    return row
 
 
 @router.get("/{video_id}/subtitles", response_model=list[SubtitleOut])

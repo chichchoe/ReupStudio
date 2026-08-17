@@ -19,6 +19,7 @@ RETRY_FROM_STEP = "reup.retry_from_step"
 RENDER_VARIANTS = "reup.render_variants"
 TTS_CHAIN_SAU_DUYET = "reup.tts_video_chain_sau_duyet"
 TRANSLATE_VIDEO_CHAIN = "reup.translate_video_chain"
+DOC_LAI_SAU_KHI_SUA = "reup.doc_lai_sau_khi_sua"
 
 
 def celery() -> Celery:
@@ -59,6 +60,21 @@ def translate_video(video_id: uuid.UUID) -> str:
     là FFmpeg — đều là việc CPU, không cần GPU.
     """
     result = celery().send_task(TRANSLATE_VIDEO_CHAIN, args=[str(video_id)], queue="media")
+    return result.id
+
+
+def doc_lai_sau_khi_sua(video_id: uuid.UUID) -> str:
+    """Đọc lại giọng cho những câu người dùng vừa sửa.
+
+    Queue ``download`` giống các task điều phối khác — nó chỉ xếp việc rồi
+    thoát, phần nặng nằm ở ``reup.tts_video``.
+
+    ``queue=`` BẮT BUỘC phải truyền: app Celery của API không mang
+    ``task_routes`` của worker, thiếu nó là task rơi vào hàng mặc định
+    ``celery`` mà không worker nào nghe. Người dùng bấm "Lưu và đọc lại", API
+    trả 200, và giọng không bao giờ được đọc lại — không lỗi, không log.
+    """
+    result = celery().send_task(DOC_LAI_SAU_KHI_SUA, args=[str(video_id)], queue="download")
     return result.id
 
 
