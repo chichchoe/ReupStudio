@@ -42,10 +42,6 @@ export function PendingTranslateTab() {
     queryKey: videosKey,
     queryFn: () => api.listVideos({ status: REVIEW_STATUS }),
   });
-  const { data: models, error: modelsError } = useQuery({
-    queryKey: ["llm-models"],
-    queryFn: api.llmModels,
-  });
   const { data: nhaCungCap = [] } = useQuery({
     queryKey: ["ai-providers"],
     queryFn: api.nhaCungCapAI,
@@ -58,6 +54,24 @@ export function PendingTranslateTab() {
     staleTime: 10 * 60 * 1000,
   });
 
+  //: KHÔNG dùng `/llm/models` nữa. Endpoint đó đọc `LLM_API_KEY` — cấu hình
+  //: MỘT khoá của thời trước khi có bảng `ai_providers`. Từ lúc mỗi bên một
+  //: khoá riêng, nó luôn hỏng và bắn ra một dải cảnh báo vàng "chưa cấu hình
+  //: LLM_API_KEY" ngay trên đầu tab, trong khi từng dòng vẫn hỏi model bình
+  //: thường qua đường theo-nhà-cung-cấp và chạy tốt.
+  //:
+  //: Hỏi đúng bên đang chọn sẵn, dùng CHUNG khoá cache với ô chọn ở từng dòng
+  //: (`["provider-models", ma, "translate"]`) nên không sinh thêm lượt gọi.
+  const benMacDinh =
+    nhaCungCap.find((n) => n.mac_dinh && (n.da_dat_khoa || !n.can_khoa))?.ma ??
+    nhaCungCap.find((n) => n.da_dat_khoa || !n.can_khoa)?.ma ??
+    "";
+  const { data: modelsBenMacDinh, error: modelsError } = useQuery({
+    queryKey: ["provider-models", benMacDinh, "translate"],
+    queryFn: () => api.modelCuaNhaCungCap(benMacDinh, "translate"),
+    enabled: Boolean(benMacDinh),
+  });
+
   //: Dịch xong video VẪN ở trạng thái `review` — nó chỉ chuyển sang chỗ dừng
   //: thứ hai (chờ duyệt bản dịch), đánh dấu bằng cờ `cho_duyet_ban_dich`.
   //: Không lọc cờ này ra thì dịch xong video rơi trở lại đúng tab Chờ dịch,
@@ -66,10 +80,11 @@ export function PendingTranslateTab() {
     () => (data?.items ?? []).filter((v) => !v.flags?.cho_duyet_ban_dich),
     [data],
   );
-  const translateModels = models?.translate ?? [];
+  const translateModels = modelsBenMacDinh ?? [];
   //: Model cấu hình sẵn để chọn trước trong ô chọn — không có thì rơi về
   //: model đầu danh sách, mà model đầu thường là bản hạn mức thấp.
-  const defaultModel = models?.default ?? "";
+  const defaultModel =
+    nhaCungCap.find((n) => n.ma === benMacDinh)?.model_mac_dinh ?? "";
 
   const { translate, pendingIds, translatePending } = useTranslateMutations({
     videosKey,
@@ -105,7 +120,7 @@ export function PendingTranslateTab() {
           nói rõ lý do, nếu không người dùng chỉ thấy dropdown trống mà không hiểu. */}
       {modelsError && (
         <div className="mb-3 rounded-lg border border-warn/30 bg-warn/10 px-3.5 py-2.5 text-[12.5px] text-warn">
-          Chưa lấy được danh sách model AI:{" "}
+          Chưa hỏi được danh sách model của {benMacDinh || "nhà cung cấp"}:{" "}
           {modelsError instanceof ApiError ? modelsError.message : "lỗi không rõ"}
         </div>
       )}

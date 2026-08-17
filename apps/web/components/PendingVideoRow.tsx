@@ -93,12 +93,22 @@ export function PendingVideoRow({
   const model = chosen || (models.includes(modelMacDinh) ? modelMacDinh : models[0] || "");
 
   const [ttsProvider, setTtsProvider] = useState("");
+  const [ttsModel, setTtsModel] = useState("");
   const [giong, setGiong] = useState("");
 
+  //: Ba lựa chọn PHỤ THUỘC NHAU: bên đọc quyết định có model nào, model không
+  //: đổi danh sách giọng nhưng đổi chất lượng và giá. Đổi bên là phải xoá cả
+  //: model lẫn giọng — giữ lại là gửi lên mã của bên khác và bấm Dịch xong ăn
+  //: lỗi giữa chừng video.
   const benDocMacDinh =
     ttsOptions.find((o) => o.mac_dinh)?.provider ?? ttsOptions[0]?.provider ?? "edge";
   const benDoc = ttsProvider || benDocMacDinh;
   const nhomGiong = ttsOptions.find((o) => o.provider === benDoc);
+
+  const modelTts = nhomGiong?.models ?? [];
+  //: Chỉ dùng model đã chọn nếu nó CÓ trong danh sách của bên đang chọn.
+  const modelTtsDaChon = modelTts.includes(ttsModel) ? ttsModel : modelTts[0] || "";
+
   const giongMacDinh = nhomGiong?.giong_mac_dinh ?? "";
   const coGiongMacDinh = nhomGiong?.giong?.some((g) => g.ma === giongMacDinh) ?? false;
   const giongDaChon = giong || (coGiongMacDinh ? giongMacDinh : nhomGiong?.giong?.[0]?.ma || "");
@@ -109,8 +119,9 @@ export function PendingVideoRow({
 
   function doiGiongProvider(ma: string) {
     setTtsProvider(ma);
-    // Giọng của nhà cung cấp cũ không tồn tại ở nhà cung cấp mới — xoá đi để
-    // rơi về giọng đầu danh sách, thay vì gửi lên một mã giọng không có thật.
+    // Model và giọng của bên cũ không tồn tại ở bên mới — xoá cả hai để rơi về
+    // đầu danh sách mới, thay vì gửi lên mã không có thật.
+    setTtsModel("");
     setGiong("");
   }
 
@@ -174,6 +185,7 @@ export function PendingVideoRow({
               llmModel: model,
               xoaChuCung,
               ttsProvider: benDoc,
+              ttsModel: modelTtsDaChon || undefined,
               giongDoc: giongDaChon,
             })
           }
@@ -234,8 +246,12 @@ export function PendingVideoRow({
           </span>
         </label>
 
+        {/* Lồng tiếng đi ba bước theo đúng thứ tự phụ thuộc: bên đọc quyết
+            định có model nào, rồi mới tới giọng. Ô model ẨN HẲN với bên không
+            có model (edge-tts) — một ô chọn rỗng luôn khiến người dùng tưởng
+            đang chờ tải. */}
         <label className="flex items-center gap-2 text-[12px]">
-          <span className="text-muted">Giọng</span>
+          <span className="text-muted">Lồng tiếng</span>
           <select
             className="input w-28 py-1"
             value={benDoc}
@@ -248,6 +264,22 @@ export function PendingVideoRow({
               </option>
             ))}
           </select>
+
+          {modelTts.length > 0 && (
+            <select
+              className="input w-44 py-1"
+              value={modelTtsDaChon}
+              onChange={(e) => setTtsModel(e.target.value)}
+              aria-label="Chọn model đọc"
+            >
+              {modelTts.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
+
           <select
             className="input w-48 py-1"
             value={giongDaChon}
