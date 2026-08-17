@@ -496,6 +496,32 @@ _GIONG_OPENROUTER = [
 ]
 
 
+def _giong_voicestudio() -> list[dict[str, Any]]:
+    """Hỏi VoiceStudio xem đang có giọng nào. Rỗng nghĩa là chưa bật."""
+    import json
+    import urllib.request
+
+    from ..config import get_settings
+
+    goc = (get_settings().voicestudio_base_url or "http://localhost:3900/v1").rstrip("/")
+    try:
+        with urllib.request.urlopen(f"{goc}/audio/voices", timeout=2) as r:
+            data = json.load(r)
+    except Exception:  # noqa: BLE001 - chưa bật container là chuyện bình thường
+        return []
+
+    muc = data.get("voices") if isinstance(data, dict) else data
+    return [
+        {
+            "ma": str(v.get("id") or v.get("name")),
+            "ten": str(v.get("name") or v.get("id")),
+            "gioi_tinh": str(v.get("gender") or "—"),
+        }
+        for v in (muc or [])
+        if isinstance(v, dict) and (v.get("id") or v.get("name"))
+    ]
+
+
 def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
     """Giọng đọc chọn được, nhóm theo nhà cung cấp, kèm đánh đổi."""
     from ..config import get_settings
@@ -545,6 +571,20 @@ def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
                     "giong": _GIONG_OPENROUTER,
                 }
             )
+
+    #: VoiceStudio chạy tại máy nên không có khoá để mà kiểm; hỏi thẳng nó.
+    #: Không trả lời (container chưa bật) thì KHÔNG liệt kê — hiện ra rồi bấm
+    #: vào mới báo lỗi là cách chắc chắn nhất làm người dùng tưởng hỏng.
+    giong_vs = _giong_voicestudio()
+    if giong_vs:
+        ra.append(
+            {
+                "provider": "voicestudio",
+                "ghi_chu": "Chạy tại máy: miễn phí, không hạn mức. Tốc độ tuỳ phần cứng.",
+                "models": ["omnivoice"],
+                "giong": giong_vs,
+            }
+        )
 
     #: Bên nào được chọn sẵn — do BACKEND quyết (``TTS_PROVIDER`` trong Cấu
     #: hình), không nhét cứng trong React. Bên mặc định mà chưa dán khoá thì

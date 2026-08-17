@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     tts_provider: str = "openrouter"
     tts_giong: str = ""
     tts_model: str = ""
+    #: Địa chỉ VoiceStudio chạy tại máy — API chỉ đọc để hỏi danh sách giọng.
+    voicestudio_base_url: str = ""
     #: Trần hạn mức tự đặt — nhà cung cấp không trả header hạn mức nào nên phải
     #: tự khai và tự đếm. 0 = không giới hạn.
     llm_max_requests_per_min: int = 0
