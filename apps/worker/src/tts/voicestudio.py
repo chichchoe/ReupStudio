@@ -62,6 +62,34 @@ def _goi(url: str, body: dict | None, timeout: int) -> bytes:
         return r.read()
 
 
+#: Tên khoá chứa MÃ giọng, theo thứ tự ưu tiên. VoiceStudio trả ``voice_id``
+#: (đo thật ngày 17.08.2026) — lấy nhầm ``name`` là gửi lên "Alloy" thay vì
+#: "alloy", và máy chủ không nhận ra giọng nào.
+_KHOA_MA = ("voice_id", "id", "name")
+
+
+def _doc_giong(data: object) -> list[GiongDoc]:
+    """Rút danh sách giọng từ phản hồi. Hình dạng lạ thì trả rỗng."""
+    muc = data.get("voices") if isinstance(data, dict) else data
+    ra: list[GiongDoc] = []
+    for v in muc or []:
+        if not isinstance(v, dict):
+            continue
+        ma = next((str(v[k]) for k in _KHOA_MA if v.get(k)), "")
+        if not ma:
+            continue
+        ra.append(
+            GiongDoc(
+                ma=ma,
+                ten=str(v.get("name") or ma),
+                #: VoiceStudio không khai giới tính; ``type`` cho biết đây là
+                #: giọng có sẵn hay giọng người dùng tự nhân bản, hữu ích hơn.
+                gioi_tinh=str(v.get("gender") or v.get("type") or "—"),
+            )
+        )
+    return ra
+
+
 class VoiceStudioTTS:
     ten = "voicestudio"
 
@@ -82,17 +110,7 @@ class VoiceStudioTTS:
             log.info("tts.voicestudio.khong_hoi_duoc_giong", error=str(exc)[:120])
             return list(GIONG_DU_PHONG)
 
-        muc = data.get("voices") if isinstance(data, dict) else data
-        ra = [
-            GiongDoc(
-                ma=str(v.get("id") or v.get("name")),
-                ten=str(v.get("name") or v.get("id")),
-                gioi_tinh=str(v.get("gender") or "—"),
-            )
-            for v in (muc or [])
-            if isinstance(v, dict) and (v.get("id") or v.get("name"))
-        ]
-        return ra or list(GIONG_DU_PHONG)
+        return _doc_giong(data) or list(GIONG_DU_PHONG)
 
     def doc(self, text: str, dst: Path, *, giong: str = GIONG_MAC_DINH) -> Path:
         """Đọc một câu ra file.

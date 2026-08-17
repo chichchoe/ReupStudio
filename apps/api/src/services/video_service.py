@@ -510,16 +510,23 @@ def _giong_voicestudio() -> list[dict[str, Any]]:
     except Exception:  # noqa: BLE001 - chưa bật container là chuyện bình thường
         return []
 
+    #: VoiceStudio trả ``voice_id``, không phải ``id`` — lấy nhầm ``name`` là
+    #: gửi lên "Alloy" thay vì "alloy" và máy chủ không nhận ra giọng nào.
     muc = data.get("voices") if isinstance(data, dict) else data
-    return [
-        {
-            "ma": str(v.get("id") or v.get("name")),
-            "ten": str(v.get("name") or v.get("id")),
-            "gioi_tinh": str(v.get("gender") or "—"),
-        }
-        for v in (muc or [])
-        if isinstance(v, dict) and (v.get("id") or v.get("name"))
-    ]
+    ra = []
+    for v in muc or []:
+        if not isinstance(v, dict):
+            continue
+        ma = next((str(v[k]) for k in ("voice_id", "id", "name") if v.get(k)), "")
+        if ma:
+            ra.append(
+                {
+                    "ma": ma,
+                    "ten": str(v.get("name") or ma),
+                    "gioi_tinh": str(v.get("gender") or v.get("type") or "—"),
+                }
+            )
+    return ra
 
 
 def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
