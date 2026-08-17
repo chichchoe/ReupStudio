@@ -34,6 +34,12 @@ class VideoOut(BaseModel):
     current_step: PipelineStep | None = None
     error_message: str | None = None
     flags: dict[str, Any] = Field(default_factory=dict)
+    #: Đưa lên cả DANH SÁCH chứ không riêng chi tiết: tab Chờ duyệt cần hiện
+    #: model đã dịch và giọng đã đọc ngay trên dòng. Không có nó thì mỗi dòng
+    #: phải gọi thêm một lượt /videos/{id}, mà danh sách có bao nhiêu dòng là
+    #: bấy nhiêu lượt. Ở đây không có bí mật — chỉ tên model, mã giọng, văn
+    #: phong; khoá API nằm trong bảng ``ai_providers`` và không bao giờ ra API.
+    process_config: dict[str, Any] = Field(default_factory=dict)
     out_path: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -55,7 +61,6 @@ class VideoDetail(VideoOut):
     fps: float | None = None
     has_audio: bool | None = None
     raw_path: str | None = None
-    process_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class CreateFromLinks(BaseModel):

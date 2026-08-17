@@ -1450,7 +1450,7 @@ export interface components {
              * @default edge
              * @enum {string}
              */
-            tts_provider: "edge" | "gemini";
+            tts_provider: "edge" | "gemini" | "openrouter";
             /** Giong Doc */
             giong_doc?: string | null;
             /** Tts Model */
@@ -1529,6 +1529,10 @@ export interface components {
             flags?: {
                 [key: string]: unknown;
             };
+            /** Process Config */
+            process_config?: {
+                [key: string]: unknown;
+            };
             /** Out Path */
             out_path?: string | null;
             /**
@@ -1553,10 +1557,6 @@ export interface components {
             has_audio?: boolean | null;
             /** Raw Path */
             raw_path?: string | null;
-            /** Process Config */
-            process_config?: {
-                [key: string]: unknown;
-            };
         };
         /** VideoOut */
         VideoOut: {
@@ -1589,6 +1589,10 @@ export interface components {
             error_message?: string | null;
             /** Flags */
             flags?: {
+                [key: string]: unknown;
+            };
+            /** Process Config */
+            process_config?: {
                 [key: string]: unknown;
             };
             /** Out Path */

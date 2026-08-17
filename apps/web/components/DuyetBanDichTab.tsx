@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
 import type { Video } from "@/lib/types";
@@ -15,9 +15,9 @@ const REVIEW_STATUS = "review";
  * nhất pipeline — video một tiếng mất hàng tiếng. Không ưng bản dịch hay giọng
  * đọc mà phát hiện sau khi render xong thì đã đốt ngần ấy thời gian máy.
  *
- * Ở đây người dùng làm đúng hai việc: ĐỌC lại toàn bộ câu tiếng Việt, và NGHE
- * thử dải tiếng đã khớp thời gian. Cả hai đều nhanh, và cả hai đều không thể
- * thay bằng việc đọc log.
+ * Ở đây người dùng làm đúng ba việc: ĐỐI CHIẾU từng câu Trung với câu Việt,
+ * NGHE thử dải tiếng đã khớp thời gian, và biết bản dịch này do model nào làm
+ * ra để lần sau chọn khác nếu chưa ưng.
  */
 export function DuyetBanDichTab() {
   const queryClient = useQueryClient();
@@ -66,6 +66,19 @@ export function DuyetBanDichTab() {
   );
 }
 
+/** Chuỗi mô tả AI đã dịch và giọng đã đọc, lấy từ ``process_config``. */
+function _daDungGi(video: Video): { ai: string; giong: string } {
+  const c = (video.process_config ?? {}) as Record<string, unknown>;
+  const ben = String(c.llm_provider_ma ?? "");
+  const model = String(c.llm_model ?? "");
+  const benDoc = String(c.tts_provider ?? "");
+  const giongDoc = String(c.giong_doc ?? "");
+  return {
+    ai: [ben, model].filter(Boolean).join(" · ") || "mặc định",
+    giong: [benDoc, giongDoc].filter(Boolean).join(" · ") || "mặc định",
+  };
+}
+
 interface DongProps {
   video: Video;
   mo: boolean;
@@ -77,26 +90,50 @@ interface DongProps {
 function DongDuyet({ video, mo, dangGui, onMo, onDuyet }: DongProps) {
   //: Chỉ tải phụ đề khi người dùng MỞ dòng ra. Một video có tới 672 câu, tải
   //: sẵn cho mọi dòng là kéo về hàng nghìn câu không ai đọc.
+  //: Lấy CẢ HAI thứ tiếng trong một lượt — không truyền `lang` thì API trả hết.
   const { data: subs } = useQuery({
-    queryKey: ["subtitles", video.id, "vi"],
-    queryFn: () => api.subtitles(video.id, "vi"),
+    queryKey: ["subtitles", video.id, "tat-ca"],
+    queryFn: () => api.subtitles(video.id),
     enabled: mo,
   });
-  const cues = subs?.find((s) => s.lang === "vi")?.cues ?? [];
+
+  //: Ghép câu Trung với câu Việt theo CHỈ SỐ, không theo mốc thời gian: bước
+  //: chuẩn hoá phụ đề tách một câu dài thành nhiều mảnh nên hai bên có thể
+  //: lệch số dòng, và mốc thời gian đã bị nắn lại.
+  const doi = useMemo(() => {
+    const vi = subs?.find((s) => s.lang === "vi")?.cues ?? [];
+    const zh = subs?.find((s) => s.lang === "zh")?.cues ?? [];
+    return vi.map((c, i) => ({ vi: c, zh: zh[i] ?? null }));
+  }, [subs]);
+
   const title = video.title_vi || video.title_original || video.source_video_id;
+  const { ai, giong } = _daDungGi(video);
 
   return (
     <div className="mb-2 rounded-xl border border-border bg-panel p-3">
       <div className="flex items-center gap-3">
         <button className="btn btn-sm shrink-0" onClick={onMo} aria-expanded={mo}>
-          {mo ? "Thu lại" : "Xem"}
+          {mo ? "Thu lại" : "Đối chiếu"}
         </button>
 
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13.5px] font-medium">{title}</div>
-          <div className="text-[11.5px] text-muted">{formatDuration(video.duration_sec)}</div>
+          {/* Model và giọng hiện NGAY TRÊN DÒNG, không phải mở ra mới thấy:
+              đọc thấy bản dịch chưa sát thì câu hỏi đầu tiên luôn là "con nào
+              dịch cái này", và đó là thứ quyết định lần sau chọn gì. */}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-muted">
+            <span>{formatDuration(video.duration_sec)}</span>
+            <span className="opacity-40">·</span>
+            <span>
+              AI dịch: <span className="font-mono text-fg">{ai}</span>
+            </span>
+            <span className="opacity-40">·</span>
+            <span>
+              Giọng: <span className="font-mono text-fg">{giong}</span>
+            </span>
+          </div>
           <div className="mt-1 text-[11px] text-warn">
-            Đã dịch và lồng tiếng — đọc lại rồi duyệt để ghép vào video
+            Đã dịch và lồng tiếng — đối chiếu rồi duyệt để ghép vào video
           </div>
         </div>
 
@@ -116,16 +153,31 @@ function DongDuyet({ video, mo, dangGui, onMo, onDuyet }: DongProps) {
             <audio controls preload="none" className="w-full" src={api.voiceTrackUrl(video.id)} />
           </div>
 
-          <div className="mb-1.5 text-[11.5px] text-muted">
-            {cues.length} câu tiếng Việt — đọc lại trước khi ghép
+          <div className="mb-1.5 flex items-center gap-2 text-[11.5px] text-muted">
+            <span>{doi.length} câu</span>
+            <span className="opacity-40">·</span>
+            {/* Đặt bản gốc CẠNH bản dịch chứ không chỉ hiện tiếng Việt: dịch
+                Trung–Việt sai chỗ nào thì chỉ nhìn riêng tiếng Việt không thể
+                biết — câu sai vẫn đọc trôi chảy như thường. */}
+            <span>đối chiếu từng câu với bản gốc để bắt chỗ dịch chưa sát</span>
           </div>
-          <div className="max-h-72 overflow-y-auto rounded-lg border border-border bg-bg p-2">
-            {cues.map((c) => (
-              <div key={c.i} className="flex gap-3 py-1 text-[12.5px]">
-                <span className="w-24 shrink-0 font-mono text-[11px] text-muted">
-                  {c.start.toFixed(1)}–{c.end.toFixed(1)}s
+
+          <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-bg">
+            <div className="sticky top-0 grid grid-cols-[5.5rem_1fr_1fr] gap-2 border-b border-border bg-panel2 px-2 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted">
+              <span>Thời gian</span>
+              <span>Bản gốc</span>
+              <span>Bản dịch</span>
+            </div>
+            {doi.map(({ vi, zh }) => (
+              <div
+                key={vi.i}
+                className="grid grid-cols-[5.5rem_1fr_1fr] gap-2 border-b border-border/50 px-2 py-1.5 text-[12.5px] last:border-0 hover:bg-panel2/50"
+              >
+                <span className="font-mono text-[10.5px] text-muted">
+                  {vi.start.toFixed(1)}–{vi.end.toFixed(1)}
                 </span>
-                <span className="whitespace-pre-wrap">{c.text}</span>
+                <span className="whitespace-pre-wrap text-muted">{zh?.text ?? "—"}</span>
+                <span className="whitespace-pre-wrap">{vi.text}</span>
               </div>
             ))}
           </div>
