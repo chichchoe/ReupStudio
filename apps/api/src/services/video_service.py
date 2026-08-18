@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 from typing import Any
 
 import sqlalchemy as sa
-from reup_core.enums import PresetKind, VideoStatus
+from reup_core.enums import Platform, PresetKind, VideoStatus
 from reup_core.llm_models import chac_chan_khong_dich_duoc
 from reup_core.logging import get_logger
 from reup_core.models import JobRun, Subtitle, Video
@@ -326,6 +327,37 @@ def _channel_ids_tu_payload(payload: dict[str, Any]) -> list[str]:
         raise ApiError(f"channel_ids chứa id không hợp lệ: {raw!r}") from exc
 
 
+#: Trạng thái mà việc "đã đăng" có nghĩa: bản dựng phải tồn tại rồi mới đăng
+#: được. ``POSTED`` nằm trong danh sách để đánh dấu bổ sung nền tảng lần hai.
+_TRANG_THAI_DANH_DAU_DUOC = (VideoStatus.READY, VideoStatus.SCHEDULED, VideoStatus.POSTED)
+
+
+def _nen_tang_tu_payload(payload: dict[str, Any]) -> list[str]:
+    """Đọc và kiểm ``payload["platforms"]`` cho action ``mark_posted``.
+
+    Kiểm theo enum ``Platform`` chứ không theo bảng ``platform_limits``: bảng
+    đó là nguồn sự thật của GIỚI HẠN từng nền tảng (luật số 5 CLAUDE.md), còn
+    danh sách TÊN nền tảng là enum. Tra bảng ở đây thì một DB chưa seed sẽ từ
+    chối mọi nền tảng, mà lỗi lại đọc như "tên sai".
+
+    Từ chối cả lô khi có tên lạ, không lặng lẽ bỏ tên đó: sổ ghi tay mà nhận
+    bừa thì về sau không ai soát ra được cái nào thật.
+    """
+    raw = payload.get("platforms")
+    if not isinstance(raw, list) or not raw:
+        raise ApiError("Thiếu platforms (danh sách nền tảng) trong payload")
+
+    hop_le = {p.value for p in Platform}
+    ten = [str(item).strip().lower() for item in raw]
+    la = [t for t in ten if t not in hop_le]
+    if la:
+        raise ApiError(
+            f"Không biết nền tảng {', '.join(sorted(la))}. Chọn trong: {', '.join(sorted(hop_le))}."
+        )
+    #: Bỏ trùng nhưng GIỮ thứ tự người dùng tích — thứ tự đó hiện lại trên dòng.
+    return list(dict.fromkeys(ten))
+
+
 def bulk_action(
     db: Session,
     ids: list[uuid.UUID],
@@ -334,8 +366,8 @@ def bulk_action(
 ) -> dict[str, Any]:
     """Áp một hành động cho nhiều video cùng lúc.
 
-    Hỗ trợ 5 action: ``approve``, ``delete``, ``retry``, ``apply_preset``,
-    ``assign_channels``. Video không áp được (không tìm thấy, đã xoá mềm, sai
+    Hỗ trợ 6 action: ``approve``, ``delete``, ``retry``, ``apply_preset``,
+    ``assign_channels``, ``mark_posted``. Video không áp được (không tìm thấy, đã xoá mềm, sai
     trạng thái) rơi vào ``skipped`` kèm lý do — không bao giờ bị bỏ qua âm thầm.
     Video đã xoá mềm (``deleted_at IS NOT NULL``) không bao giờ bị tác động.
 
@@ -343,6 +375,11 @@ def bulk_action(
     M2. Ở đây chỉ lưu danh sách id vào ``video.process_config["target_channel_ids"]``
     dưới dạng chuỗi thô, KHÔNG có khoá ngoại. M5 sẽ thay bằng khoá ngoại thật
     trỏ tới bảng ``publish_channels``.
+
+    ``mark_posted``: sổ ghi TAY cho việc người dùng tự đăng, vì chặng đăng tự
+    động (M5) chưa có. Ghi vào ``video.flags["da_dang"]`` dạng
+    ``{nền_tảng: ngày}`` — cùng lối tạm thời với ``assign_channels`` ở trên,
+    và M5 sẽ chuyển sang bảng thật.
     """
     payload = payload or {}
     skipped: list[dict[str, str]] = []
@@ -360,6 +397,10 @@ def bulk_action(
     channel_ids: list[str] = []
     if action == "assign_channels":
         channel_ids = _channel_ids_tu_payload(payload)
+
+    nen_tang: list[str] = []
+    if action == "mark_posted":
+        nen_tang = _nen_tang_tu_payload(payload)
 
     # Một truy vấn duy nhất thay vì db.get() từng id trong vòng lặp — với
     # max_length=500 của BulkAction.ids, N round-trip riêng lẻ giữ một
@@ -407,6 +448,23 @@ def bulk_action(
                 **video.process_config,
                 "target_channel_ids": channel_ids,
             }
+        elif action == "mark_posted":
+            if video.status not in _TRANG_THAI_DANH_DAU_DUOC:
+                skipped.append(
+                    {
+                        "id": str(video_id),
+                        "reason": f"Chưa có bản dựng để đăng: đang ở '{video.status}'",
+                    }
+                )
+                continue
+            #: GỘP chứ không ghi đè — đăng TikTok hôm nay, YouTube mai thì lần
+            #: hai không được xoá dấu lần đầu.
+            da_dang = {**(video.flags.get("da_dang") or {})}
+            hom_nay = date.today().isoformat()
+            for ma in nen_tang:
+                da_dang[ma] = hom_nay
+            video.flags = {**video.flags, "da_dang": da_dang}
+            video.status = VideoStatus.POSTED
         affected += 1
 
     if can_dispatch:

@@ -21,15 +21,20 @@ import { useReupSocket } from "@/lib/ws";
 /** Chờ 300ms sau lần gõ cuối mới bắn request tìm kiếm — tránh gọi API mỗi phím. */
 const SEARCH_DEBOUNCE_MS = 300;
 
-type Tab = "all" | "pending" | "duyet" | "kenh";
+type Tab = "all" | "pending" | "duyet" | "dadang" | "kenh";
 
 const TABS: { value: Tab; label: string }[] = [
-  { value: "all", label: "Toàn bộ video" },
+  //: "Đang làm" chứ không phải "Toàn bộ video": tab này ẩn video đã đăng, nên
+  //: gọi là "toàn bộ" thì sai — và người dùng sẽ đi tìm xem video biến đi đâu.
+  { value: "all", label: "Đang làm" },
   { value: "pending", label: "Chờ dịch" },
   //: Chỗ dừng thứ HAI của pipeline: đọc lại bản dịch và nghe thử giọng trước
   //: khi chạy bước xoá chữ cứng — bước nặng nhất, không nên chạy rồi mới biết
   //: bản dịch hỏng.
   { value: "duyet", label: "Chờ duyệt" },
+  //: Chặng đăng tự động (M5) chưa có — người dùng tự đăng rồi đánh dấu tay.
+  //: Tab này là sổ ghi những cái đã xong hẳn.
+  { value: "dadang", label: "Đã đăng" },
   //: Trang "Nguồn Trung Quốc" cũ có tab này. Gộp vào đây để chỗ thêm video và
   //: chỗ xem kết quả nằm cùng một nơi.
   { value: "kenh", label: "Kênh theo dõi" },
@@ -40,7 +45,7 @@ function LibraryInner() {
   const router = useRouter();
   const tab: Tab = ((): Tab => {
     const t = params.get("tab");
-    return t === "pending" || t === "duyet" || t === "kenh" ? t : "all";
+    return t === "pending" || t === "duyet" || t === "dadang" || t === "kenh" ? t : "all";
   })();
   const [status, setStatus] = useState<string>(params.get("status") ?? "all");
   const [queryInput, setQueryInput] = useState(params.get("q") ?? "");
@@ -77,9 +82,12 @@ function LibraryInner() {
   // Vẫn chạy cả khi đang ở tab "Chờ dịch": danh sách này nuôi các topic
   // WebSocket bên dưới, nhờ đó video vừa nhận dạng xong sẽ tự rơi vào danh sách
   // chờ dịch mà không cần polling.
+  //: Tab "Đã đăng" là một bộ lọc trạng thái, không phải một danh sách khác —
+  //: dùng chung đúng đường dữ liệu, chỉ đổi trạng thái hỏi.
+  const statusHieuLuc = tab === "dadang" ? "posted" : status;
   const { data, isLoading } = useQuery({
-    queryKey: ["videos", status, query],
-    queryFn: () => api.listVideos({ status, q: query || undefined }),
+    queryKey: ["videos", statusHieuLuc, query],
+    queryFn: () => api.listVideos({ status: statusHieuLuc, q: query || undefined }),
   });
   const { data: counts } = useQuery({ queryKey: ["counts"], queryFn: api.counts });
 
@@ -93,7 +101,12 @@ function LibraryInner() {
   const soChoDich = (dangDung?.items ?? []).filter((v) => !v.flags?.cho_duyet_ban_dich).length;
   const soChoDuyet = (dangDung?.items ?? []).filter((v) => v.flags?.cho_duyet_ban_dich).length;
 
-  const videos = useMemo(() => data?.items ?? [], [data]);
+  //: Tab "Đang làm" ẩn video đã đăng: chúng đã xong hẳn, để lại chỉ làm dài
+  //: danh sách việc còn phải làm. Xem lại ở tab "Đã đăng".
+  const videos = useMemo(() => {
+    const items = data?.items ?? [];
+    return tab === "dadang" ? items : items.filter((v) => v.status !== "posted");
+  }, [data, tab]);
 
   // Chỉ video đang chạy/chờ mới cần theo dõi tiến trình — subscribe sớm cả
   // "queued" để không lỡ mất progress đầu tiên khi video chuyển sang running.
@@ -114,7 +127,7 @@ function LibraryInner() {
   });
 
   const { retry, remove, bulk, bulkPending } = useLibraryMutations({
-    status,
+    status: statusHieuLuc,
     query,
     onBulkDone: (result) => {
       setSelected(new Set());
@@ -169,7 +182,10 @@ function LibraryInner() {
   //: Số hiện trên tab lấy từ /videos/counts chứ không từ `data.total`:
   //: `data.total` là số SAU khi lọc và tìm, gõ vào ô tìm kiếm là con số trên
   //: tab tụt xuống — trông như video vừa biến mất.
-  const tongSo = counts?.all;
+  const soDaDang = counts?.posted ?? 0;
+  //: Trừ đi phần đã đăng — tab này không hiện chúng nữa, để nguyên `all` thì
+  //: con số trên tab không khớp số dòng đếm được bên dưới.
+  const tongSo = counts?.all == null ? undefined : counts.all - soDaDang;
 
   return (
     //: `h-full` + `min-h-0` để danh sách bên trong tự cuộn được. Không có nó,
@@ -195,6 +211,7 @@ function LibraryInner() {
               {t.value === "all" && tongSo != null && ` · ${tongSo}`}
               {t.value === "pending" && !!soChoDich && ` · ${soChoDich}`}
               {t.value === "duyet" && !!soChoDuyet && ` · ${soChoDuyet}`}
+              {t.value === "dadang" && !!soDaDang && ` · ${soDaDang}`}
             </button>
           ))}
         </div>
@@ -298,7 +315,11 @@ function LibraryInner() {
               link mới. */}
           {!isLoading && videos.length === 0 && (
             <div className="py-16 text-center text-[13px] text-muted">
-              {query || status !== "all" ? (
+              {tab === "dadang" ? (
+                //: Rỗng ở đây KHÔNG phải "chưa có video" — mời dán link vào lúc
+                //: này là lạc đề. Nói đúng việc còn thiếu: chưa đánh dấu cái nào.
+                "Chưa đánh dấu video nào là đã đăng. Chọn video ở tab Đang làm rồi bấm 📤 Đã đăng."
+              ) : query || status !== "all" ? (
                 "Chưa có video nào khớp bộ lọc."
               ) : (
                 <>
@@ -357,6 +378,9 @@ function LibraryInner() {
             onDelete={() => setXoaLo(true)}
             onApplyPreset={(presetId) =>
               bulk([...selected], "apply_preset", { preset_id: presetId })
+            }
+            onMarkPosted={(platforms) =>
+              bulk([...selected], "mark_posted", { platforms })
             }
           />
         </>

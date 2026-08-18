@@ -755,7 +755,7 @@ export interface components {
              * Action
              * @enum {string}
              */
-            action: "approve" | "delete" | "retry" | "apply_preset" | "assign_channels";
+            action: "approve" | "delete" | "retry" | "apply_preset" | "assign_channels" | "mark_posted";
             /** Payload */
             payload?: {
                 [key: string]: unknown;

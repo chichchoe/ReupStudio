@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { api } from "@/lib/api";
 import { formatDuration, formatRelative, platformLabel } from "@/lib/format";
 import { ghiChuVideo } from "@/lib/ghiChuVideo";
-import type { Video } from "@/lib/types";
+import { TARGET_PLATFORM_LABEL, type TargetPlatform, type Video } from "@/lib/types";
 import type { VideoProgress } from "@/lib/ws";
 import { StatusDots } from "./StatusDots";
 
@@ -48,6 +48,10 @@ export function VideoRow({
   onDelete,
 }: Props) {
   const title = video.title_vi || video.title_original || video.source_video_id;
+  //: `flags.da_dang` là {nền tảng: ngày đánh dấu} — sổ ghi tay cho tới khi
+  //: chặng đăng tự động (M5) có thật.
+  const daDangMap = (video.flags?.da_dang ?? {}) as Record<string, string>;
+  const daDang = Object.keys(daDangMap);
   const note = ghiChuVideo(video, progress);
   //: Chỉ xem được khi đã có file ra. `posted` cũng có file — video đã đăng vẫn
   //: cần xem lại được.
@@ -101,6 +105,23 @@ export function VideoRow({
           <span className="opacity-40">·</span>
           <span>{formatRelative(video.created_at)}</span>
         </div>
+
+        {/* Nền tảng đã đăng — đánh dấu tay, vì chặng đăng tự động (M5) chưa có.
+            Hiện ngay trên dòng để trả lời được "cái này còn thiếu nơi nào"
+            mà không phải mở từng video ra xem. */}
+        {daDang.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            {daDang.map((ma) => (
+              <span
+                key={ma}
+                className="rounded bg-ok/15 px-1.5 py-px text-[10.5px] text-ok"
+                title={`Đánh dấu đã đăng ngày ${daDangMap[ma]}`}
+              >
+                {TARGET_PLATFORM_LABEL[ma as TargetPlatform] ?? ma}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="mt-1 flex items-center gap-2">
           {/* `current_step` vắng mặt khi video chưa chạy bước nào — quy về null
               để `StatusDots` chỉ phải xử lý một dạng "không có bước nào". */}
