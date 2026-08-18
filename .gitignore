@@ -38,3 +38,6 @@ out/
 
 # superpowers
 .superpowers/
+
+# Log của tiến trình dev chạy nền (make api/worker/web)
+.logs/
