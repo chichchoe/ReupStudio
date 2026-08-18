@@ -77,11 +77,19 @@ def _goi_y_khi_bi_chan(response) -> str:
     #: nhận nguyên khối JSON và không biết phải bấm gì.
     if not cho_phep:
         if "data policy" in tin or "guardrail" in tin:
+            #: KHÔNG chỉ tên một họ model làm bản thay thế. Bản đầu ghi cứng
+            #: "các model openai/* đang dùng được"; gọi thật ngày 17.08.2026
+            #: bằng đúng khoá đang lưu thì `openai/gpt-4.1-nano` trả 404 còn
+            #: `google/gemini-3.7-flash` trả 200 — lời khuyên chỉ thẳng vào thứ
+            #: ĐANG bị chặn. Bên nào được phép là chuyện của từng tài khoản và
+            #: đổi theo thời gian; chỗ duy nhất nói đúng là danh sách trong ô
+            #: chọn, vì nó hỏi ``/models/user`` (đã lọc theo tài khoản này).
             return (
                 "Tài khoản OpenRouter không được dùng model này: thiết lập quyền riêng "
                 "tư đang chặn nhà cung cấp phục vụ nó. Mở "
-                "https://openrouter.ai/settings/privacy để nới, hoặc chọn model khác — "
-                "các model openai/* (VD openai/gpt-4.1-nano) đang dùng được."
+                "https://openrouter.ai/settings/privacy để nới, hoặc chọn model khác "
+                "trong ô chọn — danh sách ở đó đã lọc theo đúng những gì tài khoản này "
+                "dùng được."
             )
         return ""
     ten_model = (

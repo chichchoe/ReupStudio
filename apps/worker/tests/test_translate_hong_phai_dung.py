@@ -167,7 +167,14 @@ def test_404_chinh_sach_du_lieu_noi_ro_phai_lam_gi() -> None:
     )
 
     assert "settings/privacy" in goi_y
-    assert "openai/" in goi_y  # chỉ luôn model thay thế dùng được
+    #: KHÔNG được chỉ tên một họ model làm bản thay thế. Bản đầu ghi cứng "các
+    #: model openai/* (VD openai/gpt-4.1-nano) đang dùng được"; gọi thật ngày
+    #: 17.08.2026 bằng đúng khoá đang lưu thì `openai/gpt-4.1-nano` trả 404 còn
+    #: `google/gemini-3.7-flash` trả 200 — lời khuyên chỉ thẳng vào thứ ĐANG bị
+    #: chặn. Bên nào được phép là chuyện của từng tài khoản và đổi theo thời
+    #: gian, đoán trong code thì sai lúc nào không ai biết.
+    assert "openai/" not in goi_y
+    assert "gpt-4.1-nano" not in goi_y
 
 
 def test_404_chan_nha_cung_cap_liet_ke_ben_duoc_phep() -> None:

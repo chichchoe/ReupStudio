@@ -47,6 +47,16 @@ DANH_MUC: dict[str, NhaCungCap] = {
         base_url="https://openrouter.ai/api/v1",
         trang_lay_khoa="https://openrouter.ai/keys",
         ghi_chu="Một khoá dùng được model của nhiều hãng. Có vài model đọc thành tiếng (openai/gpt-audio) nhưng ReupStudio chưa gọi được.",
+        #: ``/models`` của OpenRouter trả CẢ DANH MỤC CÔNG KHAI, không xét khoá
+        #: nào — 414 model. ``/models/user`` trả đúng thứ thiết lập quyền riêng
+        #: tư của tài khoản cho phép — 56 model (đếm ngày 17.08.2026).
+        #:
+        #: Hỏi đường thứ nhất là mời người dùng chọn trong 414 thứ mà 358 thứ
+        #: chắc chắn ăn 404 "No endpoints available matching your guardrail
+        #: restrictions and data policy" — và họ chỉ biết SAU khi đã tải và
+        #: nhận dạng xong cả video rồi bấm Dịch. Gặp thật: chọn model nào cũng
+        #: hỏng, kể cả ``openai/gpt-4.1-nano`` mà cấu hình đang chọn sẵn.
+        duong_dan_models="/models/user",
         model_goi_y=["deepseek/deepseek-chat", "google/gemini-flash-1.5"],
     ),
     "anthropic": NhaCungCap(
