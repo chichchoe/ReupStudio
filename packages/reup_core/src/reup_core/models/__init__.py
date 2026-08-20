@@ -2,6 +2,7 @@ from .ai_provider import AiProvider
 from .app_setting import AppSetting
 from .base import Base, TimestampMixin
 from .cost_log import CostLog
+from .giong_doc import GiongDoc
 from .job_run import JobRun
 from .mask_region import MaskRegion
 from .platform_limit import PlatformLimit
@@ -16,6 +17,7 @@ __all__ = [
     "AppSetting",
     "Base",
     "CostLog",
+    "GiongDoc",
     "JobRun",
     "MaskRegion",
     "PlatformLimit",
