@@ -25,6 +25,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from reup_core.long_tieng import KHE_GIUA_HAI_CAU, TOC_DO_TOI_DA, TOC_DO_TOI_THIEU
+
 from ..errors import ReupError
 from .cues import Cue
 
@@ -33,16 +35,13 @@ from .cues import Cue
 class ThamSoLongTieng:
     """Núm vặn của bước xếp lịch. Không hardcode ở chỗ khác."""
 
-    #: Trần tốc độ đọc. 1,5 là mức người Việt còn nghe kịp; trên nữa thì câu
-    #: chữ vẫn đủ nhưng người xem không bắt được ý, tức là hỏng mà vẫn "chạy".
-    toc_do_toi_da: float = 1.5
-
-    #: Sàn tốc độ. KHÔNG kéo chậm dưới 1,0 — xem docstring module.
-    toc_do_toi_thieu: float = 1.0
-
-    #: Chừa lại chừng này giây trước khi câu sau bắt đầu, để hai giọng không
-    #: dính đuôi nhau.
-    khe_giua_hai_cau: float = 0.08
+    #: Ba hằng số này lấy từ ``reup_core.long_tieng`` chứ không khai lại:
+    #: dòng thời gian ở màn duyệt phải bôi đỏ chỗ tràn bằng ĐÚNG luật dùng ở
+    #: đây. Hai bản sao là mở đường cho giao diện báo xanh trong khi bản dựng
+    #: thật vẫn tràn.
+    toc_do_toi_da: float = TOC_DO_TOI_DA
+    toc_do_toi_thieu: float = TOC_DO_TOI_THIEU
+    khe_giua_hai_cau: float = KHE_GIUA_HAI_CAU
 
 
 @dataclass(frozen=True)

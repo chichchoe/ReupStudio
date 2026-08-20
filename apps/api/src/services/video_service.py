@@ -11,9 +11,11 @@ import sqlalchemy as sa
 from reup_core.enums import Platform, PresetKind, VideoStatus
 from reup_core.llm_models import chac_chan_khong_dich_duoc
 from reup_core.logging import get_logger
+from reup_core.am_thanh import do_dai_wav
 from reup_core.doi_chieu import ghep_theo_thoi_gian, tu_dicts
+from reup_core.long_tieng import tinh_cho_cau
 from reup_core.models import JobRun, Subtitle, Video
-from reup_core.paths import proxy_path, raw_video
+from reup_core.paths import proxy_path, raw_video, voice_parts_dir
 from reup_core.source_url import parse_source_url
 from sqlalchemy.orm import Session
 
@@ -724,6 +726,10 @@ def doi_chieu(db: Session, video_id: uuid.UUID) -> list[dict[str, Any]]:
                 "dich": "",
                 "goc": str(c["text"]),
                 "sua_tay": False,
+                "giong_giay": None,
+                "cho_trong_giay": 0.0,
+                "he_so_toc_do": 1.0,
+                "tran_giay": 0.0,
             }
             for c in theo_lang["zh"]
         ]
@@ -731,18 +737,39 @@ def doi_chieu(db: Session, video_id: uuid.UUID) -> list[dict[str, Any]]:
     vi_cues = theo_lang["vi"]
     da_sua = {int(c["i"]): bool(c.get("sua_tay")) for c in vi_cues}
 
+    #: Độ dài THẬT của giọng từng câu, để dòng thời gian vẽ được lớp giọng và
+    #: chỉ ra chỗ tràn. Đọc header WAV chứ không gọi ffprobe: 672 câu mà mỗi
+    #: câu một tiến trình con thì mở trang mất hàng phút.
+    thu_muc_giong = voice_parts_dir(str(video_id))
+
     cap = ghep_theo_thoi_gian(tu_dicts(vi_cues), tu_dicts(theo_lang.get("zh", [])))
-    return [
-        {
-            "i": c.i,
-            "start": c.start,
-            "end": c.end,
-            "dich": c.dich,
-            "goc": c.goc,
-            "sua_tay": da_sua.get(c.i, False),
-        }
-        for c in cap
-    ]
+
+    ra: list[dict[str, Any]] = []
+    for vi_tri, c in enumerate(cap):
+        giong = do_dai_wav(thu_muc_giong / f"cau_{c.i:05d}.wav")
+        #: Chỗ trống tính tới lúc câu SAU bắt đầu, không phải tới lúc câu này
+        #: kết thúc — bước xếp lịch mượn được khoảng lặng phía sau. Tính theo
+        #: khung cue sẽ báo tràn ở cả những câu thật ra vừa chán chê.
+        cho = tinh_cho_cau(
+            bat_dau=c.start,
+            cau_sau_bat_dau=cap[vi_tri + 1].start if vi_tri + 1 < len(cap) else None,
+            do_dai_giong=giong,
+        )
+        ra.append(
+            {
+                "i": c.i,
+                "start": c.start,
+                "end": c.end,
+                "dich": c.dich,
+                "goc": c.goc,
+                "sua_tay": da_sua.get(c.i, False),
+                "giong_giay": giong,
+                "cho_trong_giay": cho.cho_trong_giay,
+                "he_so_toc_do": cho.he_so_toc_do,
+                "tran_giay": cho.tran_giay,
+            }
+        )
+    return ra
 
 
 def kiem_truoc_khi_dich_lai(
