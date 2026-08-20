@@ -13,6 +13,7 @@ from ..errors import NotFound
 from ..schemas.common import Page, TaskAccepted
 from ..schemas.video import (
     BulkAction,
+    CapDoiChieuOut,
     BulkResult,
     CreateFromLinks,
     CreateFromLinksResult,
@@ -181,6 +182,12 @@ def sua_ban_dich(video_id: uuid.UUID, body: SuaBanDichIn, db: Session = Depends(
 def subtitles(video_id: uuid.UUID, lang: str | None = None, db: Session = Depends(get_db)):
     video_service.get_video(db, video_id)
     return video_service.get_subtitles(db, video_id, lang)
+
+
+@router.get("/{video_id}/doi-chieu", response_model=list[CapDoiChieuOut])
+def doi_chieu(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Cặp câu Trung–Việt đã ghép đúng theo thời gian, cho màn duyệt bản dịch."""
+    return video_service.doi_chieu(db, video_id)
 
 
 @router.get("/{video_id}/job-runs", response_model=list[JobRunOut])

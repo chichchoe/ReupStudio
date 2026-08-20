@@ -213,3 +213,15 @@ class JobRunOut(BaseModel):
     duration_sec: float | None = None
     log: str | None = None
     meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class CapDoiChieuOut(BaseModel):
+    """Một dòng bảng đối chiếu ở màn duyệt bản dịch."""
+
+    i: int
+    start: float
+    end: float
+    dich: str
+    #: Câu gốc chồng thời gian, nối bằng " / ". Rỗng khi không có câu nào.
+    goc: str
+    sua_tay: bool = False

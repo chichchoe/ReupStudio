@@ -11,6 +11,7 @@ import sqlalchemy as sa
 from reup_core.enums import Platform, PresetKind, VideoStatus
 from reup_core.llm_models import chac_chan_khong_dich_duoc
 from reup_core.logging import get_logger
+from reup_core.doi_chieu import ghep_theo_thoi_gian, tu_dicts
 from reup_core.models import JobRun, Subtitle, Video
 from reup_core.paths import proxy_path, raw_video
 from reup_core.source_url import parse_source_url
@@ -687,3 +688,55 @@ def duong_dan_xem_truoc(db: Session, video_id: uuid.UUID) -> Path:
         return goc
 
     raise NotFound("Video chưa tải xong hoặc file đã bị xoá — chưa có gì để xem.")
+
+
+def doi_chieu(db: Session, video_id: uuid.UUID) -> list[dict[str, Any]]:
+    """Bảng đối chiếu câu dịch ↔ câu gốc, đã ghép ĐÚNG theo thời gian.
+
+    Không ghép theo chỉ số: bước chuẩn hoá phụ đề gộp câu ngắn, tách câu dài
+    rồi đánh số lại từ 0 — sau đó ``vi[i]`` không còn là bản dịch của
+    ``zh[i]``. Đo trên dữ liệu thật ngày 2026-08-20: 8/10 video lệch số câu.
+
+    Trả dict thay vì dataclass để router khỏi phải chuyển kiểu; thêm cờ
+    ``sua_tay`` cho giao diện biết câu nào người dùng đã chữa (câu đó được giữ
+    nguyên khi dịch lại toàn bộ).
+    """
+    get_video(db, video_id)
+
+    rows = db.scalars(sa.select(Subtitle).where(Subtitle.video_id == video_id)).all()
+    theo_lang = {r.lang: r.cues for r in rows}
+
+    if "vi" not in theo_lang and "zh" not in theo_lang:
+        raise NotFound(f"Video {video_id} chưa có phụ đề nào.")
+
+    #: Chưa dịch thì lấy câu GỐC làm khung, cột dịch để rỗng — chỗ dừng thứ
+    #: nhất cần xem bản gốc để quyết định có dịch không và chọn model nào.
+    #: Ném lỗi ở đây là bắt người dùng bấm Dịch mù.
+    if "vi" not in theo_lang:
+        return [
+            {
+                "i": int(c["i"]),
+                "start": float(c["start"]),
+                "end": float(c["end"]),
+                "dich": "",
+                "goc": str(c["text"]),
+                "sua_tay": False,
+            }
+            for c in theo_lang["zh"]
+        ]
+
+    vi_cues = theo_lang["vi"]
+    da_sua = {int(c["i"]): bool(c.get("sua_tay")) for c in vi_cues}
+
+    cap = ghep_theo_thoi_gian(tu_dicts(vi_cues), tu_dicts(theo_lang.get("zh", [])))
+    return [
+        {
+            "i": c.i,
+            "start": c.start,
+            "end": c.end,
+            "dich": c.dich,
+            "goc": c.goc,
+            "sua_tay": da_sua.get(c.i, False),
+        }
+        for c in cap
+    ]
