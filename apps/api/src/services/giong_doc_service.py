@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from reup_core.enums import NguonGiong, TrangThaiGiong
 from reup_core.logging import get_logger
 from reup_core.models import GiongDoc
-from reup_core.paths import giong_tai_len
+from reup_core.paths import giong_nghe_thu, giong_tai_len
 from sqlalchemy.orm import Session
 
 from ..errors import ApiError, NotFound
@@ -195,3 +195,14 @@ def xoa(db: Session, giong_id: uuid.UUID) -> None:
             log.warning("giong.khong_con_giong_nao_lam_mac_dinh")
 
     log.info("giong.xoa", giong_id=str(giong_id))
+
+
+def co_nghe_thu(giong_id: uuid.UUID) -> bool:
+    """Đã dựng được file nghe thử chưa.
+
+    Giọng seed sẵn mang ``trang_thai = san_sang`` nhưng chưa ai bấm dựng câu
+    đọc thử — trạng thái nói về DÒNG, còn cái này nói về FILE. Gộp hai thứ làm
+    một thì giao diện hiện nút nghe rồi trả 404.
+    """
+    f = giong_nghe_thu(str(giong_id))
+    return f.exists() and f.stat().st_size > 0
