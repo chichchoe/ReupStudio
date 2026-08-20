@@ -267,3 +267,37 @@ class TestDanhSach:
     def test_khong_co_giong_nao_thi_tra_None(self, db) -> None:
         assert sv.giong_mac_dinh(db) is None
         assert db.scalars(select(GiongDoc)).all() == []
+
+
+class TestChonGiongGhiVaoProcessConfig:
+    """Chọn giọng từ thư viện -> đúng tham số gọi trong ``process_config``.
+
+    Khoá một lỗi đã xảy ra thật ngày 2026-08-21: đổi từ giọng OpenRouter (có
+    model) sang giọng Edge (không model) mà ``tts_model`` cũ vẫn nằm lại, vì
+    ``dict.update`` chỉ ghi đè khoá CÓ MẶT. Worker đọc ra tên model của bên
+    khác rồi gửi đi, và ăn lỗi giữa chừng video.
+    """
+
+    def test_doi_sang_giong_khong_co_model_thi_XOA_model_cu(self, db) -> None:
+        from types import SimpleNamespace
+
+        from reup_core.giong import tham_so_goi
+
+        cu = {"tts_provider": "openrouter", "tts_model": "openai/gpt-audio-mini"}
+        edge = SimpleNamespace(
+            nha_cung_cap="edge", ma_giong="vi-VN-HoaiMyNeural", model=None, id=uuid.uuid4()
+        )
+
+        moi = tham_so_goi(
+            nha_cung_cap=edge.nha_cung_cap,
+            ma_giong=edge.ma_giong or "",
+            model=edge.model or "",
+            giong_id=str(edge.id),
+        )
+        if "tts_model" not in moi:
+            cu.pop("tts_model", None)
+        cu.update(moi)
+
+        assert "tts_model" not in cu
+        assert cu["tts_provider"] == "edge"
+        assert cu["giong_doc_id"] == str(edge.id)

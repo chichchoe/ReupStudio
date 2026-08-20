@@ -104,38 +104,27 @@ export function PendingVideoRow({
   const modelMacDinh = sanSang.find((n) => n.ma === maNhaCungCap)?.model_mac_dinh ?? "";
   const model = chosen || (models.includes(modelMacDinh) ? modelMacDinh : models[0] || "");
 
-  const [ttsProvider, setTtsProvider] = useState("");
-  const [ttsModel, setTtsModel] = useState("");
   const [giong, setGiong] = useState("");
 
-  //: Ba lựa chọn PHỤ THUỘC NHAU: bên đọc quyết định có model nào, model không
-  //: đổi danh sách giọng nhưng đổi chất lượng và giá. Đổi bên là phải xoá cả
-  //: model lẫn giọng — giữ lại là gửi lên mã của bên khác và bấm Dịch xong ăn
-  //: lỗi giữa chừng video.
-  const benDocMacDinh =
-    ttsOptions.find((o) => o.mac_dinh)?.provider ?? ttsOptions[0]?.provider ?? "edge";
-  const benDoc = ttsProvider || benDocMacDinh;
-  const nhomGiong = ttsOptions.find((o) => o.provider === benDoc);
+  //: Đọc THẲNG từ thư viện giọng, không qua `/tts-options` ba tầng nữa.
+  const { data: thuVienGiong = [] } = useQuery({
+    queryKey: ["giong-doc"],
+    queryFn: api.giongDoc,
+    staleTime: 5 * 60 * 1000,
+  });
+  //: Chỉ giọng đã dựng XONG. Hiện giọng đang xử lý rồi bấm Dịch là worker
+  //: đọc phải đoạn mẫu chưa có.
+  const giongSanSang = thuVienGiong.filter((g) => g.trang_thai === "san_sang");
+  const giongMacDinhThuVien = giongSanSang.find((g) => g.mac_dinh)?.id ?? giongSanSang[0]?.id ?? "";
+  const giongDaChon = giong || giongMacDinhThuVien;
 
-  const modelTts = nhomGiong?.models ?? [];
-  //: Chỉ dùng model đã chọn nếu nó CÓ trong danh sách của bên đang chọn.
-  const modelTtsDaChon = modelTts.includes(ttsModel) ? ttsModel : modelTts[0] || "";
-
-  const giongMacDinh = nhomGiong?.giong_mac_dinh ?? "";
-  const coGiongMacDinh = nhomGiong?.giong?.some((g) => g.ma === giongMacDinh) ?? false;
-  const giongDaChon = giong || (coGiongMacDinh ? giongMacDinh : nhomGiong?.giong?.[0]?.ma || "");
+  //: Cảnh báo hạn mức đọc theo NHÀ CUNG CẤP của giọng đang chọn, không phải
+  //: theo ô chọn riêng nữa — Gemini tính một lượt mỗi câu.
+  const benDoc = giongSanSang.find((g) => g.id === giongDaChon)?.nha_cung_cap ?? "edge";
   const quaNhieuCauChoGemini =
     benDoc === "gemini" && cueCount != null && cueCount > CAU_TOI_DA_CHO_GEMINI;
 
   const title = video.title_vi || video.title_original || video.source_video_id;
-
-  function doiGiongProvider(ma: string) {
-    setTtsProvider(ma);
-    // Model và giọng của bên cũ không tồn tại ở bên mới — xoá cả hai để rơi về
-    // đầu danh sách mới, thay vì gửi lên mã không có thật.
-    setTtsModel("");
-    setGiong("");
-  }
 
   return (
     <div
@@ -204,9 +193,7 @@ export function PendingVideoRow({
               llmProvider: maNhaCungCap,
               llmModel: model,
               xoaChuCung,
-              ttsProvider: benDoc,
-              ttsModel: modelTtsDaChon || undefined,
-              giongDoc: giongDaChon,
+              giongDocId: giongDaChon,
             })
           }
         >
@@ -274,49 +261,23 @@ export function PendingVideoRow({
           </span>
         </label>
 
-        {/* Lồng tiếng đi ba bước theo đúng thứ tự phụ thuộc: bên đọc quyết
-            định có model nào, rồi mới tới giọng. Ô model ẨN HẲN với bên không
-            có model (edge-tts) — một ô chọn rỗng luôn khiến người dùng tưởng
-            đang chờ tải. */}
+        {/* MỘT ô, không phải ba. Trước đây đi ba bước (nhà cung cấp → model →
+            giọng) vì mỗi bên một danh sách cứng. Từ khi có thư viện giọng,
+            bảng là nguồn sự thật duy nhất: chọn giọng xong hệ thống tự biết
+            gọi bên nào, với model nào. */}
         <label className="flex items-center gap-2 text-[12px]">
-          <span className="text-muted">Lồng tiếng</span>
+          <span className="text-muted">Giọng đọc</span>
           <select
-            className="input w-28 py-1"
-            value={benDoc}
-            onChange={(e) => doiGiongProvider(e.target.value)}
-            aria-label="Chọn nhà cung cấp giọng đọc"
-          >
-            {ttsOptions.map((o) => (
-              <option key={o.provider} value={o.provider}>
-                {o.provider}
-              </option>
-            ))}
-          </select>
-
-          {modelTts.length > 0 && (
-            <select
-              className="input w-44 py-1"
-              value={modelTtsDaChon}
-              onChange={(e) => setTtsModel(e.target.value)}
-              aria-label="Chọn model đọc"
-            >
-              {modelTts.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          )}
-
-          <select
-            className="input w-48 py-1"
+            className="input w-64 py-1"
             value={giongDaChon}
             onChange={(e) => setGiong(e.target.value)}
             aria-label="Chọn giọng đọc"
+            disabled={giongSanSang.length === 0}
           >
-            {(nhomGiong?.giong ?? []).map((g) => (
-              <option key={g.ma} value={g.ma}>
-                {g.ten}
+            {giongSanSang.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.ten} — {g.nha_cung_cap}
+                {g.nha_cung_cap === "fish_mlx" ? " (phi thương mại)" : ""}
               </option>
             ))}
           </select>
@@ -329,11 +290,16 @@ export function PendingVideoRow({
         </div>
       )}
 
-      {nhomGiong?.ghi_chu && (
-        <div className={clsx("mt-2 text-[11px]", quaNhieuCauChoGemini ? "text-err" : "text-muted")}>
-          {quaNhieuCauChoGemini
-            ? `Video có ${cueCount} câu — Gemini tính mỗi câu một lượt, sẽ hết hạn mức ngày giữa chừng. Dùng edge-tts cho video này.`
-            : nhomGiong.ghi_chu}
+      {quaNhieuCauChoGemini && (
+        <div className="mt-2 text-[11px] text-err">
+          Video có {cueCount} câu — Gemini tính mỗi câu một lượt, sẽ hết hạn mức ngày giữa
+          chừng. Chọn giọng edge-tts cho video này.
+        </div>
+      )}
+
+      {giongSanSang.length === 0 && (
+        <div className="mt-2 text-[11px] text-warn">
+          Chưa có giọng nào sẵn sàng — vào Cấu hình, mục Giọng đọc để thêm.
         </div>
       )}
     </div>

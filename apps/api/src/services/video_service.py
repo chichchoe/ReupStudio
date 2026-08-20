@@ -499,6 +499,7 @@ def luu_tuy_chon_xu_ly(
     llm_provider: str | None = None,
     giong_doc: str | None,
     tts_model: str | None,
+    giong_doc_id: uuid.UUID | None = None,
 ) -> Video:
     """Ghi các lựa chọn xử lý của RIÊNG video này vào ``process_config``.
 
@@ -515,11 +516,34 @@ def luu_tuy_chon_xu_ly(
     if llm_provider:
         config["llm_provider_ma"] = llm_provider
     config["xoa_chu_cung"] = bool(xoa_chu_cung)
-    config["tts_provider"] = tts_provider
-    if giong_doc:
-        config["giong_doc"] = giong_doc
-    if tts_model:
-        config["tts_model"] = tts_model
+    #: Có ``giong_doc_id`` thì TRA BẢNG và bỏ qua bộ ba trường rời: một mã là
+    #: đủ, và bảng là nguồn sự thật duy nhất. Ba trường cũ giữ cho video đã xếp
+    #: hàng từ trước vẫn chạy.
+    if giong_doc_id is not None:
+        from reup_core.giong import tham_so_goi
+
+        from . import giong_doc_service
+
+        g = giong_doc_service.lay(db, giong_doc_id)
+        moi = tham_so_goi(
+            nha_cung_cap=g.nha_cung_cap,
+            ma_giong=g.ma_giong or "",
+            model=g.model or "",
+            giong_id=str(g.id),
+        )
+        #: XOÁ ``tts_model`` cũ khi giọng mới không có model. ``update`` chỉ
+        #: ghi đè khoá có mặt, nên đổi từ giọng OpenRouter sang giọng Edge sẽ
+        #: để lại tên model của bên cũ — worker gửi nó đi và ăn lỗi giữa chừng
+        #: video. Quan sát thật ngày 2026-08-21.
+        if "tts_model" not in moi:
+            config.pop("tts_model", None)
+        config.update(moi)
+    else:
+        config["tts_provider"] = tts_provider
+        if giong_doc:
+            config["giong_doc"] = giong_doc
+        if tts_model:
+            config["tts_model"] = tts_model
 
     video.process_config = config
     db.flush()

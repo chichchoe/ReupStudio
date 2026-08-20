@@ -121,6 +121,13 @@ class TranslateRequest(BaseModel):
     #: Chỉ dùng với ``gemini`` và ``openrouter`` — model TTS cụ thể.
     tts_model: str | None = None
 
+    #: Trỏ vào MỘT dòng ``giong_doc``. Thay cho bộ ba
+    #: ``tts_provider``/``giong_doc``/``tts_model`` — một mã là đủ, service tra
+    #: ra ba thứ kia bằng ``reup_core.giong.tham_so_goi``.
+    #:
+    #: Ba trường cũ giữ nguyên để video đã xếp hàng từ trước vẫn chạy.
+    giong_doc_id: uuid.UUID | None = None
+
 
 class CauSuaIn(BaseModel):
     """Một câu người dùng vừa sửa. CHỈ chữ — mốc thời gian không cho đổi."""

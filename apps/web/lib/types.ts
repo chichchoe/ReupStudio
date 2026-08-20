@@ -72,8 +72,11 @@ export interface TuyChonDich {
   llmModel: string;
   /** Bỏ tích khi video không có chữ cứng — bước này nặng nhất pipeline. */
   xoaChuCung: boolean;
-  ttsProvider: string;
-  giongDoc: string;
+  /** Trỏ vào một dòng `giong_doc`. Thay cho bộ ba trường dưới. */
+  giongDocId?: string;
+  /** Ba trường cũ — giữ cho video đã xếp hàng từ trước, đừng dùng cho mã mới. */
+  ttsProvider?: string;
+  giongDoc?: string;
   ttsModel?: string;
 }
 
