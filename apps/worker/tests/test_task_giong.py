@@ -132,3 +132,31 @@ def test_whisper_gõ_ra_rong_thi_bao_hong(giong, monkeypatch) -> None:
     with pytest.raises(Exception, match="không nghe ra chữ nào"):
         dung_giong(DbGia(giong), giong.id)
     assert giong.trang_thai == TrangThaiGiong.HONG.value
+
+
+def test_giong_DUNG_SAN_chi_doc_thu_khong_can_doan_mau(giong, monkeypatch) -> None:
+    """Giọng dựng sẵn của nhà cung cấp KHÔNG có đoạn mẫu.
+
+    Giọng nằm sẵn bên họ, chỉ cần đọc thử bằng ``ma_giong``. Bắt nó đi qua
+    đường chuẩn hoá + Whisper thì hỏng ngay ở bước tìm file, và cả hai giọng
+    seed không bao giờ nghe thử được — quan sát thật ngày 2026-08-21.
+    """
+    giong.nguon = NguonGiong.DUNG_SAN.value
+    giong.nha_cung_cap = "edge"
+    giong.ma_giong = "vi-VN-HoaiMyNeural"
+
+    da_goi = []
+    monkeypatch.setattr(
+        "src.tasks.giong.chuan_hoa", lambda *a, **k: da_goi.append("chuan_hoa") or None
+    )
+    monkeypatch.setattr(
+        "src.tasks.giong.transcribe", lambda *a, **k: da_goi.append("transcribe") or []
+    )
+    monkeypatch.setattr("src.tasks.giong.doc_thu", lambda *a, **k: da_goi.append("doc_thu"))
+
+    dung_giong(DbGia(giong), giong.id)
+
+    #: KHÔNG được chạm chuẩn hoá hay Whisper — không có gì để chuẩn hoá cả.
+    assert da_goi == ["doc_thu"]
+    assert giong.trang_thai == TrangThaiGiong.SAN_SANG.value
+    assert giong.nghe_thu_bang == "edge"

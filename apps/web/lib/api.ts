@@ -3,6 +3,7 @@
  */
 
 import type { CapDoiChieu } from "./dongThoiGian";
+import type { GiongThuVien } from "./types";
 import type { components } from "./types.gen";
 import type {
   BulkAction,
@@ -96,9 +97,16 @@ async function goiFetch(url: string, init: RequestInit): Promise<Response> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  //: KHÔNG đặt Content-Type khi gửi FormData: trình duyệt phải tự đặt kèm
+  //: `boundary`, mà chuỗi boundary đó chỉ nó biết. Đặt tay là backend không
+  //: tách được các phần và trả 422 — biểu hiện ra ngoài chỉ là "tải file lên
+  //: không được", không ai đoán ra nguyên nhân nằm ở header.
+  const laFormData = init?.body instanceof FormData;
   const res = await goiFetch(`${PREFIX}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+    headers: laFormData
+      ? (init?.headers ?? {})
+      : { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     cache: "no-store",
   });
 
@@ -326,6 +334,27 @@ export const api = {
     }),
 
   variantFileUrl: (variantId: string) => `${PREFIX}/variants/${variantId}/file`,
+
+  // --- Thư viện giọng ---
+
+  /** Mọi giọng: dựng sẵn của nhà cung cấp LẪN giọng đã clone. */
+  giongDoc: () => request<GiongThuVien[]>("/giong-doc"),
+
+  /** Câu đọc thử CỐ ĐỊNH — mọi giọng đọc cùng câu để so cho sòng phẳng. */
+  ngheThuUrl: (id: string) => `${PREFIX}/giong-doc/${id}/nghe-thu`,
+
+  /** Thêm giọng. Gửi multipart nên KHÔNG tự đặt Content-Type. */
+  themGiong: (form: FormData) =>
+    request<{ task_id: string; message: string }>("/giong-doc", { method: "POST", body: form }),
+
+  suaGiong: (id: string, body: Record<string, unknown>) =>
+    request<GiongThuVien>(`/giong-doc/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+
+  xoaGiong: (id: string) => request<void>(`/giong-doc/${id}`, { method: "DELETE" }),
+
+  /** Dựng lại câu đọc thử — giọng seed chưa có file nào cho tới khi bấm cái này. */
+  docLaiGiong: (id: string) =>
+    request<{ task_id: string; message: string }>(`/giong-doc/${id}/doc-lai`, { method: "POST" }),
 };
 
 export const WS_URL = `${BASE.replace(/^http/, "ws")}/ws`;

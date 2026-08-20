@@ -5,6 +5,7 @@ import clsx from "clsx";
 import { useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { NhaCungCapAI } from "@/components/NhaCungCapAI";
+import { ThuVienGiong } from "@/components/ThuVienGiong";
 import { TheGiaiThich } from "@/components/TheGiaiThich";
 import type { MucCauHinh, MucKiemTra } from "@/lib/types";
 
@@ -28,6 +29,8 @@ import type { MucCauHinh, MucKiemTra } from "@/lib/types";
 /** Hai mục không đến từ API: một mục khoá AI, một mục biến `.env`. */
 const MUC_KHOA_AI = "Nhà cung cấp AI";
 const MUC_ENV = "Cài đặt";
+/** Mục thứ ba không đến từ API: thư viện giọng. */
+const MUC_GIONG = "Giọng đọc";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -127,6 +130,11 @@ export default function SettingsPage() {
             ))}
             <div className="my-2 border-t border-border" />
             <MucNav
+              ten={MUC_GIONG}
+              dangXem={dangXem === MUC_GIONG}
+              onChon={() => setDangXem(MUC_GIONG)}
+            />
+            <MucNav
               ten={MUC_ENV}
               dangXem={dangXem === MUC_ENV}
               onChon={() => setDangXem(MUC_ENV)}
@@ -148,6 +156,21 @@ export default function SettingsPage() {
                   </TheGiaiThich>
                 </div>
                 <NhaCungCapAI />
+              </>
+            )}
+
+            {dangXem === MUC_GIONG && (
+              <>
+                <div className="mb-3 flex items-center gap-3">
+                  <h2 className="text-[15px] font-semibold">{MUC_GIONG}</h2>
+                  <TheGiaiThich nhan="Giọng thế nào là tốt?">
+                    Giọng clone chép lại đoạn mẫu bạn đưa — kể cả nhiễu, tiếng vọng và cái đều đều
+                    của giọng máy. Nên mẫu <b className="text-fg">người thật thu</b> 10–15 giây
+                    trong phòng yên luôn hơn hẳn mẫu dựng bằng máy. Đọc có lên xuống đúng kiểu bạn
+                    muốn video nói, đừng đọc đều như đọc báo.
+                  </TheGiaiThich>
+                </div>
+                <ThuVienGiong />
               </>
             )}
 

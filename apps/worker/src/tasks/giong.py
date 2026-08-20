@@ -70,6 +70,18 @@ def dung_giong(db, giong_id) -> None:
         raise ReupError(f"Không có giọng {giong_id}")
 
     try:
+        #: Giọng DỰNG SẴN của nhà cung cấp không có đoạn mẫu — giọng nằm sẵn
+        #: bên họ, chỉ cần đọc thử bằng ``ma_giong``. Bắt nó đi qua đường chuẩn
+        #: hoá + Whisper là hỏng ngay ở bước tìm file, và cả hai giọng seed
+        #: không bao giờ nghe thử được.
+        if giong.nguon == NguonGiong.DUNG_SAN.value:
+            doc_thu(giong)
+            giong.nghe_thu_bang = giong.nha_cung_cap
+            giong.trang_thai = TrangThaiGiong.SAN_SANG.value
+            giong.loi = None
+            log.info("giong.doc_thu_dung_san", giong_id=str(giong.id), ma=giong.ma_giong)
+            return
+
         mau = giong_mau_wav(str(giong.id))
         do = chuan_hoa(
             _nguon_am_thanh(giong),

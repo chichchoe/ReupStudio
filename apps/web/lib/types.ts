@@ -48,6 +48,12 @@ export type BulkSkip = S["BulkSkip"];
 export type LlmModels = S["LlmModelsOut"];
 export type LlmUsage = S["LlmUsageOut"];
 export type TtsOptions = S["TtsOptionsOut"];
+
+/** Một giọng trong THƯ VIỆN GIỌNG (Cấu hình → Giọng đọc).
+
+    Khác `GiongDoc` ngay dưới — cái đó là giọng lồng trong danh sách của một
+    nhà cung cấp, dùng cho ô chọn ba tầng cũ ở `/tts-options`. */
+export type GiongThuVien = S["GiongThuVienOut"];
 export type CauHinh = S["CauHinhOut"];
 export type NhomCauHinh = S["NhomCauHinhOut"];
 export type MucCauHinh = S["MucCauHinhOut"];

@@ -15,20 +15,20 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..errors import NotFound
 from ..schemas.common import TaskAccepted
-from ..schemas.giong_doc import GiongDocOut, SuaGiongIn
+from ..schemas.giong_doc import GiongThuVienOut, SuaGiongIn
 from ..services import giong_doc_service, task_bridge
 
 router = APIRouter(prefix="/giong-doc", tags=["giong-doc"])
 
 
-@router.get("", response_model=list[GiongDocOut])
+@router.get("", response_model=list[GiongThuVienOut])
 def danh_sach(db: Session = Depends(get_db)):
     """Mọi giọng: dựng sẵn của Edge/Gemini/OpenRouter LẪN giọng đã clone."""
     ra = []
     for g in giong_doc_service.danh_sach(db):
         #: Kiểm FILE chứ không chỉ đọc trạng thái dòng — xem docstring
         #: ``giong_doc_service.co_nghe_thu``.
-        muc = GiongDocOut.model_validate(g)
+        muc = GiongThuVienOut.model_validate(g)
         ra.append(muc.model_copy(update={"co_nghe_thu": giong_doc_service.co_nghe_thu(g.id)}))
     return ra
 
@@ -77,7 +77,7 @@ def nghe_thu(giong_id: uuid.UUID, db: Session = Depends(get_db)):
     return FileResponse(f, media_type="audio/wav", filename=f"nghe-thu-{giong_id}.wav")
 
 
-@router.patch("/{giong_id}", response_model=GiongDocOut)
+@router.patch("/{giong_id}", response_model=GiongThuVienOut)
 def sua(giong_id: uuid.UUID, body: SuaGiongIn, db: Session = Depends(get_db)):
     """Đổi tên, ghi chú, đặt mặc định, hoặc chữa lại phần chữ của đoạn mẫu."""
     giong, doc_lai = giong_doc_service.sua(
