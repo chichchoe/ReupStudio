@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
@@ -11,6 +12,7 @@ from reup_core.enums import Platform, PresetKind, VideoStatus
 from reup_core.llm_models import chac_chan_khong_dich_duoc
 from reup_core.logging import get_logger
 from reup_core.models import JobRun, Subtitle, Video
+from reup_core.paths import proxy_path, raw_video
 from reup_core.source_url import parse_source_url
 from sqlalchemy.orm import Session
 
@@ -663,3 +665,25 @@ def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
             settings.tts_giong if nhom["provider"] == settings.tts_provider else ""
         )
     return ra
+
+
+def duong_dan_xem_truoc(db: Session, video_id: uuid.UUID) -> Path:
+    """File video để XEM TRƯỚC khi render — proxy 540p, rơi về bản gốc nếu thiếu.
+
+    Khác ``video.out_path`` (bản render cuối): ở hai chỗ dừng duyệt thì chưa
+    có bản render nào, mà đó lại chính là lúc cần nhìn thấy hình nhất.
+
+    File 0 byte tính là KHÔNG CÓ: ghi dở rồi crash để lại file rỗng, nhận nó
+    là hợp lệ thì trình duyệt phát ra màn hình trắng mà không báo gì.
+    """
+    video = get_video(db, video_id)
+
+    proxy = proxy_path(str(video_id))
+    if proxy.exists() and proxy.stat().st_size > 0:
+        return proxy
+
+    goc = raw_video(video.source_platform, video.source_video_id)
+    if goc.exists() and goc.stat().st_size > 0:
+        return goc
+
+    raise NotFound("Video chưa tải xong hoặc file đã bị xoá — chưa có gì để xem.")

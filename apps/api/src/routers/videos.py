@@ -189,6 +189,17 @@ def job_runs(video_id: uuid.UUID, db: Session = Depends(get_db)):
     return video_service.get_job_runs(db, video_id)
 
 
+@router.get("/{video_id}/preview")
+def preview_file(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Video NGUỒN để xem ở hai chỗ dừng duyệt, trước khi có bản render.
+
+    ``FileResponse`` hỗ trợ range request nên thẻ ``<video>`` tua được mà
+    không phải tải hết file.
+    """
+    f = video_service.duong_dan_xem_truoc(db, video_id)
+    return FileResponse(f, media_type="video/mp4", filename=f"preview-{video_id}.mp4")
+
+
 @router.get("/{video_id}/file")
 def download_file(video_id: uuid.UUID, db: Session = Depends(get_db)):
     """Tải bản render cuối cùng."""
