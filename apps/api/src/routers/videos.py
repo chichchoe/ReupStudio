@@ -123,6 +123,7 @@ def translate(video_id: uuid.UUID, body: TranslateRequest, db: Session = Depends
         tts_provider=body.tts_provider,
         giong_doc=body.giong_doc,
         tts_model=body.tts_model,
+        giong_doc_id=body.giong_doc_id,
     )
     # Commit TRƯỚC khi gửi task — worker chạy gần như tức thì, chậm một nhịp
     # là nó đọc phải process_config chưa có model vừa chọn.

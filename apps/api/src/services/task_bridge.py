@@ -21,6 +21,7 @@ TTS_CHAIN_SAU_DUYET = "reup.tts_video_chain_sau_duyet"
 TRANSLATE_VIDEO_CHAIN = "reup.translate_video_chain"
 DOC_LAI_SAU_KHI_SUA = "reup.doc_lai_sau_khi_sua"
 DICH_LAI = "reup.dich_lai"
+CHUAN_BI_GIONG = "reup.chuan_bi_giong"
 
 
 def celery() -> Celery:
@@ -98,4 +99,15 @@ def dich_lai(video_id: uuid.UUID) -> str:
     nghe, API vẫn trả 202 và không bao giờ có gì xảy ra.
     """
     result = celery().send_task(DICH_LAI, args=[str(video_id)], queue="media")
+    return result.id
+
+
+def chuan_bi_giong(giong_id: uuid.UUID) -> str:
+    """Đẩy task dựng giọng: chuẩn hoá, Whisper gõ chữ, đọc thử.
+
+    ``queue="media"``: ffmpeg và Whisper đều là việc CPU. BẮT BUỘC truyền
+    queue — app Celery của API không mang ``task_routes`` của worker, thiếu nó
+    task rơi vào hàng không ai nghe và giọng treo mãi ở "đang xử lý".
+    """
+    result = celery().send_task(CHUAN_BI_GIONG, args=[str(giong_id)], queue="media")
     return result.id

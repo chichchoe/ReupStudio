@@ -56,20 +56,20 @@ class EdgeTTS:
         chỉ có dấu câu, và một câu như vậy không được làm hỏng cả video. Bước
         xếp lịch (``pipeline/dubbing.py``) tự bỏ qua file 0 giây.
         """
-        import edge_tts
-
         dst.parent.mkdir(parents=True, exist_ok=True)
         sach = " ".join(text.split())
         if not sach:
             dst.write_bytes(b"")
             return dst
 
-        async def _chay() -> None:
-            com = edge_tts.Communicate(sach, giong)
-            await com.save(str(dst))
-
+        #: THỬ LẠI như đường đọc song song, không gọi thẳng một lần. Đo được
+        #: ngày 2026-08-21: edge-tts trả "No audio was received" ngay câu đầu
+        #: khi dựng giọng mẫu, rồi chạy lại là bình thường. Đường một câu này
+        #: dùng cho việc LẺ và quan trọng — dựng đoạn mẫu, đọc lại câu người
+        #: dùng vừa sửa — hỏng một lần là hỏng cả việc, không có câu nào khác
+        #: gánh đỡ.
         try:
-            asyncio.run(_chay())
+            asyncio.run(_doc_co_thu_lai(sach, dst, giong, chi_so=-1))
         except Exception as exc:
             raise ReupError(f"edge-tts đọc hỏng câu {sach[:40]!r}: {exc}") from exc
 

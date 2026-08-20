@@ -48,6 +48,12 @@ export type BulkSkip = S["BulkSkip"];
 export type LlmModels = S["LlmModelsOut"];
 export type LlmUsage = S["LlmUsageOut"];
 export type TtsOptions = S["TtsOptionsOut"];
+
+/** Một giọng trong THƯ VIỆN GIỌNG (Cấu hình → Giọng đọc).
+
+    Khác `GiongDoc` ngay dưới — cái đó là giọng lồng trong danh sách của một
+    nhà cung cấp, dùng cho ô chọn ba tầng cũ ở `/tts-options`. */
+export type GiongThuVien = S["GiongThuVienOut"];
 export type CauHinh = S["CauHinhOut"];
 export type NhomCauHinh = S["NhomCauHinhOut"];
 export type MucCauHinh = S["MucCauHinhOut"];
@@ -66,8 +72,11 @@ export interface TuyChonDich {
   llmModel: string;
   /** Bỏ tích khi video không có chữ cứng — bước này nặng nhất pipeline. */
   xoaChuCung: boolean;
-  ttsProvider: string;
-  giongDoc: string;
+  /** Trỏ vào một dòng `giong_doc`. Thay cho bộ ba trường dưới. */
+  giongDocId?: string;
+  /** Ba trường cũ — giữ cho video đã xếp hàng từ trước, đừng dùng cho mã mới. */
+  ttsProvider?: string;
+  giongDoc?: string;
   ttsModel?: string;
 }
 

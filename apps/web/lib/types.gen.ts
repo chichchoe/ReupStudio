@@ -279,6 +279,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/videos/{video_id}/retranslate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retranslate
+         * @description Dịch lại toàn bộ hoặc chỉ mấy câu đã tích.
+         *
+         *     Commit TRƯỚC khi gửi task — worker chạy gần như tức thì, chậm một nhịp là
+         *     nó đọc phải ``process_config`` cũ.
+         */
+        post: operations["retranslate_api_v1_videos__video_id__retranslate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/videos/{video_id}/doi-chieu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Doi Chieu
+         * @description Cặp câu Trung–Việt đã ghép đúng theo thời gian, cho màn duyệt bản dịch.
+         */
+        get: operations["doi_chieu_api_v1_videos__video_id__doi_chieu_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/videos/{video_id}/job-runs": {
         parameters: {
             query?: never;
@@ -288,6 +331,29 @@ export interface paths {
         };
         /** Job Runs */
         get: operations["job_runs_api_v1_videos__video_id__job_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/videos/{video_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview File
+         * @description Video NGUỒN để xem ở hai chỗ dừng duyệt, trước khi có bản render.
+         *
+         *     ``FileResponse`` hỗ trợ range request nên thẻ ``<video>`` tua được mà
+         *     không phải tải hết file.
+         */
+        get: operations["preview_file_api_v1_videos__video_id__preview_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -726,6 +792,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/giong-doc": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Danh Sach
+         * @description Mọi giọng: dựng sẵn của Edge/Gemini/OpenRouter LẪN giọng đã clone.
+         */
+        get: operations["danh_sach_api_v1_giong_doc_get"];
+        put?: never;
+        /**
+         * Tao
+         * @description Thêm giọng mới. Trả 202 — dựng giọng mất vài chục giây, chạy nền.
+         *
+         *     Commit TRƯỚC khi gửi task: worker chạy gần như tức thì, chậm một nhịp là
+         *     nó đọc phải dòng chưa có.
+         */
+        post: operations["tao_api_v1_giong_doc_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/giong-doc/{giong_id}/nghe-thu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Nghe Thu
+         * @description Câu đọc thử CỐ ĐỊNH — mọi giọng đọc cùng câu để so cho sòng phẳng.
+         */
+        get: operations["nghe_thu_api_v1_giong_doc__giong_id__nghe_thu_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/giong-doc/{giong_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Xoa */
+        delete: operations["xoa_api_v1_giong_doc__giong_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Sua
+         * @description Đổi tên, ghi chú, đặt mặc định, hoặc chữa lại phần chữ của đoạn mẫu.
+         */
+        patch: operations["sua_api_v1_giong_doc__giong_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/giong-doc/{giong_id}/doc-lai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Doc Lai
+         * @description Dựng lại câu đọc thử — dùng khi đổi nhà cung cấp hoặc lần trước hỏng.
+         */
+        post: operations["doc_lai_api_v1_giong_doc__giong_id__doc_lai_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/": {
         parameters: {
             query?: never;
@@ -747,6 +901,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_tao_api_v1_giong_doc_post */
+        Body_tao_api_v1_giong_doc_post: {
+            /** Ten */
+            ten: string;
+            /** Nguon */
+            nguon: string;
+            /**
+             * Nha Cung Cap
+             * @default fish_mlx
+             */
+            nha_cung_cap: string;
+            /**
+             * Ghi Chu
+             * @default
+             */
+            ghi_chu: string;
+            /** Cat Tu Giay */
+            cat_tu_giay?: number | null;
+            /** Cat Den Giay */
+            cat_den_giay?: number | null;
+            /** File */
+            file?: string | null;
+        };
         /** BulkAction */
         BulkAction: {
             /** Ids */
@@ -785,6 +962,51 @@ export interface components {
             id: string;
             /** Reason */
             reason: string;
+        };
+        /** CanhBaoOut */
+        CanhBaoOut: {
+            /** Ma */
+            ma: string;
+            /** Thong Diep */
+            thong_diep: string;
+        };
+        /**
+         * CapDoiChieuOut
+         * @description Một dòng bảng đối chiếu ở màn duyệt bản dịch.
+         */
+        CapDoiChieuOut: {
+            /** I */
+            i: number;
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Dich */
+            dich: string;
+            /** Goc */
+            goc: string;
+            /**
+             * Sua Tay
+             * @default false
+             */
+            sua_tay: boolean;
+            /** Giong Giay */
+            giong_giay?: number | null;
+            /**
+             * Cho Trong Giay
+             * @default 0
+             */
+            cho_trong_giay: number;
+            /**
+             * He So Toc Do
+             * @default 1
+             */
+            he_so_toc_do: number;
+            /**
+             * Tran Giay
+             * @default 0
+             */
+            tran_giay: number;
         };
         /** CauHinhOut */
         CauHinhOut: {
@@ -831,6 +1053,18 @@ export interface components {
             duplicate_ids?: string[];
         };
         /**
+         * DichLaiIn
+         * @description Yêu cầu dịch lại. ``chi_so`` rỗng/không có = dịch lại toàn bộ.
+         */
+        DichLaiIn: {
+            /** Chi So */
+            chi_so?: number[] | null;
+            /** Llm Provider */
+            llm_provider?: string | null;
+            /** Llm Model */
+            llm_model?: string | null;
+        };
+        /**
          * GiongDocOut
          * @description Một giọng đọc chọn được trên giao diện.
          */
@@ -841,6 +1075,61 @@ export interface components {
             ten: string;
             /** Gioi Tinh */
             gioi_tinh: string;
+        };
+        /**
+         * GiongThuVienOut
+         * @description Một giọng trong thư viện.
+         *
+         *     Tên KHÁC ``video.GiongDocOut`` (giọng lồng trong danh sách của một nhà
+         *     cung cấp, dùng cho ``/tts-options``) — trùng tên thì OpenAPI phải sinh ra
+         *     ``src__schemas__video__GiongDocOut`` và giao diện phải gõ cái tên đó.
+         */
+        GiongThuVienOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Ten */
+            ten: string;
+            /** Nha Cung Cap */
+            nha_cung_cap: string;
+            /** Ma Giong */
+            ma_giong?: string | null;
+            /** Model */
+            model?: string | null;
+            /**
+             * Ngon Ngu
+             * @default vi
+             */
+            ngon_ngu: string;
+            /** Nguon */
+            nguon: string;
+            /** Mau Text */
+            mau_text?: string | null;
+            /** Trang Thai */
+            trang_thai: string;
+            /**
+             * Mac Dinh
+             * @default false
+             */
+            mac_dinh: boolean;
+            /** Ghi Chu */
+            ghi_chu?: string | null;
+            /** Loi */
+            loi?: string | null;
+            /** Canh Bao */
+            canh_bao?: components["schemas"]["CanhBaoOut"][];
+            /**
+             * Co Nghe Thu
+             * @default false
+             */
+            co_nghe_thu: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1400,6 +1689,17 @@ export interface components {
             gia_tri?: {
                 [key: string]: string;
             };
+        };
+        /** SuaGiongIn */
+        SuaGiongIn: {
+            /** Ten */
+            ten?: string | null;
+            /** Ghi Chu */
+            ghi_chu?: string | null;
+            /** Mac Dinh */
+            mac_dinh?: boolean | null;
+            /** Mau Text */
+            mau_text?: string | null;
         };
         /**
          * SuaNhaCungCapIn
@@ -2162,6 +2462,72 @@ export interface operations {
             };
         };
     };
+    retranslate_api_v1_videos__video_id__retranslate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DichLaiIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    doi_chieu_api_v1_videos__video_id__doi_chieu_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CapDoiChieuOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     job_runs_api_v1_videos__video_id__job_runs_get: {
         parameters: {
             query?: never;
@@ -2180,6 +2546,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_file_api_v1_videos__video_id__preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -2896,6 +3293,185 @@ export interface operations {
                 };
                 content: {
                     "application/json": string[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    danh_sach_api_v1_giong_doc_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiongThuVienOut"][];
+                };
+            };
+        };
+    };
+    tao_api_v1_giong_doc_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_tao_api_v1_giong_doc_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskAccepted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    nghe_thu_api_v1_giong_doc__giong_id__nghe_thu_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                giong_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    xoa_api_v1_giong_doc__giong_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                giong_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sua_api_v1_giong_doc__giong_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                giong_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuaGiongIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GiongThuVienOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    doc_lai_api_v1_giong_doc__giong_id__doc_lai_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                giong_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskAccepted"];
                 };
             };
             /** @description Validation Error */

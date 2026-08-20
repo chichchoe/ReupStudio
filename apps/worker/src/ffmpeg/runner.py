@@ -57,6 +57,36 @@ def run_ffmpeg(args: list[str], *, timeout: int | None = None) -> str:
     return _run(args, timeout=timeout, text=True)
 
 
+def run_ffmpeg_phan_tich(args: list[str], *, timeout: int | None = None) -> str:
+    """Chạy bộ lọc PHÂN TÍCH (``volumedetect``, ``silencedetect``) và trả STDERR.
+
+    Vì sao cần hàm riêng, không dùng ``run_ffmpeg``: hai chỗ khác nhau cùng lúc.
+
+    1. ``_run`` ép ``-loglevel error``, mà các bộ lọc phân tích in kết quả ở
+       mức ``info`` — bị nuốt sạch.
+    2. Chúng in ra **stderr**, còn ``run_ffmpeg`` trả **stdout**.
+
+    Để lọt cả hai thì số đo về toàn 0, và cổng chất lượng báo "quá nhỏ" cho
+    MỌI giọng người dùng thêm vào — test đơn vị không bắt được vì chúng không
+    chạy ffmpeg thật.
+    """
+    cmd = [ffmpeg_bin(), "-hide_banner", "-loglevel", "info", "-y", *args]
+    log.debug("ffmpeg.phan_tich", cmd=" ".join(cmd))
+    try:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout or get_settings().ffmpeg_timeout_sec,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise FFmpegError(f"FFmpeg quá thời gian cho phép: {exc}") from exc
+
+    if proc.returncode != 0:
+        raise FFmpegError(proc.stderr[-2000:] or "ffmpeg thất bại không rõ lý do")
+    return proc.stderr
+
+
 def run_ffmpeg_binary(args: list[str], *, timeout: int | None = None) -> bytes:
     """Như ``run_ffmpeg`` nhưng trả stdout dạng nhị phân.
 
