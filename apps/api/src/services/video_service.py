@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
 from reup_core.enums import Platform, PresetKind, VideoStatus
 from reup_core.llm_models import chac_chan_khong_dich_duoc
 from reup_core.logging import get_logger
+from reup_core.am_thanh import do_dai_wav
+from reup_core.doi_chieu import ghep_theo_thoi_gian, tu_dicts
+from reup_core.long_tieng import tinh_cho_cau
 from reup_core.models import JobRun, Subtitle, Video
+from reup_core.paths import proxy_path, raw_video, voice_parts_dir
 from reup_core.source_url import parse_source_url
 from sqlalchemy.orm import Session
 
@@ -272,7 +277,10 @@ def sua_ban_dich(db: Session, video_id: uuid.UUID, cues: list[dict[str, Any]]) -
         chu = str(c.get("text", "")).strip()
         if not chu:
             raise ApiError(f"Câu số {i} bị để trống — xoá câu thì phụ đề hụt một đoạn.")
-        moi.append({**goc, "text": chu})
+        #: ``sua_tay`` đánh dấu ở cấp TỪNG CÂU. ``edited_by_user`` (cấp dòng)
+        #: chỉ nói "có ai đó đã sửa gì đó", không nói câu nào — mà bước dịch
+        #: lại toàn bộ cần biết chính xác câu nào phải giữ nguyên.
+        moi.append({**goc, "text": chu, "sua_tay": True})
 
     #: Giữ nguyên những câu người dùng KHÔNG gửi lên — giao diện có thể chỉ gửi
     #: phần đã sửa, và mất câu là mất luôn một đoạn lời thoại.
@@ -663,3 +671,134 @@ def cac_giong_doc(db: Session | None = None) -> list[dict[str, Any]]:
             settings.tts_giong if nhom["provider"] == settings.tts_provider else ""
         )
     return ra
+
+
+def duong_dan_xem_truoc(db: Session, video_id: uuid.UUID) -> Path:
+    """File video để XEM TRƯỚC khi render — proxy 540p, rơi về bản gốc nếu thiếu.
+
+    Khác ``video.out_path`` (bản render cuối): ở hai chỗ dừng duyệt thì chưa
+    có bản render nào, mà đó lại chính là lúc cần nhìn thấy hình nhất.
+
+    File 0 byte tính là KHÔNG CÓ: ghi dở rồi crash để lại file rỗng, nhận nó
+    là hợp lệ thì trình duyệt phát ra màn hình trắng mà không báo gì.
+    """
+    video = get_video(db, video_id)
+
+    proxy = proxy_path(str(video_id))
+    if proxy.exists() and proxy.stat().st_size > 0:
+        return proxy
+
+    goc = raw_video(video.source_platform, video.source_video_id)
+    if goc.exists() and goc.stat().st_size > 0:
+        return goc
+
+    raise NotFound("Video chưa tải xong hoặc file đã bị xoá — chưa có gì để xem.")
+
+
+def doi_chieu(db: Session, video_id: uuid.UUID) -> list[dict[str, Any]]:
+    """Bảng đối chiếu câu dịch ↔ câu gốc, đã ghép ĐÚNG theo thời gian.
+
+    Không ghép theo chỉ số: bước chuẩn hoá phụ đề gộp câu ngắn, tách câu dài
+    rồi đánh số lại từ 0 — sau đó ``vi[i]`` không còn là bản dịch của
+    ``zh[i]``. Đo trên dữ liệu thật ngày 2026-08-20: 8/10 video lệch số câu.
+
+    Trả dict thay vì dataclass để router khỏi phải chuyển kiểu; thêm cờ
+    ``sua_tay`` cho giao diện biết câu nào người dùng đã chữa (câu đó được giữ
+    nguyên khi dịch lại toàn bộ).
+    """
+    get_video(db, video_id)
+
+    rows = db.scalars(sa.select(Subtitle).where(Subtitle.video_id == video_id)).all()
+    theo_lang = {r.lang: r.cues for r in rows}
+
+    if "vi" not in theo_lang and "zh" not in theo_lang:
+        raise NotFound(f"Video {video_id} chưa có phụ đề nào.")
+
+    #: Chưa dịch thì lấy câu GỐC làm khung, cột dịch để rỗng — chỗ dừng thứ
+    #: nhất cần xem bản gốc để quyết định có dịch không và chọn model nào.
+    #: Ném lỗi ở đây là bắt người dùng bấm Dịch mù.
+    if "vi" not in theo_lang:
+        return [
+            {
+                "i": int(c["i"]),
+                "start": float(c["start"]),
+                "end": float(c["end"]),
+                "dich": "",
+                "goc": str(c["text"]),
+                "sua_tay": False,
+                "giong_giay": None,
+                "cho_trong_giay": 0.0,
+                "he_so_toc_do": 1.0,
+                "tran_giay": 0.0,
+            }
+            for c in theo_lang["zh"]
+        ]
+
+    vi_cues = theo_lang["vi"]
+    da_sua = {int(c["i"]): bool(c.get("sua_tay")) for c in vi_cues}
+
+    #: Độ dài THẬT của giọng từng câu, để dòng thời gian vẽ được lớp giọng và
+    #: chỉ ra chỗ tràn. Đọc header WAV chứ không gọi ffprobe: 672 câu mà mỗi
+    #: câu một tiến trình con thì mở trang mất hàng phút.
+    thu_muc_giong = voice_parts_dir(str(video_id))
+
+    cap = ghep_theo_thoi_gian(tu_dicts(vi_cues), tu_dicts(theo_lang.get("zh", [])))
+
+    ra: list[dict[str, Any]] = []
+    for vi_tri, c in enumerate(cap):
+        giong = do_dai_wav(thu_muc_giong / f"cau_{c.i:05d}.wav")
+        #: Chỗ trống tính tới lúc câu SAU bắt đầu, không phải tới lúc câu này
+        #: kết thúc — bước xếp lịch mượn được khoảng lặng phía sau. Tính theo
+        #: khung cue sẽ báo tràn ở cả những câu thật ra vừa chán chê.
+        cho = tinh_cho_cau(
+            bat_dau=c.start,
+            cau_sau_bat_dau=cap[vi_tri + 1].start if vi_tri + 1 < len(cap) else None,
+            do_dai_giong=giong,
+        )
+        ra.append(
+            {
+                "i": c.i,
+                "start": c.start,
+                "end": c.end,
+                "dich": c.dich,
+                "goc": c.goc,
+                "sua_tay": da_sua.get(c.i, False),
+                "giong_giay": giong,
+                "cho_trong_giay": cho.cho_trong_giay,
+                "he_so_toc_do": cho.he_so_toc_do,
+                "tran_giay": cho.tran_giay,
+            }
+        )
+    return ra
+
+
+def kiem_truoc_khi_dich_lai(
+    db: Session,
+    video_id: uuid.UUID,
+    chi_so: list[int] | None,
+    llm_provider: str | None,
+    llm_model: str | None,
+) -> None:
+    """Kiểm điều kiện rồi ghi lựa chọn vào ``process_config`` cho worker đọc.
+
+    Chỉ cho dịch lại khi video đang đứng ở chỗ dừng duyệt bản dịch. Cho phép
+    lúc pipeline đang chạy là hai tiến trình cùng ghi một dòng phụ đề — bên
+    nào ghi sau thắng, và không ai biết mình mất bản nào.
+
+    Model/nhà cung cấp KHÔNG chọn lại thì giữ nguyên cái đã dùng, không rơi về
+    mặc định: người dùng bấm "dịch lại mấy câu này" thường muốn đúng model cũ.
+    """
+    video = get_video(db, video_id)
+
+    if video.status != VideoStatus.REVIEW.value:
+        raise ApiError("Chỉ dịch lại được khi video đang chờ duyệt bản dịch.")
+    if not (video.flags or {}).get("cho_duyet_ban_dich"):
+        raise ApiError("Video này chưa dịch lần nào — dùng nút Dịch, không phải dịch lại.")
+
+    config = dict(video.process_config or {})
+    config["dich_lai_chi_so"] = list(chi_so or [])
+    if llm_model:
+        config["llm_model"] = llm_model
+    if llm_provider:
+        config["llm_provider_ma"] = llm_provider
+    video.process_config = config

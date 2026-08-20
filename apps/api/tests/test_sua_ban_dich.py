@@ -105,3 +105,29 @@ def test_video_dang_chay_thi_khong_cho_sua(video_cho_duyet) -> None:
 
     with pytest.raises(ApiError, match="chờ duyệt"):
         video_service.sua_ban_dich(db, video.id, [{"i": 0, "text": "x"}])
+
+
+def test_cau_da_sua_duoc_danh_dau_sua_tay(video_cho_duyet) -> None:
+    """Đánh dấu để bước DỊCH LẠI toàn bộ không ghi đè công vừa chữa.
+
+    ``edited_by_user`` ở cấp DÒNG không đủ: nó nói "có ai đó đã sửa gì đó
+    trong bản dịch này", không nói câu nào. Dịch lại toàn bộ cần biết chính
+    xác câu nào phải giữ.
+    """
+    video, db = video_cho_duyet
+    row = video_service.sua_ban_dich(db, video.id, [{"i": 1, "text": "Câu hai đã chữa"}])
+
+    theo_i = {c["i"]: c for c in row.cues}
+    assert theo_i[1]["sua_tay"] is True
+    assert theo_i[1]["text"] == "Câu hai đã chữa"
+    #: Câu không đụng tới thì KHÔNG được đánh dấu — nếu không thì dịch lại
+    #: toàn bộ chẳng còn câu nào được thay.
+    assert "sua_tay" not in theo_i[0]
+    assert "sua_tay" not in theo_i[2]
+
+
+def test_sua_tay_giu_nguyen_moc_thoi_gian(video_cho_duyet) -> None:
+    video, db = video_cho_duyet
+    row = video_service.sua_ban_dich(db, video.id, [{"i": 0, "text": "Chữ mới"}])
+    goc = {c["i"]: c for c in row.cues}[0]
+    assert (goc["start"], goc["end"]) == (0.0, 1.3)

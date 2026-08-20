@@ -2,6 +2,7 @@
  * Client gọi API. KHÔNG gọi fetch trực tiếp trong component — mọi lời gọi đi qua đây.
  */
 
+import type { CapDoiChieu } from "./dongThoiGian";
 import type { components } from "./types.gen";
 import type {
   BulkAction,
@@ -307,6 +308,22 @@ export const api = {
 
   /** URL dải tiếng Việt để nghe thử trong thẻ `<audio>`. */
   voiceTrackUrl: (id: string) => `${PREFIX}/videos/${id}/voice-track`,
+
+  /** Video NGUỒN để xem ở hai chỗ dừng duyệt — khác `fileUrl` (bản render cuối). */
+  previewUrl: (id: string) => `${PREFIX}/videos/${id}/preview`,
+
+  /** Cặp câu Trung–Việt đã ghép đúng theo thời gian, kèm số đo lồng tiếng. */
+  doiChieu: (id: string) => request<CapDoiChieu[]>(`/videos/${id}/doi-chieu`),
+
+  /** Dịch lại. `chi_so` rỗng hoặc bỏ trống = dịch lại toàn bộ. */
+  dichLai: (
+    id: string,
+    body: { chi_so?: number[]; llm_provider?: string; llm_model?: string },
+  ) =>
+    request<{ task_id: string; message: string }>(`/videos/${id}/retranslate`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   variantFileUrl: (variantId: string) => `${PREFIX}/variants/${variantId}/file`,
 };

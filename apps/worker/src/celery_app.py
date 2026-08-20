@@ -43,6 +43,7 @@ app.conf.update(
         "reup.tts_video_chain_sau_duyet": {"queue": "download"},
         "reup.translate_video_chain": {"queue": "download"},
         "reup.doc_lai_sau_khi_sua": {"queue": "download"},
+        "reup.dich_lai": {"queue": "media"},
         "reup.render_video": {"queue": "media"},
         "reup.process_video": {"queue": "download"},
         "reup.retry_from_step": {"queue": "download"},
@@ -75,3 +76,4 @@ def _bo_ket_noi_db_thua_ke(**_: object) -> None:
 # Đăng ký task
 app.autodiscover_tasks(["src.tasks"], force=True)
 from .tasks import video as _video_tasks  # noqa: E402,F401
+from .tasks import dich_lai as _dich_lai_tasks  # noqa: E402,F401

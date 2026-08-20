@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import clsx from "clsx";
 import { useState } from "react";
+import { KhungDuyet } from "@/components/KhungDuyet";
 import { api } from "@/lib/api";
 import { formatCount, formatDuration, platformLabel } from "@/lib/format";
 import type { NhaCungCapAI, TtsOptions, TuyChonDich, Video } from "@/lib/types";
@@ -62,6 +63,17 @@ export function PendingVideoRow({
     queryFn: () => api.subtitles(video.id, SOURCE_LANG),
   });
   const cueCount = subtitles?.find((s) => s.lang === SOURCE_LANG)?.cues.length ?? null;
+
+  //: Xem bản gốc TRƯỚC khi bấm Dịch. Dịch là bước tốn hạn mức và tốn thời
+  //: gian, mà tới đây mới biết video nói gì — trước giờ người dùng bấm mù.
+  //: Chỉ tải khi MỞ ra: một video có tới 672 câu, tải sẵn cho mọi dòng là kéo
+  //: về hàng nghìn câu không ai đọc.
+  const [xem, setXem] = useState(false);
+  const { data: doi = [] } = useQuery({
+    queryKey: ["doi-chieu", video.id],
+    queryFn: () => api.doiChieu(video.id),
+    enabled: xem,
+  });
 
   // Chỉ hiện những bên ĐÃ dán khoá — hiện cả bên chưa có khoá rồi báo lỗi lúc
   // bấm Dịch là cách chắc chắn nhất làm người dùng tưởng hỏng.
@@ -177,6 +189,14 @@ export function PendingVideoRow({
         </div>
 
         <button
+          className="btn btn-sm shrink-0"
+          onClick={() => setXem(!xem)}
+          aria-expanded={xem}
+        >
+          {xem ? "Thu lại" : "▶ Xem bản gốc"}
+        </button>
+
+        <button
           className="btn btn-primary btn-sm shrink-0"
           disabled={pending || !model}
           onClick={() =>
@@ -193,6 +213,14 @@ export function PendingVideoRow({
           {pending ? "Đang gửi…" : "Dịch"}
         </button>
       </div>
+
+      {xem && (
+        <div className="mt-3 border-t border-border pt-3">
+          {/* `hien="zh"` — chỗ dừng này xem BẢN GỐC để quyết định có đáng dịch
+              không và chọn model nào. Chưa lồng tiếng nên không có dải tiếng. */}
+          <KhungDuyet videoId={video.id} cues={doi} hien="zh" />
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border pt-3">
         <label className="flex items-center gap-2 text-[12px]">

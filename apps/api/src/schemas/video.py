@@ -213,3 +213,34 @@ class JobRunOut(BaseModel):
     duration_sec: float | None = None
     log: str | None = None
     meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class CapDoiChieuOut(BaseModel):
+    """Một dòng bảng đối chiếu ở màn duyệt bản dịch."""
+
+    i: int
+    start: float
+    end: float
+    dich: str
+    #: Câu gốc chồng thời gian, nối bằng " / ". Rỗng khi không có câu nào.
+    goc: str
+    sua_tay: bool = False
+    #: Độ dài THẬT của giọng đã đọc cho câu này, giây. ``None`` khi chưa lồng
+    #: tiếng hoặc câu đó thiếu giọng. Dài hơn ``end - start`` nghĩa là TRÀN
+    #: sang câu sau — chỗ dòng thời gian phải bôi đỏ.
+    giong_giay: float | None = None
+    #: Chỗ trống thật sự dùng được — tới lúc câu SAU bắt đầu, không phải tới
+    #: lúc câu này kết thúc (bước xếp lịch mượn được khoảng lặng phía sau).
+    cho_trong_giay: float = 0.0
+    #: Phải đọc nhanh gấp bao nhiêu mới vừa. Chạm 1,5 là đã hết cỡ.
+    he_so_toc_do: float = 1.0
+    #: Còn tràn bao nhiêu giây sang câu sau sau khi đã ép nhanh hết cỡ.
+    tran_giay: float = 0.0
+
+
+class DichLaiIn(BaseModel):
+    """Yêu cầu dịch lại. ``chi_so`` rỗng/không có = dịch lại toàn bộ."""
+
+    chi_so: list[int] | None = None
+    llm_provider: str | None = None
+    llm_model: str | None = None

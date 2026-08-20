@@ -13,6 +13,8 @@ from ..errors import NotFound
 from ..schemas.common import Page, TaskAccepted
 from ..schemas.video import (
     BulkAction,
+    CapDoiChieuOut,
+    DichLaiIn,
     BulkResult,
     CreateFromLinks,
     CreateFromLinksResult,
@@ -183,10 +185,47 @@ def subtitles(video_id: uuid.UUID, lang: str | None = None, db: Session = Depend
     return video_service.get_subtitles(db, video_id, lang)
 
 
+@router.post("/{video_id}/retranslate", response_model=TaskAccepted, status_code=202)
+def retranslate(video_id: uuid.UUID, body: DichLaiIn, db: Session = Depends(get_db)):
+    """Dịch lại toàn bộ hoặc chỉ mấy câu đã tích.
+
+    Commit TRƯỚC khi gửi task — worker chạy gần như tức thì, chậm một nhịp là
+    nó đọc phải ``process_config`` cũ.
+    """
+    video_service.kiem_truoc_khi_dich_lai(
+        db, video_id, body.chi_so, body.llm_provider, body.llm_model
+    )
+    db.commit()
+
+    task_id = task_bridge.dich_lai(video_id)
+    so = len(body.chi_so or [])
+    return TaskAccepted(
+        task_id=task_id,
+        message=f"Đang dịch lại {so} câu" if so else "Đang dịch lại toàn bộ",
+    )
+
+
+@router.get("/{video_id}/doi-chieu", response_model=list[CapDoiChieuOut])
+def doi_chieu(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Cặp câu Trung–Việt đã ghép đúng theo thời gian, cho màn duyệt bản dịch."""
+    return video_service.doi_chieu(db, video_id)
+
+
 @router.get("/{video_id}/job-runs", response_model=list[JobRunOut])
 def job_runs(video_id: uuid.UUID, db: Session = Depends(get_db)):
     video_service.get_video(db, video_id)
     return video_service.get_job_runs(db, video_id)
+
+
+@router.get("/{video_id}/preview")
+def preview_file(video_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Video NGUỒN để xem ở hai chỗ dừng duyệt, trước khi có bản render.
+
+    ``FileResponse`` hỗ trợ range request nên thẻ ``<video>`` tua được mà
+    không phải tải hết file.
+    """
+    f = video_service.duong_dan_xem_truoc(db, video_id)
+    return FileResponse(f, media_type="video/mp4", filename=f"preview-{video_id}.mp4")
 
 
 @router.get("/{video_id}/file")
