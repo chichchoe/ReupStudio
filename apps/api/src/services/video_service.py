@@ -275,7 +275,10 @@ def sua_ban_dich(db: Session, video_id: uuid.UUID, cues: list[dict[str, Any]]) -
         chu = str(c.get("text", "")).strip()
         if not chu:
             raise ApiError(f"Câu số {i} bị để trống — xoá câu thì phụ đề hụt một đoạn.")
-        moi.append({**goc, "text": chu})
+        #: ``sua_tay`` đánh dấu ở cấp TỪNG CÂU. ``edited_by_user`` (cấp dòng)
+        #: chỉ nói "có ai đó đã sửa gì đó", không nói câu nào — mà bước dịch
+        #: lại toàn bộ cần biết chính xác câu nào phải giữ nguyên.
+        moi.append({**goc, "text": chu, "sua_tay": True})
 
     #: Giữ nguyên những câu người dùng KHÔNG gửi lên — giao diện có thể chỉ gửi
     #: phần đã sửa, và mất câu là mất luôn một đoạn lời thoại.
