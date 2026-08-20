@@ -1,8 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import clsx from "clsx";
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import { KhungDuyet } from "@/components/KhungDuyet";
 import { api, ApiError } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
 import type { Video } from "@/lib/types";
@@ -90,23 +90,15 @@ interface DongProps {
 
 function DongDuyet({ video, mo, dangGui, onMo, onDuyet }: DongProps) {
   const queryClient = useQueryClient();
-  //: Chỉ tải phụ đề khi người dùng MỞ dòng ra. Một video có tới 672 câu, tải
-  //: sẵn cho mọi dòng là kéo về hàng nghìn câu không ai đọc.
-  //: Lấy CẢ HAI thứ tiếng trong một lượt — không truyền `lang` thì API trả hết.
-  const { data: subs } = useQuery({
-    queryKey: ["subtitles", video.id, "tat-ca"],
-    queryFn: () => api.subtitles(video.id),
+  //: Ghép ở BACKEND theo THỜI GIAN. Bản cũ ghép theo CHỈ SỐ, mà bước chuẩn
+  //: hoá phụ đề gộp/tách câu rồi đánh số lại — đo trên DB thật ngày
+  //: 2026-08-20: 8/10 video lệch, video tệ nhất ghép lệch 7 giây và ra chữ
+  //: không liên quan. Endpoint trả kèm số đo lồng tiếng để vẽ dòng thời gian.
+  const { data: doi = [] } = useQuery({
+    queryKey: ["doi-chieu", video.id],
+    queryFn: () => api.doiChieu(video.id),
     enabled: mo,
   });
-
-  //: Ghép câu Trung với câu Việt theo CHỈ SỐ, không theo mốc thời gian: bước
-  //: chuẩn hoá phụ đề tách một câu dài thành nhiều mảnh nên hai bên có thể
-  //: lệch số dòng, và mốc thời gian đã bị nắn lại.
-  const doi = useMemo(() => {
-    const vi = subs?.find((s) => s.lang === "vi")?.cues ?? [];
-    const zh = subs?.find((s) => s.lang === "zh")?.cues ?? [];
-    return vi.map((c, i) => ({ vi: c, zh: zh[i] ?? null }));
-  }, [subs]);
 
   const title = video.title_vi || video.title_original || video.source_video_id;
   const { ai, giong } = _daDungGi(video);
@@ -124,8 +116,19 @@ function DongDuyet({ video, mo, dangGui, onMo, onDuyet }: DongProps) {
       ),
     onSuccess: () => {
       setSua({});
-      queryClient.invalidateQueries({ queryKey: ["subtitles", video.id] });
+      queryClient.invalidateQueries({ queryKey: ["doi-chieu", video.id] });
       queryClient.invalidateQueries({ queryKey: ["videos"] });
+    },
+  });
+
+  const dichLai = useMutation({
+    mutationFn: (body: { chi_so?: number[] }) => api.dichLai(video.id, body),
+    onSuccess: () => {
+      setSua({});
+      queryClient.invalidateQueries({ queryKey: ["doi-chieu", video.id] });
+      queryClient.invalidateQueries({ queryKey: ["videos"] });
+      //: Dịch lại tiêu thêm lượt/token — kéo lại dải hạn mức cho khớp thực tế.
+      queryClient.invalidateQueries({ queryKey: ["llm-usage"] });
     },
   });
 
@@ -164,22 +167,13 @@ function DongDuyet({ video, mo, dangGui, onMo, onDuyet }: DongProps) {
 
       {mo && (
         <div className="mt-3 border-t border-border pt-3">
-          <div className="mb-3">
-            <div className="mb-1.5 text-[11.5px] text-muted">
-              Nghe thử giọng đã khớp thời gian
-            </div>
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption --
-                Đây là dải LỜI THOẠI, phụ đề của nó nằm ngay dưới. */}
-            <audio controls preload="none" className="w-full" src={api.voiceTrackUrl(video.id)} />
-          </div>
-
           <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11.5px] text-muted">
             <span>{doi.length} câu</span>
             <span className="opacity-40">·</span>
             {/* Đặt bản gốc CẠNH bản dịch chứ không chỉ hiện tiếng Việt: dịch
                 Trung–Việt sai chỗ nào thì chỉ nhìn riêng tiếng Việt không thể
                 biết — câu sai vẫn đọc trôi chảy như thường. */}
-            <span>sửa thẳng vào ô bên phải để chữa chỗ dịch chưa sát</span>
+            <span>bấm một câu trên dòng thời gian để nghe và sửa</span>
 
             {soSua > 0 && (
               <span className="ml-auto flex items-center gap-2">
@@ -209,46 +203,32 @@ function DongDuyet({ video, mo, dangGui, onMo, onDuyet }: DongProps) {
             )}
           </div>
 
-          <div className="max-h-96 overflow-y-auto rounded-lg border border-border bg-bg">
-            <div className="sticky top-0 grid grid-cols-[5.5rem_1fr_1fr] gap-2 border-b border-border bg-panel2 px-2 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-muted">
-              <span>Thời gian</span>
-              <span>Bản gốc</span>
-              <span>Bản dịch</span>
-            </div>
-            {doi.map(({ vi, zh }) => (
-              <div
-                key={vi.i}
-                className="grid grid-cols-[5.5rem_1fr_1fr] gap-2 border-b border-border/50 px-2 py-1.5 text-[12.5px] last:border-0 hover:bg-panel2/50"
-              >
-                <span className="font-mono text-[10.5px] text-muted">
-                  {vi.start.toFixed(1)}–{vi.end.toFixed(1)}
-                </span>
-                <span className="whitespace-pre-wrap text-muted">{zh?.text ?? "—"}</span>
-                {/* `textarea` chứ không `input`: câu thoại dài hay xuống dòng,
-                    ô một dòng thì phải cuộn ngang mới đọc hết. */}
-                <textarea
-                  className={clsx(
-                    "w-full resize-y rounded border bg-transparent px-1.5 py-0.5 text-[12.5px] outline-none",
-                    sua[vi.i] !== undefined
-                      ? "border-accent/60 bg-accent/[0.07]"
-                      : "border-transparent hover:border-border focus:border-accent",
-                  )}
-                  rows={1}
-                  value={sua[vi.i] ?? vi.text}
-                  onChange={(e) =>
-                    setSua((cu) => {
-                      //: Gõ về đúng chữ cũ thì BỎ khỏi danh sách sửa — không thì
-                      //: nút báo "3 câu đã sửa" trong khi chẳng câu nào khác đi.
-                      const { [vi.i]: _bo, ...con_lai } = cu;
-                      return e.target.value === vi.text
-                        ? con_lai
-                        : { ...cu, [vi.i]: e.target.value };
-                    })
-                  }
-                  aria-label={`Sửa câu ${vi.i + 1}`}
-                />
-              </div>
-            ))}
+          <KhungDuyet
+            videoId={video.id}
+            cues={doi}
+            hien="vi"
+            coDaiTieng
+            dangSua={sua}
+            onDoiChu={(i, chu) =>
+              setSua((cu) => {
+                //: Gõ về đúng chữ cũ thì BỎ khỏi danh sách sửa — không thì nút
+                //: báo "3 câu đã sửa" trong khi chẳng câu nào khác đi.
+                const goc = doi.find((c) => c.i === i)?.dich ?? "";
+                const { [i]: _bo, ...con_lai } = cu;
+                return chu === goc ? con_lai : { ...cu, [i]: chu };
+              })
+            }
+            onDichLaiCau={(i) => dichLai.mutate({ chi_so: [i] })}
+          />
+
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              className="btn btn-sm ml-auto"
+              disabled={dichLai.isPending}
+              onClick={() => dichLai.mutate({})}
+            >
+              {dichLai.isPending ? "Đang gửi…" : "Dịch lại toàn bộ"}
+            </button>
           </div>
         </div>
       )}
