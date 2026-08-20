@@ -66,9 +66,11 @@ def tao(
         raise ApiError("Giọng dựng sẵn chỉ đến từ danh sách nhà cung cấp, không thêm tay được.")
     if nguon in NGUON_CAN_FILE and not co_file:
         raise ApiError("Bạn chưa chọn file âm thanh cho giọng này.")
-    if nguon == NguonGiong.CAT_TU_FILE.value:
-        if cat_tu_giay is None or cat_den_giay is None or cat_den_giay <= cat_tu_giay:
-            raise ApiError("Mốc cắt phải có cả điểm đầu và điểm cuối, và cuối phải sau đầu.")
+    #: Mốc cắt thiếu hoặc ngược thì bước chuẩn hoá lặng lẽ cắt 15 giây ĐẦU
+    #: file thay vì đoạn người dùng chọn — sai mà không báo gì.
+    moc_hong = cat_tu_giay is None or cat_den_giay is None or cat_den_giay <= cat_tu_giay
+    if nguon == NguonGiong.CAT_TU_FILE.value and moc_hong:
+        raise ApiError("Mốc cắt phải có cả điểm đầu và điểm cuối, và cuối phải sau đầu.")
 
     row = GiongDoc(
         ten=ten.strip() or "Giọng chưa đặt tên",
