@@ -66,6 +66,32 @@ def test_ten_bang_va_du_cot_spec_C2(db) -> None:
     #: Mốc cắt của nguồn `cat_tu_file`. Thiếu thì `tao()` nhận tham số rồi
     #: đánh rơi im lặng, và bước chuẩn hoá cắt nhầm 15 giây đầu file.
     assert {"cat_tu_giay", "cat_den_giay"} <= cot
+    #: So BẰNG NHAU chứ không tập con. Hai lần liền tôi viết thiếu cột mà phép
+    #: so tập con vẫn cho qua — chỉ lộ ra khi service dùng tới, tức muộn hơn
+    #: một task.
+    assert cot == {
+        "id",
+        "ten",
+        "nha_cung_cap",
+        "ma_giong",
+        "model",
+        "ngon_ngu",
+        "gioi_tinh",
+        "nguon",
+        "mau_text",
+        "co_ma_hoa",
+        "trang_thai",
+        "loi",
+        "canh_bao",
+        "do_dai_giay",
+        "nghe_thu_bang",
+        "cat_tu_giay",
+        "cat_den_giay",
+        "mac_dinh",
+        "ghi_chu",
+        "created_at",
+        "updated_at",
+    }
 
 
 def test_nhieu_giong_KHONG_mac_dinh_cung_ton_tai_duoc(db) -> None:

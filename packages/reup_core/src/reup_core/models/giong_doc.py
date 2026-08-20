@@ -54,6 +54,10 @@ class GiongDoc(Base, TimestampMixin):
 
     ngon_ngu: Mapped[str] = mapped_column(sa.String(8), nullable=False, default="vi")
 
+    #: nam · nữ · rỗng. Chỉ để người dùng lọc nhanh trong danh sách; giọng
+    #: clone thường để rỗng vì mẫu là của chính họ.
+    gioi_tinh: Mapped[str] = mapped_column(sa.String(16), nullable=False, default="")
+
     #: dung_san · tu_thu · cat_tu_file · thue_doc · tam_tu_may
     nguon: Mapped[str] = mapped_column(
         sa.String(16), nullable=False, default=NguonGiong.DUNG_SAN.value

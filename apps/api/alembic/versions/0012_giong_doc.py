@@ -31,8 +31,8 @@ depends_on = None
 #: mà seed sẵn thì người dùng chọn phải rồi bấm Dịch mới báo lỗi — cách chắc
 #: chắn nhất làm họ tưởng hỏng.
 _GIONG_EDGE = [
-    ("Hoài My", "vi-VN-HoaiMyNeural", True),
-    ("Nam Minh", "vi-VN-NamMinhNeural", False),
+    ("Hoài My", "vi-VN-HoaiMyNeural", "nữ", True),
+    ("Nam Minh", "vi-VN-NamMinhNeural", "nam", False),
 ]
 
 
@@ -45,6 +45,7 @@ def upgrade() -> None:
         sa.Column("ma_giong", sa.String(64), nullable=True),
         sa.Column("model", sa.String(64), nullable=True),
         sa.Column("ngon_ngu", sa.String(8), nullable=False, server_default="vi"),
+        sa.Column("gioi_tinh", sa.String(16), nullable=False, server_default=""),
         sa.Column("nguon", sa.String(16), nullable=False, server_default="dung_san"),
         sa.Column("mau_text", sa.Text(), nullable=True),
         sa.Column("co_ma_hoa", sa.Boolean(), nullable=False, server_default=sa.false()),
@@ -83,6 +84,7 @@ def upgrade() -> None:
         sa.column("nha_cung_cap", sa.String()),
         sa.column("ma_giong", sa.String()),
         sa.column("ngon_ngu", sa.String()),
+        sa.column("gioi_tinh", sa.String()),
         sa.column("nguon", sa.String()),
         sa.column("trang_thai", sa.String()),
         sa.column("mac_dinh", sa.Boolean()),
@@ -98,11 +100,12 @@ def upgrade() -> None:
                 "nha_cung_cap": "edge",
                 "ma_giong": ma,
                 "ngon_ngu": "vi",
+                "gioi_tinh": gt,
                 "nguon": "dung_san",
                 "trang_thai": "san_sang",
                 "mac_dinh": mac_dinh,
             }
-            for ten, ma, mac_dinh in _GIONG_EDGE
+            for ten, ma, gt, mac_dinh in _GIONG_EDGE
         ],
     )
 
