@@ -44,6 +44,8 @@ app.conf.update(
         "reup.translate_video_chain": {"queue": "download"},
         "reup.doc_lai_sau_khi_sua": {"queue": "download"},
         "reup.dich_lai": {"queue": "media"},
+        #: ffmpeg + Whisper, đều là việc CPU — không chiếm hàng "gpu".
+        "reup.chuan_bi_giong": {"queue": "media"},
         "reup.render_video": {"queue": "media"},
         "reup.process_video": {"queue": "download"},
         "reup.retry_from_step": {"queue": "download"},
@@ -77,3 +79,4 @@ def _bo_ket_noi_db_thua_ke(**_: object) -> None:
 app.autodiscover_tasks(["src.tasks"], force=True)
 from .tasks import video as _video_tasks  # noqa: E402,F401
 from .tasks import dich_lai as _dich_lai_tasks  # noqa: E402,F401
+from .tasks import giong as _giong_tasks  # noqa: E402,F401
