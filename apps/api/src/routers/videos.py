@@ -14,6 +14,7 @@ from ..schemas.common import Page, TaskAccepted
 from ..schemas.video import (
     BulkAction,
     CapDoiChieuOut,
+    DichLaiIn,
     BulkResult,
     CreateFromLinks,
     CreateFromLinksResult,
@@ -182,6 +183,26 @@ def sua_ban_dich(video_id: uuid.UUID, body: SuaBanDichIn, db: Session = Depends(
 def subtitles(video_id: uuid.UUID, lang: str | None = None, db: Session = Depends(get_db)):
     video_service.get_video(db, video_id)
     return video_service.get_subtitles(db, video_id, lang)
+
+
+@router.post("/{video_id}/retranslate", response_model=TaskAccepted, status_code=202)
+def retranslate(video_id: uuid.UUID, body: DichLaiIn, db: Session = Depends(get_db)):
+    """Dịch lại toàn bộ hoặc chỉ mấy câu đã tích.
+
+    Commit TRƯỚC khi gửi task — worker chạy gần như tức thì, chậm một nhịp là
+    nó đọc phải ``process_config`` cũ.
+    """
+    video_service.kiem_truoc_khi_dich_lai(
+        db, video_id, body.chi_so, body.llm_provider, body.llm_model
+    )
+    db.commit()
+
+    task_id = task_bridge.dich_lai(video_id)
+    so = len(body.chi_so or [])
+    return TaskAccepted(
+        task_id=task_id,
+        message=f"Đang dịch lại {so} câu" if so else "Đang dịch lại toàn bộ",
+    )
 
 
 @router.get("/{video_id}/doi-chieu", response_model=list[CapDoiChieuOut])

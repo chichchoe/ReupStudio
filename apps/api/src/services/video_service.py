@@ -743,3 +743,35 @@ def doi_chieu(db: Session, video_id: uuid.UUID) -> list[dict[str, Any]]:
         }
         for c in cap
     ]
+
+
+def kiem_truoc_khi_dich_lai(
+    db: Session,
+    video_id: uuid.UUID,
+    chi_so: list[int] | None,
+    llm_provider: str | None,
+    llm_model: str | None,
+) -> None:
+    """Kiểm điều kiện rồi ghi lựa chọn vào ``process_config`` cho worker đọc.
+
+    Chỉ cho dịch lại khi video đang đứng ở chỗ dừng duyệt bản dịch. Cho phép
+    lúc pipeline đang chạy là hai tiến trình cùng ghi một dòng phụ đề — bên
+    nào ghi sau thắng, và không ai biết mình mất bản nào.
+
+    Model/nhà cung cấp KHÔNG chọn lại thì giữ nguyên cái đã dùng, không rơi về
+    mặc định: người dùng bấm "dịch lại mấy câu này" thường muốn đúng model cũ.
+    """
+    video = get_video(db, video_id)
+
+    if video.status != VideoStatus.REVIEW.value:
+        raise ApiError("Chỉ dịch lại được khi video đang chờ duyệt bản dịch.")
+    if not (video.flags or {}).get("cho_duyet_ban_dich"):
+        raise ApiError("Video này chưa dịch lần nào — dùng nút Dịch, không phải dịch lại.")
+
+    config = dict(video.process_config or {})
+    config["dich_lai_chi_so"] = list(chi_so or [])
+    if llm_model:
+        config["llm_model"] = llm_model
+    if llm_provider:
+        config["llm_provider_ma"] = llm_provider
+    video.process_config = config

@@ -225,3 +225,11 @@ class CapDoiChieuOut(BaseModel):
     #: Câu gốc chồng thời gian, nối bằng " / ". Rỗng khi không có câu nào.
     goc: str
     sua_tay: bool = False
+
+
+class DichLaiIn(BaseModel):
+    """Yêu cầu dịch lại. ``chi_so`` rỗng/không có = dịch lại toàn bộ."""
+
+    chi_so: list[int] | None = None
+    llm_provider: str | None = None
+    llm_model: str | None = None

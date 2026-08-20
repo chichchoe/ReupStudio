@@ -20,6 +20,7 @@ RENDER_VARIANTS = "reup.render_variants"
 TTS_CHAIN_SAU_DUYET = "reup.tts_video_chain_sau_duyet"
 TRANSLATE_VIDEO_CHAIN = "reup.translate_video_chain"
 DOC_LAI_SAU_KHI_SUA = "reup.doc_lai_sau_khi_sua"
+DICH_LAI = "reup.dich_lai"
 
 
 def celery() -> Celery:
@@ -85,4 +86,16 @@ def tiep_tuc_sau_duyet(video_id: uuid.UUID) -> str:
     thoát, phần nặng nằm ở các task con.
     """
     result = celery().send_task(TTS_CHAIN_SAU_DUYET, args=[str(video_id)], queue="download")
+    return result.id
+
+
+def dich_lai(video_id: uuid.UUID) -> str:
+    """Đẩy task dịch lại. Lựa chọn (câu nào, model nào) nằm trong ``process_config``.
+
+    ``queue="media"`` giống ``translate_video``: bước dịch là gọi mạng, việc
+    CPU, không cần GPU. BẮT BUỘC truyền queue — app Celery của API không mang
+    ``task_routes`` của worker, thiếu nó task rơi vào hàng mặc định không ai
+    nghe, API vẫn trả 202 và không bao giờ có gì xảy ra.
+    """
+    result = celery().send_task(DICH_LAI, args=[str(video_id)], queue="media")
     return result.id
