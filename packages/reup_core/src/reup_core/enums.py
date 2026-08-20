@@ -157,3 +157,26 @@ class PresetKind(StrEnum):
     PROCESS = "process"  # cấu hình xử lý (tone, phụ đề burn-in, ...)
     ANTIDUP = "antidup"  # cấu hình chống trùng
     SUBTITLE = "subtitle"  # cấu hình hiển thị phụ đề (font, cỡ chữ, ...)
+
+
+class NguonGiong(StrEnum):
+    """Đoạn mẫu của một giọng đến từ đâu.
+
+    Bốn nguồn người dùng đã chốt, cộng ``DUNG_SAN`` cho giọng có sẵn của
+    Edge/Gemini/OpenRouter — những giọng đó không có đoạn mẫu.
+    """
+
+    DUNG_SAN = "dung_san"  # giọng sẵn của nhà cung cấp, không nhân bản
+    TU_THU = "tu_thu"  # người dùng tự thu
+    CAT_TU_FILE = "cat_tu_file"  # cắt một đoạn từ audio/video có sẵn
+    THUE_DOC = "thue_doc"  # file người đọc thuê gửi
+    TAM_TU_MAY = "tam_tu_may"  # dựng tạm bằng Edge để cắm điện là chạy
+
+
+class TrangThaiGiong(StrEnum):
+    """Dựng một giọng mất vài chục giây (ffmpeg + Whisper + đọc thử) nên chạy
+    nền — giao diện cần biết đang tới đâu."""
+
+    DANG_XU_LY = "dang_xu_ly"
+    SAN_SANG = "san_sang"
+    HONG = "hong"
