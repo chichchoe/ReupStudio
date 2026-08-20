@@ -156,3 +156,47 @@ def tmp_sibling(path: Path) -> Path:
     ``.a.wav.tmp``) vì FFmpeg đoán định dạng đầu ra từ phần mở rộng.
     """
     return path.with_name(f".{path.stem}.tmp{path.suffix}")
+
+
+def giong_dir(giong_id: str) -> Path:
+    """Thư mục của MỘT giọng trong thư viện giọng.
+
+    Nằm ở ``media/giong/<id>/``, KHÔNG nằm trong ``media/work/``: giọng sống
+    lâu hơn video rất nhiều — thêm một lần, dùng cho mọi video về sau. Để
+    trong ``work/`` là dọn thư mục work một cái mất sạch bộ mẫu giọng.
+
+    Đừng lẫn với ``voice_parts_dir(video_id)`` — cái đó trả về
+    ``media/work/<video_id>/giong``, chứa từng MẨU giọng của một video.
+    """
+    return _ensure(media_root() / "giong" / str(giong_id))
+
+
+def giong_mau_wav(giong_id: str) -> Path:
+    """Đoạn mẫu đã chuẩn hoá: mono 44,1kHz, cắt im lặng, cân âm lượng."""
+    return giong_dir(giong_id) / "mau.wav"
+
+
+def giong_mau_txt(giong_id: str) -> Path:
+    """Phần chữ của đoạn mẫu. Nhân bản giọng cần CẢ âm thanh lẫn chữ khớp."""
+    return giong_dir(giong_id) / "mau.txt"
+
+
+def giong_codes(giong_id: str) -> Path:
+    """``reference_codes`` đã mã hoá sẵn — mã hoá một lần, mọi câu dùng lại."""
+    return giong_dir(giong_id) / "codes.npz"
+
+
+def giong_nghe_thu(giong_id: str) -> Path:
+    """Câu đọc thử. Mọi giọng đọc CÙNG một câu để so cho sòng phẳng."""
+    return giong_dir(giong_id) / "nghe-thu.wav"
+
+
+def giong_tai_len(giong_id: str, duoi: str) -> Path:
+    """File người dùng vừa tải lên, trước khi chuẩn hoá.
+
+    Giữ nguyên đuôi: ffmpeg đoán định dạng theo nội dung chứ không theo tên,
+    nhưng giữ đuôi giúp người soi thư mục biết ngay file gốc là gì khi đi tìm
+    nguyên nhân.
+    """
+    sach = duoi.lstrip(".")
+    return giong_dir(giong_id) / (f"goc.{sach}" if sach else "goc")
