@@ -53,6 +53,8 @@ def upgrade() -> None:
         sa.Column("canh_bao", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("do_dai_giay", sa.Float(), nullable=True),
         sa.Column("nghe_thu_bang", sa.String(32), nullable=True),
+        sa.Column("cat_tu_giay", sa.Float(), nullable=True),
+        sa.Column("cat_den_giay", sa.Float(), nullable=True),
         sa.Column("mac_dinh", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("ghi_chu", sa.Text(), nullable=True),
         sa.Column(

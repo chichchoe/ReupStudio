@@ -63,6 +63,9 @@ def test_ten_bang_va_du_cot_spec_C2(db) -> None:
     #: Năm cột cho luồng chạy nền — thiếu chúng thì giao diện không phân biệt
     #: được "đang xử lý" với "hỏng", và cảnh báo chất lượng không có chỗ nằm.
     assert {"trang_thai", "loi", "canh_bao", "do_dai_giay", "nghe_thu_bang"} <= cot
+    #: Mốc cắt của nguồn `cat_tu_file`. Thiếu thì `tao()` nhận tham số rồi
+    #: đánh rơi im lặng, và bước chuẩn hoá cắt nhầm 15 giây đầu file.
+    assert {"cat_tu_giay", "cat_den_giay"} <= cot
 
 
 def test_nhieu_giong_KHONG_mac_dinh_cung_ton_tai_duoc(db) -> None:

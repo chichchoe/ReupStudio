@@ -88,6 +88,11 @@ class GiongDoc(Base, TimestampMixin):
     #: nào khi đổi nhà cung cấp giữa chừng.
     nghe_thu_bang: Mapped[str | None] = mapped_column(sa.String(32), nullable=True)
 
+    #: Mốc cắt của nguồn ``cat_tu_file`` (giây). Lưu lại để cắt lại được mà
+    #: không phải tải file lên lần nữa.
+    cat_tu_giay: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+    cat_den_giay: Mapped[float | None] = mapped_column(sa.Float, nullable=True)
+
     mac_dinh: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, default=False)
 
     ghi_chu: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
